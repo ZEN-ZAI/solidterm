@@ -1,5 +1,5 @@
 //! Integration tests for `spec/m1-task-breakdown.md` §2.13 (initial
-//! corpus) + §4.10 (full-corpus expansion). Pins `nextterm-engine`
+//! corpus) + §4.10 (full-corpus expansion). Pins `solidterm-engine`
 //! behaviour against the vttest categories that are in M1 scope per
 //! `spec/test-fixtures.md` §2 + `decisions/08-protocol-priorities.md`:
 //!
@@ -64,7 +64,7 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use nextterm_engine::{CellView, EngineConfig, TerminalEngine};
+use solidterm_engine::{CellView, EngineConfig, TerminalEngine};
 
 /// Same `/bin/cat` config the in-module unit tests use. 24×80 grid is
 /// the VT100 / vttest default so cursor-movement assertions read
@@ -1250,7 +1250,7 @@ fn printf_emitter_config(query_arg: &str) -> EngineConfig {
 /// observed or the deadline passes; return total bytes read. The
 /// engine MUST NOT error during the write-back-queue drain.
 fn drain_until_child_exit(engine: &mut TerminalEngine) -> usize {
-    use nextterm_engine::EngineEvent;
+    use solidterm_engine::EngineEvent;
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut total = 0usize;
     while Instant::now() < deadline {

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Typeshare drift gate — fails if swift-bridge-generated shims in
-# $REPO/app/NextTerm/Generated/ have drifted from what
+# $REPO/app/SolidTerm/Generated/ have drifted from what
 # `cargo build --workspace` would produce right now.
 #
 # Salvages the zenzai-v2 typeshare-drift-gate pattern (`427d7b3`) per
@@ -31,20 +31,20 @@ if [[ "${1:-}" == "--fix" ]]; then
     FIX_MODE=1
 fi
 
-GEN_DIR="$REPO_ROOT/app/NextTerm/Generated"
+GEN_DIR="$REPO_ROOT/app/SolidTerm/Generated"
 SHIMS=(
     "SwiftBridgeCore.swift"
     "SwiftBridgeCore.h"
-    "nextterm_ffi.swift"
-    "nextterm_ffi.h"
+    "solidterm_ffi.swift"
+    "solidterm_ffi.h"
 )
 
 echo "▶ cargo build --workspace (regenerates swift-bridge shims)"
 cargo build --workspace --quiet
 
-# Locate the freshly-regenerated shims under target/.../build/nextterm-ffi-*/out/
+# Locate the freshly-regenerated shims under target/.../build/solidterm-ffi-*/out/
 OUT_DIR=$(find target/debug/build \
-    -maxdepth 2 -type d -name "out" -path "*nextterm-ffi*" \
+    -maxdepth 2 -type d -name "out" -path "*solidterm-ffi*" \
     -print -quit 2>/dev/null || true)
 if [[ -z "$OUT_DIR" ]]; then
     echo "error: could not locate swift-bridge OUT_DIR under target/debug/build" >&2
@@ -58,7 +58,7 @@ for shim in "${SHIMS[@]}"; do
     # the crate name.
     case "$shim" in
         SwiftBridge*) src="$OUT_DIR/$shim" ;;
-        *) src="$OUT_DIR/nextterm_ffi/$shim" ;;
+        *) src="$OUT_DIR/solidterm_ffi/$shim" ;;
     esac
     dst="$GEN_DIR/$shim"
 
@@ -88,11 +88,11 @@ fi
 if [[ $FIX_MODE -eq 1 ]]; then
     echo ""
     echo "✓ Regenerated. Review + commit:"
-    echo "    git diff app/NextTerm/Generated/"
+    echo "    git diff app/SolidTerm/Generated/"
     exit 0
 fi
 
 echo ""
 echo "error: FFI shim drift detected — see above" >&2
-echo "fix: scripts/check-ffi-drift.sh --fix && git add app/NextTerm/Generated/" >&2
+echo "fix: scripts/check-ffi-drift.sh --fix && git add app/SolidTerm/Generated/" >&2
 exit 1

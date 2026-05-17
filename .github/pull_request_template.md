@@ -1,5 +1,5 @@
 <!--
-PR template for NextTerm.
+PR template for SolidTerm.
 Keep it short; most fields are optional for trivial PRs.
 Drop sections that don't apply.
 -->

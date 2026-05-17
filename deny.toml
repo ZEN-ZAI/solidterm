@@ -1,4 +1,4 @@
-# cargo-deny configuration for NextTerm.
+# cargo-deny configuration for SolidTerm.
 #
 # Spec: vault/research/14-quality-gates-and-ci.md (§7 dependency hygiene).
 # CI invocation: .github/workflows/ci.yml `rust-deps` job (cargo-deny-action@v2).
@@ -47,7 +47,7 @@ registries = []
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
-# Workspace path-deps (e.g. `nextterm-blocks = { path = "../nextterm-blocks" }`)
+# Workspace path-deps (e.g. `solidterm-engine = { path = "../solidterm-engine" }`)
 # carry no version requirement and would otherwise trip the wildcard ban.
 allow-wildcard-paths = true
 highlight = "all"

@@ -260,8 +260,8 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     private static let kVKDownArrow: UInt16 = 0x7D  // 125
     private static let kVKUpArrow: UInt16 = 0x7E  // 126
 
-    // Selection-mode constants — mirror of `nextterm_ffi::kinds::
-    // SELECTION_MODE_*` from `crates/nextterm-ffi/src/bridge.rs`.
+    // Selection-mode constants — mirror of `solidterm_ffi::kinds::
+    // SELECTION_MODE_*` from `crates/solidterm-ffi/src/bridge.rs`.
     // swift-bridge 0.1.59 doesn't export `pub const`s to Swift, so
     // these are hand-mirrored numeric literals with cite-comments
     // (same precedent as `InputEventEncoding`'s discriminator enums).

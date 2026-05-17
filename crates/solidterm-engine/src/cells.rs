@@ -1,7 +1,7 @@
 //! Implements spec/m1-task-breakdown.md §1.7 — `CellView`, the
 //! engine-side cell snapshot returned by
 //! [`crate::TerminalEngine::viewport_cells`]. Mirrors
-//! `nextterm_ffi::CellDeltaWire`'s 32-byte wire layout
+//! `solidterm_ffi::CellDeltaWire`'s 32-byte wire layout
 //! (`spec/ffi-boundary.md` + #13) so the engine→FFI transcode is
 //! mechanical when 1.8+ wires the bridge.
 //!
@@ -66,7 +66,7 @@ pub struct Hyperlink {
 }
 
 /// Engine-internal viewport cell snapshot. Field order matches
-/// `nextterm_ffi::CellDeltaWire` for mechanical transcode.
+/// `solidterm_ffi::CellDeltaWire` for mechanical transcode.
 ///
 /// `grapheme` is UTF-8, null-padded, truncated at 16 bytes. The 16-byte
 /// buffer covers Thai 3-component clusters (consonant + upper vowel +

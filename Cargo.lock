@@ -604,54 +604,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nextterm-config"
-version = "0.1.0"
-dependencies = [
- "notify",
- "schemars",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror",
- "toml",
- "tracing",
-]
-
-[[package]]
-name = "nextterm-engine"
-version = "0.1.0"
-dependencies = [
- "alacritty_terminal",
- "criterion",
- "crossbeam-channel",
- "parking_lot",
- "regex",
- "serde",
- "serde_json",
- "smol_str",
- "thiserror",
- "tracing",
- "vte 0.13.1",
-]
-
-[[package]]
-name = "nextterm-ffi"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "crossbeam-channel",
- "nextterm-config",
- "nextterm-engine",
- "parking_lot",
- "serde",
- "serde_json",
- "swift-bridge",
- "swift-bridge-build",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "notify"
 version = "6.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1070,6 +1022,54 @@ checksum = "4aaa7368fcf4852a4c2dd92df0cace6a71f2091ca0a23391ce7f3a31833f1523"
 dependencies = [
  "borsh",
  "serde_core",
+]
+
+[[package]]
+name = "solidterm-config"
+version = "0.1.0"
+dependencies = [
+ "notify",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "toml",
+ "tracing",
+]
+
+[[package]]
+name = "solidterm-engine"
+version = "0.1.0"
+dependencies = [
+ "alacritty_terminal",
+ "criterion",
+ "crossbeam-channel",
+ "parking_lot",
+ "regex",
+ "serde",
+ "serde_json",
+ "smol_str",
+ "thiserror",
+ "tracing",
+ "vte 0.13.1",
+]
+
+[[package]]
+name = "solidterm-ffi"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "crossbeam-channel",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "solidterm-config",
+ "solidterm-engine",
+ "swift-bridge",
+ "swift-bridge-build",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

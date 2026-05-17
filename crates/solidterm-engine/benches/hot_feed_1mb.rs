@@ -76,7 +76,7 @@ const WORKLOAD_BYTES: usize = 1024 * 1024;
 /// same pattern `TerminalEngine::poll_output` runs.
 const CHUNK_BYTES: usize = 16 * 1024;
 
-/// Bench-side mirror of `nextterm_engine::engine::EngineDimensions`
+/// Bench-side mirror of `solidterm_engine::engine::EngineDimensions`
 /// (which is private). `Term::new` only consults `screen_lines` /
 /// `columns` / `total_lines`, so this minimal adapter suffices.
 struct BenchDimensions {

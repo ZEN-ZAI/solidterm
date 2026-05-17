@@ -53,7 +53,7 @@ struct KeybindingsTab: View {
                 .foregroundColor(
                     Color(linear: Theme.Color.textPrimaryLinear))
             Text("Customize keyboard shortcuts. Stored in "
-                + "~/.nextterm/keybindings.json.")
+                + "~/.solidterm/keybindings.json.")
                 .font(.system(size: 12))
                 .foregroundColor(
                     Color(linear: Theme.Color.textSecondaryLinear))

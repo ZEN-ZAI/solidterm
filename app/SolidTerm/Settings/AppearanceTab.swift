@@ -32,9 +32,9 @@ struct AppearanceTab: View {
     /// Surfaces also referenced by the renderer hover-state code so
     /// they stay in lockstep.
     enum Keys {
-        static let editor = "nextterm.filePathClick.editor"
-        static let customCommand = "nextterm.filePathClick.customCommand"
-        static let detectionEnabled = "nextterm.filePathClick.detectionEnabled"
+        static let editor = "solidterm.filePathClick.editor"
+        static let customCommand = "solidterm.filePathClick.customCommand"
+        static let detectionEnabled = "solidterm.filePathClick.detectionEnabled"
     }
 
     @AppStorage(Keys.editor) private var editorRaw: String = EditorChoice.defaultOpen.rawValue
@@ -144,7 +144,7 @@ struct AppearanceTab: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.two) {
             Text("Theme").font(.headline)
             Text(
-                "Themes live in ~/.config/nextterm/themes/*.toml — edit any file and the change applies live. Built-in modes are still available below."
+                "Themes live in ~/.config/solidterm/themes/*.toml — edit any file and the change applies live. Built-in modes are still available below."
             )
             .font(.callout)
             .foregroundColor(.secondary)

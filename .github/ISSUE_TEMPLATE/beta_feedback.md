@@ -23,13 +23,13 @@ No need to be precise. Vibes are useful.
 
 ## Environment (if relevant)
 
-- NextTerm version: <!-- defaults read /Applications/NextTerm.app/Contents/Info.plist CFBundleShortVersionString -->
+- SolidTerm version: <!-- defaults read /Applications/SolidTerm.app/Contents/Info.plist CFBundleShortVersionString -->
 - macOS version:
 - What other terminals do you usually use:
 
 ## Severity to your daily use
 
 <!-- pick one -->
-- [ ] Would block me from using NextTerm full-time
+- [ ] Would block me from using SolidTerm full-time
 - [ ] Annoying but I'd live with it
 - [ ] Nice-to-have / wishlist

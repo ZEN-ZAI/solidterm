@@ -1,5 +1,5 @@
 [package]
-name = "nextterm-config"
+name = "solidterm-config"
 description = "Config schema, TOML loader, settings.json hierarchy, hot-reload watcher"
 version.workspace = true
 edition.workspace = true

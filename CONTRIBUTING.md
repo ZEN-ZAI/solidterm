@@ -1,6 +1,6 @@
-# Contributing to NextTerm
+# Contributing to SolidTerm
 
-Short version: NextTerm is a solo project in its early phase. Drive-by PRs are welcome but may be declined if they don't fit the roadmap in `vault/ROADMAP.md`. Documentation / test / fixture contributions are the easiest to land.
+Short version: SolidTerm is a solo project in its early phase. Drive-by PRs are welcome but may be declined if they don't fit the roadmap in `vault/ROADMAP.md`. Documentation / test / fixture contributions are the easiest to land.
 
 ## Before you start
 
@@ -26,13 +26,13 @@ cargo test --workspace
 For Swift changes:
 
 ```bash
-xcodebuild build -scheme NextTerm -destination 'platform=macOS'
-xcodebuild test  -scheme NextTerm -destination 'platform=macOS'
+xcodebuild build -scheme SolidTerm -destination 'platform=macOS'
+xcodebuild test  -scheme SolidTerm -destination 'platform=macOS'
 ```
 
 ## Xcode project
 
-`app/NextTerm.xcodeproj` is generated from `app/project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen). The YAML is the source of truth; the generated `.xcodeproj` is committed so a fresh clone (or CI) builds without needing XcodeGen on the path.
+`app/SolidTerm.xcodeproj` is generated from `app/project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen). The YAML is the source of truth; the generated `.xcodeproj` is committed so a fresh clone (or CI) builds without needing XcodeGen on the path.
 
 ```bash
 brew install xcodegen           # one-time setup

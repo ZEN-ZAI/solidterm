@@ -1,6 +1,6 @@
 # Release runbook
 
-Concrete checklist for cutting a NextTerm release. Reference source: `vault/research/15-release-engineering.md`.
+Concrete checklist for cutting a SolidTerm release. Reference source: `vault/research/15-release-engineering.md`.
 
 This doc is the on-call playbook — step-by-step with no interpretation needed. Anything marked `❗` requires human verification.
 
@@ -8,7 +8,7 @@ This doc is the on-call playbook — step-by-step with no interpretation needed.
 
 - [ ] `main` branch is green in CI (last commit ≥ 24 h old, no in-flight bug reports)
 - [ ] Local `cargo test --workspace --all-features` passes
-- [ ] Local `xcodebuild test -scheme NextTerm -destination 'platform=macOS'` passes (once Xcode project lands)
+- [ ] Local `xcodebuild test -scheme SolidTerm -destination 'platform=macOS'` passes (once Xcode project lands)
 - [ ] Smoke-test on a wiped macOS 14 VM + macOS 15 VM (Tart or UTM) with unsigned debug build
 - [ ] ❗ `CHANGELOG.md` entries under `[Unreleased]` match what actually merged since last tag
 
@@ -23,7 +23,7 @@ This doc is the on-call playbook — step-by-step with no interpretation needed.
 
    Commit: `release: bump version to 1.0.0`.
 5. **Generate changelog**: `git cliff --unreleased --tag v1.0.0 -p CHANGELOG.md`. ❗ Hand-curate the highlights section.
-6. **Sign the tag**: `git tag -s v1.0.0 -m "NextTerm 1.0.0"`.
+6. **Sign the tag**: `git tag -s v1.0.0 -m "SolidTerm 1.0.0"`.
 7. **Push**: `git push origin release-1.0 v1.0.0`.
 8. **Watch the `release` workflow in GitHub Actions**. Confirm each step:
    - Build ✅
@@ -32,9 +32,9 @@ This doc is the on-call playbook — step-by-step with no interpretation needed.
    - Staple validated ✅
    - Upload to R2 (dmg, update.zip, dSYM) → 200
    - Appcast.xml uploaded **last** ✅
-   - Cask PR auto-merged on `ZEN-ZAI/homebrew-nextterm` ✅
+   - Cask PR auto-merged on `ZEN-ZAI/homebrew-solidterm` ✅
 9. **❗ Manual gate**: download the DMG over a clean network, mount, verify Gatekeeper accepts ("Apple checked it for malicious software and none was detected"), drag to Applications, launch.
-10. **❗ Manual gate**: trigger a Sparkle update from a preserved v0.9.x build (kept in `~/Tools/nextterm-test-builds/`). Confirm: appcast loads, EdDSA signature verifies, in-place install completes.
+10. **❗ Manual gate**: trigger a Sparkle update from a preserved v0.9.x build (kept in `~/Tools/solidterm-test-builds/`). Confirm: appcast loads, EdDSA signature verifies, in-place install completes.
 11. **Publish website** release announcement (linked to GH release).
 12. **Announce**: r/macapps, IndieHackers, Mastodon (`@brentsimmons`-style indie circles), Hacker News (Show HN).
 13. **❗ 24 h freeze.** Do not change anything. Watch GitHub issues. If a P0 surfaces → cut `v1.0.1` rather than re-tagging `v1.0.0`.
@@ -46,14 +46,14 @@ This doc is the on-call playbook — step-by-step with no interpretation needed.
 Shorter version of the above — same steps 1-8, skip the 24 h freeze, publish to the `beta` Sparkle channel only.
 
 ```bash
-git tag -s v1.0.0-beta.1 -m "NextTerm 1.0.0-beta.1"
+git tag -s v1.0.0-beta.1 -m "SolidTerm 1.0.0-beta.1"
 git push origin v1.0.0-beta.1
 ```
 
 Sparkle maps pre-release semver (`-beta.N`, `-rc.N`) to the `beta` channel via `<sparkle:channel>` in the appcast; stable users never see it unless they opt in with:
 
 ```bash
-defaults write dev.nextterm.app SUChannel beta
+defaults write dev.solidterm.app SUChannel beta
 ```
 
 ## Rollback procedure
@@ -62,7 +62,7 @@ If a released DMG is found to crash or ship a regression:
 
 1. **Pull the appcast**: delete the offending entry from `appcast.xml` on R2 so new installs don't see it.
 2. **Already-installed users**: Sparkle only moves forward; ship `v1.0.1` ASAP rather than downgrading.
-3. **Cask PR**: revert to prior SHA256 / version in the tap (`ZEN-ZAI/homebrew-nextterm`).
+3. **Cask PR**: revert to prior SHA256 / version in the tap (`ZEN-ZAI/homebrew-solidterm`).
 4. **Do NOT delete the GitHub release** — keep it for audit / forensics. Add a `!!! SUPERSEDED BY v1.0.1` notice to the release body.
 5. **Write a postmortem** in `vault/incidents/YYYY-MM-DD-<slug>.md`.
 
@@ -86,14 +86,14 @@ All managed in repo Settings → Secrets and variables → Actions:
 - [ ] `NOTARY_ISSUER_ID`
 - [ ] `SPARKLE_ED_PRIVATE` — Sparkle EdDSA private key (base64)
 - [ ] `R2_ACCESS_KEY` / `R2_SECRET_KEY`
-- [ ] `HOMEBREW_TAP_TOKEN` — fine-grained PAT for `ZEN-ZAI/homebrew-nextterm` write
+- [ ] `HOMEBREW_TAP_TOKEN` — fine-grained PAT for `ZEN-ZAI/homebrew-solidterm` write
 
 ## Costs (as of 2026-04)
 
 | Item | Cost | Frequency |
 |---|---|---|
 | Apple Developer Program | $99/yr | annual |
-| Domain (`nextterm.app`) | ~$20/yr | annual |
+| Domain (`solidterm.app`) | ~$20/yr | annual |
 | Cloudflare R2 (appcast + DMGs) | <$5/mo | monthly |
 | App Store Connect API key | free | annual rotation |
 

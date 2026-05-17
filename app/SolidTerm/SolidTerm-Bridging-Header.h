@@ -3,4 +3,4 @@
 // scripts/build-rust.sh on every build.
 
 #import "Generated/SwiftBridgeCore.h"
-#import "Generated/nextterm_ffi.h"
+#import "Generated/solidterm_ffi.h"

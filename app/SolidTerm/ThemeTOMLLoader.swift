@@ -3,7 +3,7 @@
 // "19 tokens, 3 built-in themes (matcha, tokyo-night, gruvbox),
 // hot-reload via config watcher."
 //
-// File layout: `~/.config/nextterm/themes/<name>.toml`. Schema matches
+// File layout: `~/.config/solidterm/themes/<name>.toml`. Schema matches
 // the user's existing zenzai theme files (`~/.config/zenzai/themes/`)
 // so they can be copied across:
 //
@@ -153,7 +153,7 @@ public final class ThemeFileStore: ObservableObject {
 
     /// `UserDefaults` key — the file basename of the active theme,
     /// or empty when the built-in mode picker drives.
-    public static let activeKey = "nextterm.theme.fileBacked"
+    public static let activeKey = "solidterm.theme.fileBacked"
     /// Notification posted when `current` (or `available`) changes.
     /// `ThemeManager` re-broadcasts as `themeDidChange` so the
     /// renderer's existing observer wakes up.
@@ -169,7 +169,7 @@ public final class ThemeFileStore: ObservableObject {
             ?? FileManager.default
                 .homeDirectoryForCurrentUser
                 .appendingPathComponent(
-                    ".config/nextterm/themes", isDirectory: true)
+                    ".config/solidterm/themes", isDirectory: true)
         ensureSeeded()
         // CRITICAL: pass `notify: false` here. Posting the didChange
         // notification re-enters `ThemeFileStore.shared` via observers

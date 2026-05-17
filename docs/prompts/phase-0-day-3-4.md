@@ -1,25 +1,25 @@
 # Phase 0 Day 3-4 — kickoff prompt
 
-Drop the section below into a fresh Claude Code session started from `~/Projects/nextterm/` to resume the Metal-spike work with full context.
+Drop the section below into a fresh Claude Code session started from `~/Projects/solidterm/` to resume the Metal-spike work with full context.
 
 ---
 
-I'm continuing work on **NextTerm**, a macOS terminal with native Claude Code integration. Phase 0 Day 1 is shipped (11 atomic commits on `main`); now I'm starting **Phase 0 Day 3-4 — Xcode project scaffold + Metal spike**.
+I'm continuing work on **SolidTerm**, a macOS terminal with native Claude Code integration. Phase 0 Day 1 is shipped (11 atomic commits on `main`); now I'm starting **Phase 0 Day 3-4 — Xcode project scaffold + Metal spike**.
 
 ## Where things live
 
-- **Repo**: `~/Projects/nextterm/` (you're here). 11 commits, working tree clean.
-- **Vault** (architecture, decisions, specs, research): `/Users/zen/Vaults/NextTerm/` — read-only canonical source.
+- **Repo**: `~/Projects/solidterm/` (you're here). 11 commits, working tree clean.
+- **Vault** (architecture, decisions, specs, research): `/Users/zen/Vaults/SolidTerm/` — read-only canonical source.
 
 ## Required reading (in this order)
 
 1. `AGENTS.md` (repo root) — operating conventions, stop-the-line rules, Stack A boundary.
 2. `CLAUDE.md` (repo root) — project orientation, build commands, what to ignore.
-3. `/Users/zen/Vaults/NextTerm/decisions/05-renderer.md` — Stack A commitment (**Swift owns ALL Metal**).
-4. `/Users/zen/Vaults/NextTerm/spec/swift-app-modules.md` — module layout, `MTKView`/`CAMetalLayer` host, IME ownership.
-5. `/Users/zen/Vaults/NextTerm/spec/metal-renderer.md` — pipeline stages, atlas, frame pacing.
-6. `/Users/zen/Vaults/NextTerm/spec/m1-task-breakdown.md` §Week 3 — the concrete tasks 3.1–3.11 we're executing today.
-7. `/Users/zen/Vaults/NextTerm/research/12-rendering-de-risk-synthesis.md` — kill criterion + Plan B.
+3. `/Users/zen/Vaults/SolidTerm/decisions/05-renderer.md` — Stack A commitment (**Swift owns ALL Metal**).
+4. `/Users/zen/Vaults/SolidTerm/spec/swift-app-modules.md` — module layout, `MTKView`/`CAMetalLayer` host, IME ownership.
+5. `/Users/zen/Vaults/SolidTerm/spec/metal-renderer.md` — pipeline stages, atlas, frame pacing.
+6. `/Users/zen/Vaults/SolidTerm/spec/m1-task-breakdown.md` §Week 3 — the concrete tasks 3.1–3.11 we're executing today.
+7. `/Users/zen/Vaults/SolidTerm/research/12-rendering-de-risk-synthesis.md` — kill criterion + Plan B.
 
 Don't skip these. Spec authority is real: code that diverges silently from spec is a stop-the-line per AGENTS.md rule 6.
 
@@ -47,7 +47,7 @@ Rust toolchain is pinned to 1.89.0 via `rust-toolchain.toml`. `cargo check --wor
 Ship Phase 0 Day 3-4 = **Stack A go/no-go gate**.
 
 End state to reach:
-1. `app/NextTerm.xcodeproj` — Xcode project with App + Tests targets.
+1. `app/SolidTerm.xcodeproj` — Xcode project with App + Tests targets.
 2. `cargo` build phase wired into Xcode so swift-bridge regenerates Swift shims on every build.
 3. `MTKView` host with `CAMetalLayer` attached.
 4. Glyph atlas built from CoreText (~10 ASCII glyphs is plenty for the spike).
@@ -58,7 +58,7 @@ End state to reach:
 
 ## Exit criteria (any one fails ⇒ not done)
 
-- `xcodebuild test -scheme NextTerm -destination 'platform=macOS'` green.
+- `xcodebuild test -scheme SolidTerm -destination 'platform=macOS'` green.
 - `cargo check --workspace` + `cargo test --workspace` still green.
 - Glyph renders cleanly: no flicker, no artifacts, fills the cell, anti-aliased.
 - Typing-to-pixel **p99 ≤ 10 ms** on this Mac (target is 8 ms; 10 ms gives perf budget headroom).
@@ -72,7 +72,7 @@ Per `research/12-rendering-de-risk-synthesis.md`: if typing-to-pixel **> 20 ms p
 ## Hard rails (Stack A)
 
 - Swift owns **every** line of Metal code. No `metal-rs`, no `objc2-metal`, no wgpu in Rust.
-- Rust core stays data-only across the FFI: `FrameDelta` / `BlockDelta` / damage rows. The current `nextterm-ffi/src/bridge.rs` round-trip stub (`ffi_greet`) works — extend it, don't replace it.
+- Rust core stays data-only across the FFI: `FrameDelta` / `BlockDelta` / damage rows. The current `solidterm-ffi/src/bridge.rs` round-trip stub (`ffi_greet`) works — extend it, don't replace it.
 - No outbound network endpoints (per `decisions/03-telemetry.md`). Pre-commit hook will block obvious analytics SDKs.
 - `unsafe` block must carry a `// SAFETY:` comment; pre-commit warns.
 
@@ -101,14 +101,14 @@ The `@swift-metal-expert` definition itself sets `isolation: worktree`, so big r
 # 1. Confirm environment
 export DEVELOPER_DIR=/Applications/Xcode-16.4.0.app/Contents/Developer
 xcrun --find xcodebuild
-cd ~/Projects/nextterm
+cd ~/Projects/solidterm
 git log --oneline | head -5
 cargo check --workspace
 
 # 2. Read the docs listed under "Required reading"
 
 # 3. Open the M1 task breakdown to find today's work
-$EDITOR /Users/zen/Vaults/NextTerm/spec/m1-task-breakdown.md   # §Week 3 — tasks 3.1–3.11
+$EDITOR /Users/zen/Vaults/SolidTerm/spec/m1-task-breakdown.md   # §Week 3 — tasks 3.1–3.11
 ```
 
 After reading, propose a concrete task plan for today (which of 3.1–3.11 you'll do, in what order, with rough estimates) **before** writing any code. Then start with task 3.1 (Xcode scaffold).

@@ -36,9 +36,9 @@
 //! files all emit a synthetic comment line in the merged text:
 //!
 //! ```text
-//! <!-- nextterm: missing import at <absolute path> -->
-//! <!-- nextterm: import depth exceeded for <absolute path> -->
-//! <!-- nextterm: import cycle skipped for <absolute path> -->
+//! <!-- solidterm: missing import at <absolute path> -->
+//! <!-- solidterm: import depth exceeded for <absolute path> -->
+//! <!-- solidterm: import cycle skipped for <absolute path> -->
 //! ```
 //!
 //! The synthetic line is attributed (via [`ProvenanceSpan`]) to the
@@ -174,7 +174,7 @@ fn ingest_file(path: &Path, out: &mut MergedClaudeMd, visited: &mut HashSet<Path
             out,
             path,
             &format!(
-                "<!-- nextterm: import cycle skipped for {} -->\n",
+                "<!-- solidterm: import cycle skipped for {} -->\n",
                 canonical.display()
             ),
         );
@@ -188,7 +188,7 @@ fn ingest_file(path: &Path, out: &mut MergedClaudeMd, visited: &mut HashSet<Path
             emit_synthetic(
                 out,
                 path,
-                &format!("<!-- nextterm: missing import at {} -->\n", path.display()),
+                &format!("<!-- solidterm: missing import at {} -->\n", path.display()),
             );
             return;
         }
@@ -319,7 +319,7 @@ fn resolve_import(
         emit_synthetic(
             out,
             source,
-            &format!("<!-- nextterm: import depth exceeded for {target} -->\n"),
+            &format!("<!-- solidterm: import depth exceeded for {target} -->\n"),
         );
         return;
     }

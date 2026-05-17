@@ -362,7 +362,7 @@ final class MetalRenderer {
             }
         }
         // Pull the persisted theme into the renderer at construction
-        // time. ThemeFileStore.init reads `nextterm.theme.fileBacked`
+        // time. ThemeFileStore.init reads `solidterm.theme.fileBacked`
         // out of UserDefaults via reload(notify: false) — the silent
         // reload is required because shared-singleton observers haven't
         // wired up yet — so the saved theme is sitting on
@@ -403,7 +403,7 @@ final class MetalRenderer {
     /// invalidation hook.
     @MainActor
     func refreshClearColor() {
-        // File-backed TOML theme (~/.config/nextterm/themes/<name>.toml)
+        // File-backed TOML theme (~/.config/solidterm/themes/<name>.toml)
         // wins over the built-in Theme.Mode cascade — same code path
         // the theme picker drives. The renderer honors the file's
         // bg/fg, cursor, selection, AND ANSI palette (mapped via the

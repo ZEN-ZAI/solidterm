@@ -15,7 +15,7 @@
 #   - Idle / multi-pane RSS             (needs live app)
 #
 # Usage:
-#   scripts/perf-smoke.sh                  # writes /tmp/nextterm-perf-smoke.md
+#   scripts/perf-smoke.sh                  # writes /tmp/solidterm-perf-smoke.md
 #   PERF_SMOKE_OUT=foo.md scripts/...      # custom output path
 #   PERF_SMOKE_SKIP_LATENCY=1 scripts/...  # skip the 17 s XCTest
 #   PERF_SMOKE_SKIP_BUILD=1 scripts/...    # skip the Release rebuild
@@ -30,7 +30,7 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
-OUT_FILE="${PERF_SMOKE_OUT:-/tmp/nextterm-perf-smoke.md}"
+OUT_FILE="${PERF_SMOKE_OUT:-/tmp/solidterm-perf-smoke.md}"
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ MACOS_VER=$(sw_vers -productVersion 2>/dev/null || echo "unknown")
 COMMIT=$(git rev-parse --short HEAD)
 DATE_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-log "# NextTerm perf-smoke — $DATE_UTC"
+log "# SolidTerm perf-smoke — $DATE_UTC"
 log ""
 log "- Hardware: $CPU, $MEM_HUMAN RAM"
 log "- macOS: $MACOS_VER"
@@ -78,7 +78,7 @@ log '```'
 # turn a non-zero `cargo bench` (rare but possible) into a script
 # abort under `set -e`.
 set +e
-cargo bench -p nextterm-engine --bench hot_feed_1mb 2>&1 | tee -a "$OUT_FILE"
+cargo bench -p solidterm-engine --bench hot_feed_1mb 2>&1 | tee -a "$OUT_FILE"
 set -e
 log '```'
 log ""
@@ -92,7 +92,7 @@ fi
 section "2. Typing-to-pixel latency (XCTest LatencyMeasurementTests)"
 log "Budget: < 8 ms p99, < 4 ms p50 (spec §Latency)"
 log "Harness gate: 10.5 ms p99 (bimodal-floor accommodation;"
-log "see app/NextTermTests/LatencyMeasurementTests.swift §gate"
+log "see app/SolidTermTests/LatencyMeasurementTests.swift §gate"
 log "and ~/.claude/.../MEMORY.md reference_latency_harness_internals)."
 log ""
 if [[ "${PERF_SMOKE_SKIP_LATENCY:-0}" == "1" ]]; then
@@ -101,8 +101,8 @@ else
   log '```'
   pushd "$REPO_ROOT/app" >/dev/null
   set +e
-  xcodebuild test -scheme NextTerm -destination 'platform=macOS' \
-    -only-testing:NextTermTests/LatencyMeasurementTests 2>&1 \
+  xcodebuild test -scheme SolidTerm -destination 'platform=macOS' \
+    -only-testing:SolidTermTests/LatencyMeasurementTests 2>&1 \
     | grep -E 'typing-to-pixel|LatencyMeasurementTests final|p50=|p99=|Test Case .* passed|Test Case .* failed|TEST SUCCEEDED|TEST FAILED|\*\* TEST' \
     | tee -a "$OUT_FILE"
   set -e
@@ -122,20 +122,20 @@ if [[ "${PERF_SMOKE_SKIP_BUILD:-0}" == "1" ]]; then
 else
   pushd "$REPO_ROOT/app" >/dev/null
   set +e
-  xcodebuild -configuration Release -scheme NextTerm \
+  xcodebuild -configuration Release -scheme SolidTerm \
     -destination 'platform=macOS' build 2>&1 | tail -3 >/dev/null
   set -e
 
   BUILD_DIR=$(xcodebuild -showBuildSettings -configuration Release \
-    -scheme NextTerm 2>/dev/null \
+    -scheme SolidTerm 2>/dev/null \
     | awk '/^[[:space:]]*CONFIGURATION_BUILD_DIR =/ { print $3 }' | head -1)
   popd >/dev/null
 
-  APP_PATH="$BUILD_DIR/NextTerm.app"
+  APP_PATH="$BUILD_DIR/SolidTerm.app"
   if [[ -d "$APP_PATH" ]]; then
     SIZE_K=$(du -sk "$APP_PATH" | awk '{print $1}')
     SIZE_BYTES=$(( SIZE_K * 1024 ))
-    EXEC="$APP_PATH/Contents/MacOS/NextTerm"
+    EXEC="$APP_PATH/Contents/MacOS/SolidTerm"
     if [[ -f "$EXEC" ]]; then
       EXEC_BYTES=$(stat -f '%z' "$EXEC")
     else
@@ -157,9 +157,9 @@ log ""
 # Match the (W, H) tuple inside SIMD2(...) — strip the literal `SIMD2<UInt32>`
 # header that has its own `2` we don't want.
 ATLAS_SIDE=$(grep -E 'static let atlasSize: SIMD2<UInt32> = SIMD2' \
-  "$REPO_ROOT/app/NextTerm/GlyphAtlas.swift" \
+  "$REPO_ROOT/app/SolidTerm/GlyphAtlas.swift" \
   | sed -E 's/.*SIMD2\(([0-9]+),.*/\1/' || echo "?")
-if grep -qE 'pixelFormat:\s*\.r8Unorm' "$REPO_ROOT/app/NextTerm/GlyphAtlas.swift"; then
+if grep -qE 'pixelFormat:\s*\.r8Unorm' "$REPO_ROOT/app/SolidTerm/GlyphAtlas.swift"; then
   ATLAS_FMT="r8Unorm"
 else
   ATLAS_FMT="?"
@@ -167,8 +167,8 @@ fi
 if [[ "$ATLAS_SIDE" =~ ^[0-9]+$ ]]; then
   ATLAS_BYTES=$(( ATLAS_SIDE * ATLAS_SIDE * 1 ))
   log "- Atlas: ${ATLAS_SIDE}×${ATLAS_SIDE} × 1 byte ($ATLAS_FMT) = $(human_bytes "$ATLAS_BYTES")"
-  log "- Pinned by: app/NextTerm/GlyphAtlas.swift §atlasSize"
-  log "- Verified by: app/NextTermTests/GlyphAtlasTests.swift"
+  log "- Pinned by: app/SolidTerm/GlyphAtlas.swift §atlasSize"
+  log "- Verified by: app/SolidTermTests/GlyphAtlasTests.swift"
   log "- Margin: ~256× under budget"
 else
   log "- (could not parse atlasSize from GlyphAtlas.swift)"
@@ -182,9 +182,9 @@ log ""
 # Pull the rhs literal from `pub const DEFAULT_SCROLLBACK_LINES: u32 = 100_000;`.
 # Naive `grep -oE '[0-9_]+'` matches the trailing `_LINES` underscore first.
 SCROLLBACK=$(grep -E 'pub const DEFAULT_SCROLLBACK_LINES' \
-  "$REPO_ROOT/crates/nextterm-engine/src/config.rs" \
+  "$REPO_ROOT/crates/solidterm-engine/src/config.rs" \
   | sed -E 's/.*=[[:space:]]*([0-9_]+);.*/\1/' | tr -d _ || echo "?")
-log "- Default lines: $SCROLLBACK (crates/nextterm-engine/src/config.rs)"
+log "- Default lines: $SCROLLBACK (crates/solidterm-engine/src/config.rs)"
 log "- alacritty_terminal grid cell ≈ 32 B; 80 cols × 32 B = 2.5 KB / line"
 log "- Estimated upper bound: ${SCROLLBACK} × 2.5 KB ≈ ~250 MB at 80 cols,"
 log "  but cells are stored sparsely so typical RAM is far lower."

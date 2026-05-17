@@ -23,7 +23,7 @@ final class FontSettingsTests: XCTestCase {
     private var suiteName: String!
 
     override func setUp() async throws {
-        suiteName = "nextterm.tests.font.\(UUID().uuidString)"
+        suiteName = "solidterm.tests.font.\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suiteName)
     }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerate app/NextTerm.xcodeproj from app/project.yml using XcodeGen.
+# Regenerate app/SolidTerm.xcodeproj from app/project.yml using XcodeGen.
 # Run this whenever you edit app/project.yml; commit the regenerated
 # .xcodeproj alongside the YAML change so a fresh clone builds out of the box.
 

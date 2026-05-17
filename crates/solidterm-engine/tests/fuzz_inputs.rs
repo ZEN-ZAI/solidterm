@@ -1,5 +1,5 @@
 //! Fuzz-shaped integration tests for `TerminalEngine.feed_input` +
-//! `nextterm-claude::LineParser`. Salvages the zenzai-v2 fuzz-harness
+//! `solidterm-claude::LineParser`. Salvages the zenzai-v2 fuzz-harness
 //! pattern (`49627a0` — cargo-fuzz on IPC decoder + OSC 133 parser)
 //! per the 2026-04-22 postmortem, without the cargo-fuzz / nightly
 //! tooling cost.
@@ -26,7 +26,7 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use nextterm_engine::{EngineConfig, TerminalEngine};
+use solidterm_engine::{EngineConfig, TerminalEngine};
 
 fn cat_config() -> EngineConfig {
     EngineConfig {

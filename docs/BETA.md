@@ -1,32 +1,32 @@
-# NextTerm Beta — invitee guide
+# SolidTerm Beta — invitee guide
 
-Welcome. NextTerm is a native macOS terminal with deep Claude Code integration. You're one of 3-5 invited beta testers helping us close Phase 1 → 1.0.
+Welcome. SolidTerm is a native macOS terminal with deep Claude Code integration. You're one of 3-5 invited beta testers helping us close Phase 1 → 1.0.
 
 ## Install (~2 min)
 
 The beta DMG is **unsigned** — Apple Developer ID code-signing + notarization land in Phase 2 (the 1.0 release). For beta you'll see a one-time Gatekeeper warning.
 
-1. Download `NextTerm-1.0.0-beta1.dmg` from the link the maintainer shares.
-2. Open the DMG → drag `NextTerm.app` to `/Applications`.
+1. Download `SolidTerm-1.0.0-beta1.dmg` from the link the maintainer shares.
+2. Open the DMG → drag `SolidTerm.app` to `/Applications`.
 3. Eject the DMG.
-4. **First launch only**: Finder → `/Applications` → right-click `NextTerm.app` → **Open** → confirm in the Gatekeeper dialog. Apple's "developer cannot be verified" warning is expected for unsigned builds.
-5. After the first launch, NextTerm opens like any app (double-click works thereafter).
+4. **First launch only**: Finder → `/Applications` → right-click `SolidTerm.app` → **Open** → confirm in the Gatekeeper dialog. Apple's "developer cannot be verified" warning is expected for unsigned builds.
+5. After the first launch, SolidTerm opens like any app (double-click works thereafter).
 
 If Gatekeeper doesn't offer the **Open** option:
-1. System Settings → Privacy & Security → scroll to "NextTerm.app was blocked" → **Open Anyway**.
+1. System Settings → Privacy & Security → scroll to "SolidTerm.app was blocked" → **Open Anyway**.
 2. Re-launch and confirm.
 
 ## Version check
 
 ```sh
-defaults read /Applications/NextTerm.app/Contents/Info.plist CFBundleShortVersionString
+defaults read /Applications/SolidTerm.app/Contents/Info.plist CFBundleShortVersionString
 ```
 
 Should read `1.0.0-beta1` (or whatever beta tag the invite mentioned).
 
 ## What to test
 
-NextTerm shipped Phase 1 in 16 days; please stress-test the daily-driver experience:
+SolidTerm shipped Phase 1 in 16 days; please stress-test the daily-driver experience:
 
 **Daily shell work**
 - Run as your primary terminal for at least a week
@@ -34,7 +34,7 @@ NextTerm shipped Phase 1 in 16 days; please stress-test the daily-driver experie
 - IME if you use one (Thai, CJK, Dictation)
 
 **Claude Code integration**
-- Run `claude` to launch the Claude Code CLI in a NextTerm pane
+- Run `claude` to launch the Claude Code CLI in a SolidTerm pane
 - Paste large prompts, run long sessions, observe scrollback + permission prompts
 - Try the right sidebar (`setTeamSidebarVisible(true)` from the Settings → for now wired automatically when you spawn a `claude` session)
 
@@ -75,15 +75,15 @@ Either way: use GitHub Issues on the repo (the maintainer will share the URL wit
 
 ## Privacy
 
-NextTerm is **zero-telemetry by design** (per `decisions/03-telemetry.md`). The app does not phone home. The maintainer only sees what you choose to share via issues / email.
+SolidTerm is **zero-telemetry by design** (per `decisions/03-telemetry.md`). The app does not phone home. The maintainer only sees what you choose to share via issues / email.
 
 ## Logs (if you need them for a bug report)
 
 ```sh
-log stream --process NextTerm --info
+log stream --process SolidTerm --info
 ```
 
-Run that in a separate Terminal.app (not NextTerm itself) while reproducing the bug, then attach the relevant lines to the issue. Redact anything that looks like a credential.
+Run that in a separate Terminal.app (not SolidTerm itself) while reproducing the bug, then attach the relevant lines to the issue. Redact anything that looks like a credential.
 
 ## Thanks
 

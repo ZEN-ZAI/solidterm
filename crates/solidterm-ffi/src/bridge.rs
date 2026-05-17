@@ -145,7 +145,7 @@ const _: () = {
 };
 
 #[must_use]
-pub fn encode_search_matches(matches: &[nextterm_engine::SearchMatch]) -> Vec<u8> {
+pub fn encode_search_matches(matches: &[solidterm_engine::SearchMatch]) -> Vec<u8> {
     let mut out = Vec::with_capacity(matches.len() * core::mem::size_of::<SearchMatchWire>());
     for m in matches {
         let wire = SearchMatchWire {
@@ -296,7 +296,7 @@ mod ffi {
 // ───────────────────────── TerminalSession wrapper ─────────────────────
 
 pub struct TerminalSession {
-    inner: nextterm_engine::TerminalEngine,
+    inner: solidterm_engine::TerminalEngine,
     pending_title: Option<String>,
     pending_cwd: Option<String>,
     last_search_error: Option<String>,
@@ -306,7 +306,7 @@ impl TerminalSession {
     #[must_use]
     pub fn new(config: ffi::SessionConfig) -> TerminalSession {
         let engine_config = config_to_engine_config(config);
-        let inner = nextterm_engine::TerminalEngine::new(engine_config)
+        let inner = solidterm_engine::TerminalEngine::new(engine_config)
             .expect("TerminalSession: engine construction failed (geometry / PTY spawn)");
         TerminalSession {
             inner,
@@ -319,10 +319,10 @@ impl TerminalSession {
     fn drain_pending_events(&mut self) {
         for ev in self.inner.drain_events() {
             match ev {
-                nextterm_engine::events::EngineEvent::TitleChanged(s) => {
+                solidterm_engine::events::EngineEvent::TitleChanged(s) => {
                     self.pending_title = Some(s);
                 }
-                nextterm_engine::events::EngineEvent::CwdChanged(s) => {
+                solidterm_engine::events::EngineEvent::CwdChanged(s) => {
                     self.pending_cwd = Some(s);
                 }
                 _ => {}
@@ -400,15 +400,15 @@ impl TerminalSession {
 
     pub fn start_selection(&mut self, mode: u8, row: u16, col: u16) {
         let engine_mode = match mode {
-            kinds::SELECTION_MODE_SIMPLE => nextterm_engine::SelectionMode::Simple,
-            kinds::SELECTION_MODE_WORD => nextterm_engine::SelectionMode::Word,
-            kinds::SELECTION_MODE_LINE => nextterm_engine::SelectionMode::Line,
+            kinds::SELECTION_MODE_SIMPLE => solidterm_engine::SelectionMode::Simple,
+            kinds::SELECTION_MODE_WORD => solidterm_engine::SelectionMode::Word,
+            kinds::SELECTION_MODE_LINE => solidterm_engine::SelectionMode::Line,
             other => {
                 tracing::warn!(
                     mode = other,
                     "start_selection: unknown SELECTION_MODE_*, defaulting to Simple"
                 );
-                nextterm_engine::SelectionMode::Simple
+                solidterm_engine::SelectionMode::Simple
             }
         };
         self.inner.start_selection(engine_mode, row, col);
@@ -530,7 +530,7 @@ impl TerminalSession {
             tracing::warn!(?err, "take_full_frame_delta: poll_output failed");
         }
         let cursor = cursor_to_ffi(self.inner.cursor());
-        let cells = encode_damaged_rows(&self.inner, &nextterm_engine::DirtyRows::Full);
+        let cells = encode_damaged_rows(&self.inner, &solidterm_engine::DirtyRows::Full);
         ffi::FrameDelta {
             cells,
             cursor,
@@ -545,7 +545,7 @@ impl TerminalSession {
     }
 }
 
-fn cell_view_to_wire(view: &nextterm_engine::CellView) -> CellDeltaWire {
+fn cell_view_to_wire(view: &solidterm_engine::CellView) -> CellDeltaWire {
     CellDeltaWire {
         row: view.row,
         col: view.col,
@@ -559,10 +559,10 @@ fn cell_view_to_wire(view: &nextterm_engine::CellView) -> CellDeltaWire {
 }
 
 fn encode_damaged_rows(
-    engine: &nextterm_engine::TerminalEngine,
-    damage: &nextterm_engine::DirtyRows,
+    engine: &solidterm_engine::TerminalEngine,
+    damage: &solidterm_engine::DirtyRows,
 ) -> Vec<u8> {
-    use nextterm_engine::DirtyRows;
+    use solidterm_engine::DirtyRows;
     match damage {
         DirtyRows::Full => {
             #[allow(clippy::cast_possible_truncation)]
@@ -585,8 +585,8 @@ fn encode_damaged_rows(
     }
 }
 
-fn cursor_to_ffi(c: nextterm_engine::CursorReadback) -> ffi::CursorState {
-    use nextterm_engine::CursorShape;
+fn cursor_to_ffi(c: solidterm_engine::CursorReadback) -> ffi::CursorState {
+    use solidterm_engine::CursorShape;
     let (shape, hidden) = match c.shape {
         CursorShape::Block => (kinds::CURSOR_SHAPE_BLOCK, !c.visible),
         CursorShape::Beam => (kinds::CURSOR_SHAPE_BEAM, !c.visible),
@@ -603,7 +603,7 @@ fn cursor_to_ffi(c: nextterm_engine::CursorReadback) -> ffi::CursorState {
 }
 
 #[allow(clippy::needless_pass_by_value)]
-fn config_to_engine_config(config: ffi::SessionConfig) -> nextterm_engine::EngineConfig {
+fn config_to_engine_config(config: ffi::SessionConfig) -> solidterm_engine::EngineConfig {
     let env: Vec<(String, String)> = decode_env(&config.env);
     let command: Vec<String> = if config.command.is_empty() {
         vec!["/bin/zsh".to_string()]
@@ -619,13 +619,13 @@ fn config_to_engine_config(config: ffi::SessionConfig) -> nextterm_engine::Engin
     } else {
         std::path::PathBuf::from(&config.cwd)
     };
-    nextterm_engine::EngineConfig {
+    solidterm_engine::EngineConfig {
         rows: config.rows,
         cols: config.cols,
         env,
         command,
         cwd,
-        scrollback_lines: nextterm_engine::DEFAULT_SCROLLBACK_LINES,
+        scrollback_lines: solidterm_engine::DEFAULT_SCROLLBACK_LINES,
     }
 }
 

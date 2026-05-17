@@ -1,5 +1,5 @@
 [package]
-name = "nextterm-engine"
+name = "solidterm-engine"
 description = "Terminal engine — wraps alacritty_terminal for PTY/VT/grid + adds OSC routing"
 version.workspace = true
 edition.workspace = true
@@ -20,11 +20,6 @@ smol_str.workspace = true
 regex.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
-
-# M3-8b — engine spawns ClaudeSession directly when its invocation
-# detector matches `^claude($|\s).*\n` on PTY input. nextterm-blocks
-# provides Block / LiveUpdate channel types; nextterm-claude provides
-# ClaudeSession + OutboundWriter.
 
 [features]
 # Exposes test-only injection helpers (e.g. `TerminalEngine::inject_claude_block_for_test`)

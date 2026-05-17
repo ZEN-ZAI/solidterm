@@ -8,7 +8,7 @@
 // (which `NSEvent.keyEvent(with:...)` makes painful in headless XCTest).
 //
 // Discriminator constants (kind / action / modifier-bit positions) are
-// hardcoded with cite-comments to `crates/nextterm-ffi/src/bridge.rs`'s
+// hardcoded with cite-comments to `crates/solidterm-ffi/src/bridge.rs`'s
 // `pub mod kinds`. swift-bridge 0.1.59 cannot expose Rust `pub const` to
 // Swift, so the cross-language contract is "matching numeric literals
 // with comment-cite." Keep the enum raw values and `ModifierMask`
@@ -41,14 +41,14 @@
 
 import AppKit
 
-/// `InputEvent.kind` discriminator. Mirror of `nextterm_ffi::kinds::INPUT_EVENT_*`.
+/// `InputEvent.kind` discriminator. Mirror of `solidterm_ffi::kinds::INPUT_EVENT_*`.
 enum InputEventKind: UInt8 {
     case key = 0  // kinds::INPUT_EVENT_KEY
     case mouse = 1  // kinds::INPUT_EVENT_MOUSE
     case focus = 2  // kinds::INPUT_EVENT_FOCUS
 }
 
-/// `KeyEvent.action` discriminator. Mirror of `nextterm_ffi::kinds::KEY_ACTION_*`.
+/// `KeyEvent.action` discriminator. Mirror of `solidterm_ffi::kinds::KEY_ACTION_*`.
 enum KeyAction: UInt8 {
     case press = 0  // kinds::KEY_ACTION_PRESS
     case release = 1  // kinds::KEY_ACTION_RELEASE
@@ -56,7 +56,7 @@ enum KeyAction: UInt8 {
 }
 
 /// `InputEvent.modifiers` bitfield. Bit positions mirror
-/// `nextterm_ffi::kinds::MODIFIER_BIT_*`.
+/// `solidterm_ffi::kinds::MODIFIER_BIT_*`.
 struct ModifierMask: OptionSet {
     let rawValue: UInt8
 

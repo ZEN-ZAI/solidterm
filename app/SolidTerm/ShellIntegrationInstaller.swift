@@ -1,6 +1,6 @@
 // Bundled shell integration installer. Copies zsh/bash/fish OSC 133
 // hooks from the app bundle (`Resources/Shell/`) to
-// `~/.config/nextterm/shell/`, then prints sourcing instructions in
+// `~/.config/solidterm/shell/`, then prints sourcing instructions in
 // an NSAlert so users know what to add to their rc file.
 //
 // Salvaged pattern from zenzai-v2's `zenzai-shell-integration` crate
@@ -9,8 +9,8 @@
 //
 // Activation flow:
 //   1. User runs ⌘K → "Install Shell Integration"
-//   2. Files copy to ~/.config/nextterm/shell/{nextterm.zsh,
-//      nextterm.bash,nextterm.fish}
+//   2. Files copy to ~/.config/solidterm/shell/{solidterm.zsh,
+//      solidterm.bash,solidterm.fish}
 //   3. NSAlert shows the user the one-liner to add to their rc
 //   4. User adds the source line; next shell restart picks it up
 
@@ -24,16 +24,16 @@ enum ShellIntegrationInstaller {
     /// the resource name; destination filename matches; the rc snippet
     /// shown to the user pulls from the source-of-truth path.
     private static let scripts: [(resource: String, ext: String)] = [
-        (resource: "nextterm", ext: "zsh"),
-        (resource: "nextterm", ext: "bash"),
-        (resource: "nextterm", ext: "fish"),
+        (resource: "solidterm", ext: "zsh"),
+        (resource: "solidterm", ext: "bash"),
+        (resource: "solidterm", ext: "fish"),
     ]
 
     /// Install destination — XDG-style. Created if missing.
     private static var destinationDir: URL {
         FileManager.default
             .homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/nextterm/shell", isDirectory: true)
+            .appendingPathComponent(".config/solidterm/shell", isDirectory: true)
     }
 
     /// Run the install + show the post-install instructions alert.
@@ -86,21 +86,21 @@ enum ShellIntegrationInstaller {
         let alert = NSAlert()
         alert.messageText = "Shell integration installed"
         alert.informativeText = """
-            Hook files written to ~/.config/nextterm/shell/.
+            Hook files written to ~/.config/solidterm/shell/.
 
             Add the snippet for your shell to its rc file:
 
               zsh    (~/.zshrc):
-                [[ -f ~/.config/nextterm/shell/nextterm.zsh ]] && \\
-                    source ~/.config/nextterm/shell/nextterm.zsh
+                [[ -f ~/.config/solidterm/shell/solidterm.zsh ]] && \\
+                    source ~/.config/solidterm/shell/solidterm.zsh
 
               bash   (~/.bashrc):
-                [ -f ~/.config/nextterm/shell/nextterm.bash ] && \\
-                    source ~/.config/nextterm/shell/nextterm.bash
+                [ -f ~/.config/solidterm/shell/solidterm.bash ] && \\
+                    source ~/.config/solidterm/shell/solidterm.bash
 
               fish   (~/.config/fish/config.fish):
-                if test -f ~/.config/nextterm/shell/nextterm.fish
-                    source ~/.config/nextterm/shell/nextterm.fish
+                if test -f ~/.config/solidterm/shell/solidterm.fish
+                    source ~/.config/solidterm/shell/solidterm.fish
                 end
 
             Restart your shell to activate. Then SolidTerm's block

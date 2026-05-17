@@ -69,7 +69,7 @@ impl PtyReader {
     {
         let (tx, rx) = unbounded::<Vec<u8>>();
         let handle = thread::Builder::new()
-            .name("nextterm-pty-reader".to_string())
+            .name("solidterm-pty-reader".to_string())
             .spawn(move || pty_read_loop(&mut reader_file, &tx))
             .expect("spawning a thread on macOS should not fail");
 

@@ -1,4 +1,4 @@
-# CI workflow for NextTerm.
+# CI workflow for SolidTerm.
 #
 # Current state: Phase 0 — Rust toolchain + Swift test jobs active.
 # Bench + fuzz land with their targets (Phase 1).
@@ -50,7 +50,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # Fails if the committed swift-bridge shims under
-      # app/NextTerm/Generated/ don't match what `cargo build` would
+      # app/SolidTerm/Generated/ don't match what `cargo build` would
       # produce. Caught a class of bug after zenzai-v2's build_snapshot
       # stub: stale generated mirror "looks right" on both sides but
       # silently invalidates the wire format.
@@ -85,11 +85,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
         with: { xcode-version: latest-stable }
-      - run: xcrun swift-format lint --strict --configuration app/.swift-format --recursive app/NextTerm app/NextTermTests
+      - run: xcrun swift-format lint --strict --configuration app/.swift-format --recursive app/SolidTerm app/SolidTermTests
       # Per AGENTS.md §FFI conventions: any bridge.rs / extern shape change
       # requires xcodebuild *clean* test to avoid linking a stale
-      # libnextterm_ffi.a against freshly regenerated shims.
-      - run: xcodebuild clean test -project app/NextTerm.xcodeproj -scheme NextTerm -destination 'platform=macOS' -configuration Debug
+      # libsolidterm_ffi.a against freshly regenerated shims.
+      - run: xcodebuild clean test -project app/SolidTerm.xcodeproj -scheme SolidTerm -destination 'platform=macOS' -configuration Debug
 
   # ─── Jobs below land as their subjects scaffold ────────────────────────────
 
@@ -109,8 +109,8 @@ jobs:
   #   name: Parser / fuzz smoke
   #   runs-on: ubuntu-latest
   #   if: |
-  #     contains(github.event.pull_request.changed_files, 'crates/nextterm-engine/src/osc/') ||
-  #     contains(github.event.pull_request.changed_files, 'crates/nextterm-claude/src/parser/')
+  #     contains(github.event.pull_request.changed_files, 'crates/solidterm-engine/src/osc/') ||
+  #     contains(github.event.pull_request.changed_files, 'crates/solidterm-claude/src/parser/')
   #   continue-on-error: true
   #   steps:
   #     - uses: actions/checkout@v4

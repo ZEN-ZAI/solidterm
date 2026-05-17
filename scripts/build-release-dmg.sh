@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build an unsigned NextTerm.app and package it into a drag-to-Applications
+# Build an unsigned SolidTerm.app and package it into a drag-to-Applications
 # DMG for beta distribution.
 #
 # Usage:
@@ -7,7 +7,7 @@
 #
 # Example:
 #     ./scripts/build-release-dmg.sh v1.0.0-beta1
-#         → dist/NextTerm-1.0.0-beta1.dmg
+#         → dist/SolidTerm-1.0.0-beta1.dmg
 #
 # Phase 2 deferrals (intentional, NOT missing functionality):
 # - No `codesign --sign "Developer ID Application"` — ad-hoc signing only.
@@ -21,7 +21,7 @@
 # - Re-enable `ENABLE_HARDENED_RUNTIME = YES` in app/project.yml (currently
 #   disabled for the unsigned path).
 # - Add `xcrun notarytool submit ... --wait` + `xcrun stapler staple`.
-# - Pick a stable bundle ID (currently com.zenzai.NextTerm — TBD).
+# - Pick a stable bundle ID (currently com.zenzai.SolidTerm — TBD).
 
 set -euo pipefail
 
@@ -40,17 +40,17 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 APP_DIR="$REPO_ROOT/app"
 DIST_DIR="$REPO_ROOT/dist"
 BUILD_DIR="$DIST_DIR/build-$VERSION"
-ARCHIVE_PATH="$BUILD_DIR/NextTerm.xcarchive"
+ARCHIVE_PATH="$BUILD_DIR/SolidTerm.xcarchive"
 EXPORT_DIR="$BUILD_DIR/export"
 DMG_STAGE="$BUILD_DIR/dmg-stage"
-DMG_PATH="$DIST_DIR/NextTerm-$VERSION.dmg"
+DMG_PATH="$DIST_DIR/SolidTerm-$VERSION.dmg"
 
 mkdir -p "$BUILD_DIR" "$EXPORT_DIR" "$DMG_STAGE"
 
-echo "▶ Archiving NextTerm $VERSION (unsigned, ad-hoc)"
+echo "▶ Archiving SolidTerm $VERSION (unsigned, ad-hoc)"
 xcodebuild archive \
-    -project "$APP_DIR/NextTerm.xcodeproj" \
-    -scheme NextTerm \
+    -project "$APP_DIR/SolidTerm.xcodeproj" \
+    -scheme SolidTerm \
     -configuration Release \
     -destination 'generic/platform=macOS' \
     -archivePath "$ARCHIVE_PATH" \
@@ -66,7 +66,7 @@ xcodebuild archive \
 # `xcodebuild -exportArchive` (which expects a signed `exportOptionsPlist`)
 # and just copy the `.app` out of the archive — for an unsigned build
 # this is functionally identical and avoids the export-options dance.
-ARCHIVED_APP="$ARCHIVE_PATH/Products/Applications/NextTerm.app"
+ARCHIVED_APP="$ARCHIVE_PATH/Products/Applications/SolidTerm.app"
 if [[ ! -d "$ARCHIVED_APP" ]]; then
     echo "error: $ARCHIVED_APP not produced by archive step" >&2
     exit 1
@@ -75,16 +75,16 @@ fi
 echo "▶ Staging DMG layout in $DMG_STAGE"
 rm -rf "$DMG_STAGE"
 mkdir -p "$DMG_STAGE"
-cp -R "$ARCHIVED_APP" "$DMG_STAGE/NextTerm.app"
+cp -R "$ARCHIVED_APP" "$DMG_STAGE/SolidTerm.app"
 # Drag-to-Applications symlink. `hdiutil` preserves symlinks in the
-# resulting image so the user sees a side-by-side `NextTerm.app` →
+# resulting image so the user sees a side-by-side `SolidTerm.app` →
 # `Applications` shortcut on mount.
 ln -s /Applications "$DMG_STAGE/Applications"
 
 echo "▶ Building DMG → $DMG_PATH"
 rm -f "$DMG_PATH"
 hdiutil create \
-    -volname "NextTerm $VERSION" \
+    -volname "SolidTerm $VERSION" \
     -srcfolder "$DMG_STAGE" \
     -ov \
     -format UDZO \
@@ -94,5 +94,5 @@ hdiutil create \
 echo
 echo "✓ Built unsigned DMG: $DMG_PATH"
 echo
-echo "  Beta install: open the DMG, right-click NextTerm.app → Open"
+echo "  Beta install: open the DMG, right-click SolidTerm.app → Open"
 echo "  (Gatekeeper will warn — this is expected for unsigned builds.)"

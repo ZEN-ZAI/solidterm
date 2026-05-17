@@ -19,7 +19,7 @@ Package.resolved
 # Empty SwiftPM cache dir XcodeGen creates; nothing to track until we add packages
 *.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
 
-# swift-bridge generated shims live under app/NextTerm/Generated/ and ARE
+# swift-bridge generated shims live under app/SolidTerm/Generated/ and ARE
 # committed — they are deterministic outputs of the FFI bridge and let `xcodebuild`
 # resolve its Compile Sources phase without running the cargo build first.
 # The Run Script phase (app/scripts/build-rust.sh) refreshes them every build.
@@ -34,7 +34,7 @@ Package.resolved
 .claude/settings.local.json
 .claude/agent-memory-local/
 
-# Local vault symlink (Obsidian vault at ~/Vaults/NextTerm)
+# Local vault symlink (Obsidian vault at ~/Vaults/SolidTerm)
 /vault
 
 # Logs / temp

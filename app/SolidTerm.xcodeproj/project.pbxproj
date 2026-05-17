@@ -10,7 +10,7 @@
 		0546F03C78194B12C2A69F8B /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50509C430330E34EA76D7F88 /* AppDelegate.swift */; };
 		0AC2E75EB22A031D59EAF022 /* SettingsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43859D09724A7E3CA1FF3E00 /* SettingsViewTests.swift */; };
 		0D9F4CF857382228754B7BEF /* FrameDeltaDecodingPerfTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF465B9643D5B2720E2134C /* FrameDeltaDecodingPerfTests.swift */; };
-		0F6F740A2A8A42E013C3C1DA /* libnextterm_ffi.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 6AC88F7591172F8B0F3E3C53 /* libnextterm_ffi.a */; };
+		0F6F740A2A8A42E013C3C1DA /* libsolidterm_ffi.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 6AC88F7591172F8B0F3E3C53 /* libsolidterm_ffi.a */; };
 		1697A2E02D22A72D647380DE /* FFIRoundTripTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FBA59483CBF79E90D753DA6 /* FFIRoundTripTests.swift */; };
 		18B7C11FD64C41031CA830E2 /* SelectionInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B61EAE50315A04D514EEE64F /* SelectionInputTests.swift */; };
 		1ABDBB5AC7C4778DB9B18145 /* ThemeTokenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 670DEE61BA89ED9CFE829F56 /* ThemeTokenTests.swift */; };
@@ -67,7 +67,7 @@
 		CF84B6D729B7CE36D4240F2A /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4390C9BF6C88993963EC6E3 /* SettingsWindowController.swift */; };
 		D207C5D926EE6459C35BD38F /* SolidTermApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 305A624CBCB434FA3DF1D616 /* SolidTermApp.swift */; };
 		D6904C6AE2AD20026FFC255F /* ThaiBackspaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4737C57E0719A5C0C48C257 /* ThaiBackspaceTests.swift */; };
-		D8D3C43016CBD95E85EAD107 /* nextterm_ffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4359BD3C7C39A3D38D6BFDC6 /* nextterm_ffi.swift */; };
+		D8D3C43016CBD95E85EAD107 /* solidterm_ffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4359BD3C7C39A3D38D6BFDC6 /* solidterm_ffi.swift */; };
 		DB02D75D43B1BB4485603A91 /* AppMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 675D39C16CD0B6757A75F3E6 /* AppMenu.swift */; };
 		E172234861AAE4728D2A6706 /* BoxDrawing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 006BDA261BEA89B4F14BFF82 /* BoxDrawing.swift */; };
 		E2A9975EFD86BF097588F6EE /* SearchPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C72FC38F6ABEB528ED1F6C53 /* SearchPanelController.swift */; };
@@ -101,7 +101,7 @@
 		0FBA59483CBF79E90D753DA6 /* FFIRoundTripTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFIRoundTripTests.swift; sourceTree = "<group>"; };
 		11F779319E010C38FE96F9C0 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		17F80BE14C89277D4C8613F7 /* TerminalWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalWindowController.swift; sourceTree = "<group>"; };
-		1D4E865DE86580741D17049A /* nextterm_ffi.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = nextterm_ffi.h; sourceTree = "<group>"; };
+		1D4E865DE86580741D17049A /* solidterm_ffi.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = solidterm_ffi.h; sourceTree = "<group>"; };
 		1E21F21BF613B7255A284B2E /* TerminalSurfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSurfaceView.swift; sourceTree = "<group>"; };
 		20FB2D7C48C2493FE6513F00 /* GridPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridPipelineTests.swift; sourceTree = "<group>"; };
 		22115104B622284C62B2A116 /* SolidTermTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SolidTermTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -114,7 +114,7 @@
 		358F0428163C9D26BD46DD74 /* PaneViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaneViewController.swift; sourceTree = "<group>"; };
 		4185D399FEF940DCA11B8D7F /* LatencyMeasurementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatencyMeasurementTests.swift; sourceTree = "<group>"; };
 		4264D169B3B28ED50F218C1C /* SearchMatchDecoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchMatchDecoding.swift; sourceTree = "<group>"; };
-		4359BD3C7C39A3D38D6BFDC6 /* nextterm_ffi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = nextterm_ffi.swift; sourceTree = "<group>"; };
+		4359BD3C7C39A3D38D6BFDC6 /* solidterm_ffi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = solidterm_ffi.swift; sourceTree = "<group>"; };
 		43859D09724A7E3CA1FF3E00 /* SettingsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewTests.swift; sourceTree = "<group>"; };
 		44FC4D973C6C003417310B7C /* FFIDataTypeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFIDataTypeTests.swift; sourceTree = "<group>"; };
 		457E17220393B266698D1779 /* ThemeModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeModeTests.swift; sourceTree = "<group>"; };
@@ -130,7 +130,7 @@
 		675D39C16CD0B6757A75F3E6 /* AppMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMenu.swift; sourceTree = "<group>"; };
 		67A68C1C8BA8009CA511E534 /* BoxDrawingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoxDrawingTests.swift; sourceTree = "<group>"; };
 		68E5B5706A44FAE0D773E905 /* GlyphAtlas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlyphAtlas.swift; sourceTree = "<group>"; };
-		6AC88F7591172F8B0F3E3C53 /* libnextterm_ffi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libnextterm_ffi.a; sourceTree = "<group>"; };
+		6AC88F7591172F8B0F3E3C53 /* libsolidterm_ffi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libsolidterm_ffi.a; sourceTree = "<group>"; };
 		70B2FE47D97E0F23D1A00A78 /* PixelVerifyHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PixelVerifyHelpers.swift; sourceTree = "<group>"; };
 		713C53373341C699395E4726 /* GlyphAtlasTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlyphAtlasTests.swift; sourceTree = "<group>"; };
 		78CBA8FC329051C52C53A906 /* Themes */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Themes; path = SolidTerm/Resources/Themes; sourceTree = SOURCE_ROOT; };
@@ -176,7 +176,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0F6F740A2A8A42E013C3C1DA /* libnextterm_ffi.a in Frameworks */,
+				0F6F740A2A8A42E013C3C1DA /* libsolidterm_ffi.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -207,8 +207,8 @@
 		55E6BF35EDEDF6669E6DEFA1 /* Generated */ = {
 			isa = PBXGroup;
 			children = (
-				1D4E865DE86580741D17049A /* nextterm_ffi.h */,
-				4359BD3C7C39A3D38D6BFDC6 /* nextterm_ffi.swift */,
+				1D4E865DE86580741D17049A /* solidterm_ffi.h */,
+				4359BD3C7C39A3D38D6BFDC6 /* solidterm_ffi.swift */,
 				4DE2F87B2E6955D67755FDCC /* SwiftBridgeCore.h */,
 				2404C2119939C8C3DCFF9E27 /* SwiftBridgeCore.swift */,
 			);
@@ -218,7 +218,7 @@
 		5F7BE5B96C1127CB6FA73302 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				6AC88F7591172F8B0F3E3C53 /* libnextterm_ffi.a */,
+				6AC88F7591172F8B0F3E3C53 /* libsolidterm_ffi.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -417,10 +417,10 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(SRCROOT)/../crates/nextterm-ffi/src/lib.rs",
-				"$(SRCROOT)/../crates/nextterm-ffi/src/bridge.rs",
-				"$(SRCROOT)/../crates/nextterm-ffi/build.rs",
-				"$(SRCROOT)/../crates/nextterm-ffi/Cargo.toml",
+				"$(SRCROOT)/../crates/solidterm-ffi/src/lib.rs",
+				"$(SRCROOT)/../crates/solidterm-ffi/src/bridge.rs",
+				"$(SRCROOT)/../crates/solidterm-ffi/build.rs",
+				"$(SRCROOT)/../crates/solidterm-ffi/Cargo.toml",
 				"$(SRCROOT)/../Cargo.toml",
 				"$(SRCROOT)/../Cargo.lock",
 			);
@@ -428,11 +428,11 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/libnextterm_ffi.a",
+				"$(BUILT_PRODUCTS_DIR)/libsolidterm_ffi.a",
 				"$(SRCROOT)/SolidTerm/Generated/SwiftBridgeCore.swift",
 				"$(SRCROOT)/SolidTerm/Generated/SwiftBridgeCore.h",
-				"$(SRCROOT)/SolidTerm/Generated/nextterm_ffi.swift",
-				"$(SRCROOT)/SolidTerm/Generated/nextterm_ffi.h",
+				"$(SRCROOT)/SolidTerm/Generated/solidterm_ffi.swift",
+				"$(SRCROOT)/SolidTerm/Generated/solidterm_ffi.h",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -480,7 +480,7 @@
 				36E52D18F5F1FA35788777F1 /* TerminalWindowController.swift in Sources */,
 				FB16DAEBF1DDB107327A39CC /* Theme.swift in Sources */,
 				3FB8A5225E908F81EF2EB6AE /* ThemeTOMLLoader.swift in Sources */,
-				D8D3C43016CBD95E85EAD107 /* nextterm_ffi.swift in Sources */,
+				D8D3C43016CBD95E85EAD107 /* solidterm_ffi.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

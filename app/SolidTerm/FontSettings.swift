@@ -27,9 +27,9 @@ public final class FontSettings: ObservableObject {
 
     /// `UserDefaults` keys. Public so tests can poke / inspect.
     public enum Keys {
-        public static let family = "nextterm.font.family"
-        public static let size = "nextterm.font.size"
-        public static let ligatures = "nextterm.font.ligatures"
+        public static let family = "solidterm.font.family"
+        public static let size = "solidterm.font.size"
+        public static let ligatures = "solidterm.font.ligatures"
     }
 
     /// Default font family. JetBrainsMono ships in the user's
@@ -56,7 +56,7 @@ public final class FontSettings: ObservableObject {
     /// Notification name posted when any font setting changes.
     /// `MetalRenderer` observes this to trigger atlas regeneration.
     /// Posted on the main run loop; observer block runs on main.
-    public static let didChange = Notification.Name("nextterm.font.didChange")
+    public static let didChange = Notification.Name("solidterm.font.didChange")
 
     @Published public private(set) var family: String
     @Published public private(set) var size: CGFloat

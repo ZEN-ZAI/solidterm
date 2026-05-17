@@ -8,7 +8,7 @@
 // with the InputEvent once Swift hands it across the FFI; this file
 // covers the Swift half: that the encoder produces the right shape for
 // ASCII / multibyte / modifier combinations, that the discriminator
-// constants line up with `nextterm_ffi::kinds::*`, and that the
+// constants line up with `solidterm_ffi::kinds::*`, and that the
 // modifier bitfield is derived correctly from `NSEvent.modifierFlags`.
 //
 // `KeyEvent.text` is `RustString` post-#16-perf (was `RustVec<UInt8>`).

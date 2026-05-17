@@ -65,7 +65,7 @@ enum Theme {
         /// `UserDefaults` key persisting the user's opt-in state.
         /// Bound from `Settings → Appearance` and read by
         /// `Theme.showOSC133Accent` on every render frame.
-        static let userDefaultsKey = "nextterm.osc133Accent.enabled"
+        static let userDefaultsKey = "solidterm.osc133Accent.enabled"
 
         /// Width of the slim rule in points. 2pt reads as a marker —
         /// narrow enough to coexist with the leftmost cell column
@@ -677,7 +677,7 @@ enum Theme {
     ///   for AA contrast on `#eff1f5` bg (per `spec/design-tokens.md`
     ///   §"Light-mode token table")
     ///
-    /// File-backed themes from `~/.config/nextterm/themes/*.toml`
+    /// File-backed themes from `~/.config/solidterm/themes/*.toml`
     /// (selected via Settings → Appearance "Theme file:") win over
     /// these modes when active.
     enum Mode: String, CaseIterable, Codable {
@@ -733,9 +733,9 @@ final class ThemeManager: ObservableObject {
     static let shared = ThemeManager()
 
     /// `UserDefaults` key for persisted mode. Per the M6-2 per-feature
-    /// pattern (`nextterm.filePathClick.*`); no centralized
+    /// pattern (`solidterm.filePathClick.*`); no centralized
     /// SettingsStore abstraction.
-    static let modeKey = "nextterm.theme.mode"
+    static let modeKey = "solidterm.theme.mode"
 
     /// Notification posted on theme change. AppKit consumers
     /// (`MetalRenderer`, `BlockOverlayManager`) observe this; SwiftUI
@@ -820,7 +820,7 @@ enum SRGBLinearLUT {
     }
 
     /// Unpack an `R<<24 | G<<16 | B<<8 | A` u32 (engine encoding per
-    /// `crates/nextterm-engine/src/cells.rs:214`) into a linear-space
+    /// `crates/solidterm-engine/src/cells.rs:214`) into a linear-space
     /// `SIMD4<Float>`. Alpha stays straight (no transfer function).
     @inline(__always)
     static func unpackLinear(_ packed: UInt32) -> SIMD4<Float> {

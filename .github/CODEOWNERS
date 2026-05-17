@@ -5,10 +5,10 @@
 # Default: everyone can touch; human review optional for low-risk areas.
 
 # Security-sensitive paths — always human review
-/crates/nextterm-engine/src/osc/           @ZEN-ZAI
-/crates/nextterm-auth/                      @ZEN-ZAI
-/crates/nextterm-hooks/                     @ZEN-ZAI
-/crates/nextterm-ffi/                       @ZEN-ZAI
+/crates/solidterm-engine/src/osc/           @ZEN-ZAI
+/crates/solidterm-auth/                      @ZEN-ZAI
+/crates/solidterm-hooks/                     @ZEN-ZAI
+/crates/solidterm-ffi/                       @ZEN-ZAI
 
 # Network / policy paths — always human review
 /.claude/settings.json                      @ZEN-ZAI

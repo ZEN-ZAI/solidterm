@@ -1,5 +1,5 @@
 [package]
-name = "nextterm-ffi"
+name = "solidterm-ffi"
 description = "swift-bridge FFI surface — the only crate Swift links against"
 version.workspace = true
 edition.workspace = true
@@ -8,10 +8,10 @@ publish.workspace = true
 
 # Cross-language ABI version per spec/ffi-boundary.md §Versioning. Bump on
 # any boundary-shape change. Swift bundle's Info.plist will assert match at
-# load time once the runtime check lands. Namespaced under `nextterm` so the
+# load time once the runtime check lands. Namespaced under `solidterm` so the
 # key cannot collide with future tool conventions on the bare
 # `[package.metadata]` table.
-[package.metadata.nextterm]
+[package.metadata.solidterm]
 ffi_api_version = 1
 
 [lib]
@@ -21,8 +21,8 @@ crate-type = ["staticlib"]
 workspace = true
 
 [dependencies]
-nextterm-engine = { path = "../nextterm-engine" }
-nextterm-config = { path = "../nextterm-config" }
+solidterm-engine = { path = "../solidterm-engine" }
+solidterm-config = { path = "../solidterm-config" }
 
 swift-bridge.workspace = true
 bytemuck.workspace = true

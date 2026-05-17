@@ -36,7 +36,7 @@ public final class PaneViewController: NSViewController {
         }
     }
 
-    /// Engine-side pane id (matches `nextterm_engine::PaneId`).
+    /// Engine-side pane id (matches `solidterm_engine::PaneId`).
     public let paneId: UInt64
     public var metadata: PaneMetadata
 

@@ -27,7 +27,7 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use nextterm_engine::{EngineConfig, TerminalEngine};
+use solidterm_engine::{EngineConfig, TerminalEngine};
 
 fn login_shell_config() -> EngineConfig {
     EngineConfig {
@@ -51,7 +51,7 @@ fn spawn_zsh_and_read_pty_output() {
     let pid = engine.child_pid();
     assert!(pid > 0, "child PID must be positive");
 
-    // Probe the PTY by sending `echo nextterm-pty-ok\nexit\n`. The
+    // Probe the PTY by sending `echo solidterm-pty-ok\nexit\n`. The
     // shell will emit the echoed input + the literal echo output +
     // a final prompt; the `exit\n` ensures the child eventually
     // tears down even though we don't assert on it (see file-level
@@ -63,7 +63,7 @@ fn spawn_zsh_and_read_pty_output() {
     //   - shells that buffer the prompt until first input
     //   - macOS `/usr/bin/login -flp` variations across releases
     engine
-        .feed_input(b"echo nextterm-pty-ok\nexit\n")
+        .feed_input(b"echo solidterm-pty-ok\nexit\n")
         .expect("feed_input should write the probe command to the PTY master");
 
     // Drain the PTY via `poll_output` until ≥1 byte has been

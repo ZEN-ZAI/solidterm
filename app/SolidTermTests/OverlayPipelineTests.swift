@@ -47,7 +47,7 @@ final class OverlayPipelineTests: XCTestCase {
     }
 
     /// Pin the `CURSOR_SHAPE_*` u8 → `OverlayKind` mapping. The constants
-    /// live in `crates/nextterm-ffi/src/bridge.rs:101-104`; this test
+    /// live in `crates/solidterm-ffi/src/bridge.rs:101-104`; this test
     /// fails loudly if either side drifts.
     func testShapeKindMapping() {
         XCTAssertEqual(MetalRenderer.cursorKind(forShape: 0), .cursorBlock)

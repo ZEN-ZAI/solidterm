@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# NextTerm pre-commit hook — stop-the-line rules from AGENTS.md.
+# SolidTerm pre-commit hook — stop-the-line rules from AGENTS.md.
 # Installed by scripts/install-hooks.sh.
 set -euo pipefail
 
@@ -63,7 +63,7 @@ fi
 # swift-format ships with Xcode's toolchain; we resolve via xcrun as a fallback
 # so contributors don't need a separate install. Scope is the *staged* Swift
 # files only — we don't fail commits on pre-existing non-conformance elsewhere
-# in the tree. Generated swift-bridge files under app/NextTerm/Generated/ are
+# in the tree. Generated swift-bridge files under app/SolidTerm/Generated/ are
 # excluded since they aren't ours to format.
 SWIFT_FORMAT=""
 if command -v swift-format >/dev/null 2>&1; then
@@ -75,7 +75,7 @@ if [[ -n "$SWIFT_FORMAT" ]]; then
   swift_targets=()
   while IFS= read -r f; do
     [[ -z "$f" ]] && continue
-    [[ "$f" == app/NextTerm/Generated/* ]] && continue
+    [[ "$f" == app/SolidTerm/Generated/* ]] && continue
     [[ -f "$f" ]] || continue
     swift_targets+=("$f")
   done < <(git diff --cached --name-only --diff-filter=ACMR -- '*.swift')

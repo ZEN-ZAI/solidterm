@@ -1,4 +1,4 @@
-// M6-5 KeybindingStore — load/save ~/.nextterm/keybindings.json,
+// M6-5 KeybindingStore — load/save ~/.solidterm/keybindings.json,
 // resolve `CommandPaletteAction` cases against effective bindings.
 //
 // Authoritative spec: spec/keyboard-system.md (M6 pre-flight pass 4
@@ -29,7 +29,7 @@
 import AppKit
 import Foundation
 
-/// File-format DTOs for `~/.nextterm/keybindings.json`. Keep these as
+/// File-format DTOs for `~/.solidterm/keybindings.json`. Keep these as
 /// raw structs (not coupled to `CommandPaletteAction`) so unknown
 /// actions and reserved-range entries can be inspected pre-validation.
 public struct KeybindingsFile: Codable {
@@ -112,12 +112,12 @@ public final class KeybindingStore: ObservableObject {
         reload()
     }
 
-    /// Default `~/.nextterm/keybindings.json` path. Static so tests
+    /// Default `~/.solidterm/keybindings.json` path. Static so tests
     /// can resolve the production path without touching the singleton.
     public static func defaultFileURL() -> URL {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return home.appendingPathComponent(
-            ".nextterm/keybindings.json", isDirectory: false)
+            ".solidterm/keybindings.json", isDirectory: false)
     }
 
     // MARK: - Defaults table

@@ -83,7 +83,7 @@ pub enum EngineError {
 // ── 4.5 selection types ──────────────────────────────────────────────
 //
 // Public types for the engine selection API. Hoisted to module scope
-// so `nextterm-ffi`'s wire shim can re-export them through `lib.rs`
+// so `solidterm-ffi`'s wire shim can re-export them through `lib.rs`
 // without crossing alacritty's `SelectionType` directly — same
 // precedent as `CursorShape` in `cursor.rs`.
 
@@ -93,7 +93,7 @@ pub enum EngineError {
 /// click → entire logical line). Block-mode (alt-drag) is deferred
 /// pending matching input plumb in a follow-up.
 ///
-/// Mapping pinned at the FFI seam in `nextterm-ffi` via the
+/// Mapping pinned at the FFI seam in `solidterm-ffi` via the
 /// `SELECTION_MODE_*` u8 constants.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SelectionMode {
@@ -1006,7 +1006,7 @@ impl TerminalEngine {
     // below (re-exported through `lib.rs` per the precedent set by
     // `CursorShape`). `SelectionMode::{Simple,Word,Line}` mirrors
     // alacritty's `SelectionType` narrowed to the variants 4.5
-    // supports; the FFI seam in `nextterm-ffi` pins the cross-language
+    // supports; the FFI seam in `solidterm-ffi` pins the cross-language
     // tag via `kinds::SELECTION_MODE_*`.
 
     /// Start a new selection at the given viewport-relative cell.

@@ -4,13 +4,13 @@
 // native ABI).
 //
 // The byte layout is the cross-language contract; field offsets MUST
-// stay in sync with `crates/nextterm-ffi/src/bridge.rs`'s
+// stay in sync with `crates/solidterm-ffi/src/bridge.rs`'s
 // `CellDeltaWire`.
 
 import Foundation
 
 /// Swift mirror of Rust's `CellDeltaWire`. Field order, sizes, and
-/// offsets MUST match `crates/nextterm-ffi/src/bridge.rs`.
+/// offsets MUST match `crates/solidterm-ffi/src/bridge.rs`.
 public struct CellDeltaSwift: Equatable {
     public var row: UInt16
     public var col: UInt16

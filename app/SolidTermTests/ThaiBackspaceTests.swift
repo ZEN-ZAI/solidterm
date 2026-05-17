@@ -1,6 +1,6 @@
 // Task #16: Thai-aware backspace. Engine round-trip happens at the
 // Rust FFI boundary (`TerminalSession.cell_before_cursor()`), which
-// is exercised by nextterm-ffi unit tests. This file pins the pure
+// is exercised by solidterm-ffi unit tests. This file pins the pure
 // Swift classifier that decides whether the trailing scalar of a
 // grapheme cluster is a Thai combining mark — the discriminator
 // that decides whether the backspace path intercepts or passes

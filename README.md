@@ -33,7 +33,7 @@ open ~/Library/Developer/Xcode/DerivedData/SolidTerm-*/Build/Products/Debug/Soli
 ## Architecture
 
 - Swift host owns Metal rendering, AppKit chrome, SwiftUI islands
-- Rust core (`nextterm-engine`) wraps `alacritty_terminal` for PTY + VT
+- Rust core (`solidterm-engine`) wraps `alacritty_terminal` for PTY + VT
 - `swift-bridge` FFI carries pure data across the boundary
 - See `CLAUDE.md` for the engineering memory
 

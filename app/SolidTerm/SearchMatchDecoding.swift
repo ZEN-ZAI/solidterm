@@ -3,13 +3,13 @@
 // by Rust's `encode_search_matches` (SearchMatchWire records, 8 bytes
 // each, little-endian native ABI).
 //
-// Cross-language contract pinned to `crates/nextterm-ffi/src/bridge.rs`
+// Cross-language contract pinned to `crates/solidterm-ffi/src/bridge.rs`
 // `SearchMatchWire`. Same `Vec<u8>`-of-fixed-records pattern as
 // `BlockBoundaryDecoding` (decisions/10-ffi-collection-deferral.md).
 
 import Foundation
 
-/// Swift mirror of Rust's `nextterm_engine::SearchMatch`.
+/// Swift mirror of Rust's `solidterm_engine::SearchMatch`.
 /// `line` is alacritty-absolute: negative = scrollback row, non-negative
 /// = viewport row in `[0..screen_lines)`.
 public struct SearchMatchSwift: Equatable {

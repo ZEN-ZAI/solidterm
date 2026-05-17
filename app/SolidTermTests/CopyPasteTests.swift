@@ -5,7 +5,7 @@
 //  1. **FFI shape pinning** — `selection_text()` and
 //     `bracketed_paste_enabled()` round-trip through the Swift binding
 //     so future bridge.rs ABI drift surfaces in CI alongside the
-//     Rust-side tests in `crates/nextterm-ffi/src/bridge.rs::tests`.
+//     Rust-side tests in `crates/solidterm-ffi/src/bridge.rs::tests`.
 //
 //  2. **Bracketed-paste payload formatting** — pure-function tests on
 //     `TerminalSurfaceView.formatPastePayload(_:bracketedPasteEnabled:)`

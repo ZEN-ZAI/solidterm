@@ -6,7 +6,7 @@
 //     update_selection / clear_selection / selection_span` round-trips
 //     directly through the Swift binding so future bridge.rs ABI drift
 //     surfaces in CI alongside the Rust-side tests in
-//     `crates/nextterm-ffi/src/bridge.rs::tests`.
+//     `crates/solidterm-ffi/src/bridge.rs::tests`.
 //
 //  2. **Selection-mode constants** — pin the `SELECTION_MODE_*` Swift
 //     mirrors in `TerminalSurfaceView` against the matching numeric

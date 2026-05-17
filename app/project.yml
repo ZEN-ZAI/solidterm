@@ -71,13 +71,13 @@ targets:
         type: folder
         buildPhase: resources
         # Bundled shell integration scripts (zsh/bash/fish OSC 133 hooks).
-        # Installed to ~/.config/nextterm/shell/ via the
+        # Installed to ~/.config/solidterm/shell/ via the
         # "Install Shell Integration" palette action.
       - path: SolidTerm/Resources/Themes
         type: folder
         buildPhase: resources
         # Bundled theme TOML files (zenzai, tokyo-night, gruvbox, light).
-        # Seeded into ~/.config/nextterm/themes/ on first launch by
+        # Seeded into ~/.config/solidterm/themes/ on first launch by
         # ThemeFileStore.ensureSeeded. Hot-reload via DispatchSource
         # watch picks up user edits live.
     settings:
@@ -123,21 +123,21 @@ targets:
       - name: Build Rust core
         script: '"$SRCROOT/scripts/build-rust.sh"'
         inputFiles:
-          - $(SRCROOT)/../crates/nextterm-ffi/src/lib.rs
-          - $(SRCROOT)/../crates/nextterm-ffi/src/bridge.rs
-          - $(SRCROOT)/../crates/nextterm-ffi/build.rs
-          - $(SRCROOT)/../crates/nextterm-ffi/Cargo.toml
+          - $(SRCROOT)/../crates/solidterm-ffi/src/lib.rs
+          - $(SRCROOT)/../crates/solidterm-ffi/src/bridge.rs
+          - $(SRCROOT)/../crates/solidterm-ffi/build.rs
+          - $(SRCROOT)/../crates/solidterm-ffi/Cargo.toml
           - $(SRCROOT)/../Cargo.toml
           - $(SRCROOT)/../Cargo.lock
         outputFiles:
-          - $(BUILT_PRODUCTS_DIR)/libnextterm_ffi.a
+          - $(BUILT_PRODUCTS_DIR)/libsolidterm_ffi.a
           - $(SRCROOT)/SolidTerm/Generated/SwiftBridgeCore.swift
           - $(SRCROOT)/SolidTerm/Generated/SwiftBridgeCore.h
-          - $(SRCROOT)/SolidTerm/Generated/nextterm_ffi.swift
-          - $(SRCROOT)/SolidTerm/Generated/nextterm_ffi.h
+          - $(SRCROOT)/SolidTerm/Generated/solidterm_ffi.swift
+          - $(SRCROOT)/SolidTerm/Generated/solidterm_ffi.h
         basedOnDependencyAnalysis: true
     dependencies:
-      - framework: libnextterm_ffi.a
+      - framework: libsolidterm_ffi.a
         embed: false
         implicit: false
 

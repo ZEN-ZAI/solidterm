@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/nextterm-engine",
-    "crates/nextterm-config",
-    "crates/nextterm-ffi",
+    "crates/solidterm-engine",
+    "crates/solidterm-config",
+    "crates/solidterm-ffi",
 ]
 
 [workspace.package]

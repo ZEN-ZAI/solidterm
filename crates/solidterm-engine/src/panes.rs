@@ -31,7 +31,7 @@ pub struct SplitId(NonZeroU64);
 impl SplitId {
     /// Reconstruct a `SplitId` from its raw `u64` representation.
     /// Returns `None` for `0` (the FFI failure sentinel — see
-    /// `nextterm_ffi::PANE_TREE_SPLIT_FAILED`). Required by the M4-2
+    /// `solidterm_ffi::PANE_TREE_SPLIT_FAILED`). Required by the M4-2
     /// FFI surface so Swift can hand a previously-returned `SplitId`
     /// back to `resize_split`.
     #[must_use]

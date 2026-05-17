@@ -7,7 +7,7 @@ A native macOS terminal emulator. Minimal, fast, solid. Forked from NextTerm wit
 - **Language**: Swift (UI/host) + Rust (core engine)
 - **FFI**: `swift-bridge` — pure data across the boundary (no Metal types)
 - **Stack A**: Swift owns all Metal code; Rust core is data-only
-- **Terminal engine**: `alacritty_terminal` 0.26+ wrapped in `nextterm-engine`
+- **Terminal engine**: `alacritty_terminal` 0.26+ wrapped in `solidterm-engine`
 - **Min macOS**: 14 (Sonoma)
 
 ## Repo layout
@@ -16,9 +16,9 @@ A native macOS terminal emulator. Minimal, fast, solid. Forked from NextTerm wit
 solidterm/
 ├── Cargo.toml             ← workspace root (3 crates)
 ├── crates/
-│   ├── nextterm-engine/   ← alacritty_terminal wrapper + OSC routing
-│   ├── nextterm-config/   ← config + settings.json
-│   └── nextterm-ffi/      ← swift-bridge surface (only crate Swift links)
+│   ├── solidterm-engine/   ← alacritty_terminal wrapper + OSC routing
+│   ├── solidterm-config/   ← config + settings.json
+│   └── solidterm-ffi/      ← swift-bridge surface (only crate Swift links)
 ├── app/
 │   ├── SolidTerm/         ← Swift sources
 │   ├── SolidTermTests/    ← XCTest
@@ -26,7 +26,6 @@ solidterm/
 └── CLAUDE.md              ← this file
 ```
 
-(Crates keep the `nextterm-` prefix to minimize fork churn; product name is SolidTerm.)
 
 ## What's IN this fork
 

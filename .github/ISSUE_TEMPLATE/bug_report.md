@@ -15,7 +15,7 @@ labels: bug
 
 ## Environment
 
-- NextTerm version: `nextterm --version`
+- SolidTerm version: `solidterm --version`
 - macOS version:
 - Shell + version:
 - Relevant feature flags:

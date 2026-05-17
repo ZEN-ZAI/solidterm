@@ -149,7 +149,7 @@ pub enum EngineEvent {
     /// Source: `FinalTerm` semantic-prompts proposal, adopted by VS Code,
     /// iTerm2, kitty, etc. Surfaced by the `OscPerform` sibling parser
     /// (the OSC sideband alacritty's `vte::ansi::Handler` doesn't
-    /// expose). Consumers (`BlockStateMachine` in `nextterm-blocks`) use
+    /// expose). Consumers (`BlockStateMachine` in `solidterm-blocks`) use
     /// this as the boundary between completed-output and new-prompt.
     PromptStart,
     /// OSC 133 ; B — user input begins (right after the prompt is
@@ -388,10 +388,10 @@ mod tests {
     #[test]
     fn proxy_forwards_title_changed() {
         let (proxy, rx, _pty_rx) = proxy_for_event_tests();
-        proxy.send_event(AlacrittyEvent::Title("nextterm".to_string()));
+        proxy.send_event(AlacrittyEvent::Title("solidterm".to_string()));
         assert_eq!(
             rx.try_recv().ok(),
-            Some(EngineEvent::TitleChanged("nextterm".to_string()))
+            Some(EngineEvent::TitleChanged("solidterm".to_string()))
         );
     }
 
