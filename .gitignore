@@ -1,0 +1,52 @@
+# Rust
+/target
+**/*.rs.bk
+*.pdb
+Cargo.lock.bak
+
+# macOS
+.DS_Store
+*.swp
+*.swo
+
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcuserstate
+.build/
+Package.resolved
+*.xcworkspace/xcuserdata/
+# Empty SwiftPM cache dir XcodeGen creates; nothing to track until we add packages
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+
+# swift-bridge generated shims live under app/NextTerm/Generated/ and ARE
+# committed — they are deterministic outputs of the FFI bridge and let `xcodebuild`
+# resolve its Compile Sources phase without running the cargo build first.
+# The Run Script phase (app/scripts/build-rust.sh) refreshes them every build.
+
+# Editors
+.vscode/
+.idea/
+*.iml
+.zed/
+
+# Local Claude state
+.claude/settings.local.json
+.claude/agent-memory-local/
+
+# Local vault symlink (Obsidian vault at ~/Vaults/NextTerm)
+/vault
+
+# Logs / temp
+*.log
+.tmp/
+node_modules/
+
+# Build outputs
+*.dmg
+*.zip
+release/
+dist/
+
+# Per-teammate worktrees
+.claude/worktrees/

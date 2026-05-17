@@ -1,0 +1,36 @@
+{
+  "captured_at": "2026-04-25T16:30:00+07:00",
+  "macos_version": "14.x",
+  "shell": "zsh 5.9 (arm64-apple-darwin)",
+  "claude_code_version": null,
+  "term_program": "zenzai",
+  "term": "xterm-256color",
+  "redacted": true,
+  "redactions": [
+    "hostname → host.local",
+    "username → USER (in file:// paths)",
+    "user@host in PS1 prompt"
+  ],
+  "captured_via": "expect script /tmp/capture-zenzai.exp + script(1) -q -F",
+  "shell_integration_source": "/Users/zen/.config/zenzai/shell-integration.zsh",
+  "exercises": [
+    "OSC 7 cwd reporting (3 different dirs)",
+    "OSC 133 A — prompt start (initial + post-command)",
+    "OSC 133 B — prompt end (after PS1 marker)",
+    "OSC 133 C — pre-exec",
+    "OSC 133 D;<exit> — command end with exit code (0 and 1)",
+    "CSI ?2004h/l — bracketed paste mode toggle",
+    "SGR sequences from prompt rendering"
+  ],
+  "commands_run": [
+    "echo hello world",
+    "pwd",
+    "ls /tmp 2>&1 | head -3",
+    "false",
+    "true",
+    "cd /tmp && cd ~",
+    "exit"
+  ],
+  "size_bytes": 1715,
+  "notes": "first real OSC capture for the corpus; useful for engine integration tests in M1 week 2. Capture script committed at /tmp/capture-zenzai.exp (not in repo — single-use)."
+}

@@ -1,0 +1,19 @@
+{
+  "captured_at": "2026-04-25T17:10:00+07:00",
+  "macos_version": "14.x",
+  "shell": "bash 3.2.x (Apple's bundled bash)",
+  "term": "xterm-256color",
+  "bash_preexec": false,
+  "redacted": true,
+  "redactions": ["/Users/zen → /Users/USER in pwd output"],
+  "captured_via": "expect /tmp/capture-bash-default.exp + script(1) -q -F (bash --norc)",
+  "exercises": [
+    "Apple's macOS bash 3.2 banner (informational notice about zsh)",
+    "CSI ?1034h — xterm bash quirk: meta-key handling enable",
+    "Plain bash prompt 'bash-3.2$' — no integration, no OSC",
+    "Standard echo + pwd + false + exit flow"
+  ],
+  "commands_run": ["echo hello", "pwd", "false", "exit"],
+  "size_bytes": 305,
+  "notes": "Pure bash baseline. No bash-preexec installed. Useful for confirming that engine handles bash without integration gracefully (RAW_DEGRADED state in our blocks state machine per decisions/06)."
+}

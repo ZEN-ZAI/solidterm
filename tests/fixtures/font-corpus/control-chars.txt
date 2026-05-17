@@ -1,0 +1,23 @@
+Note: this file uses literal escape sequences as placeholders since binary control chars are unsafe in many editors. The actual fixture loader interprets the placeholders.
+
+C0 controls (must not render visible glyphs):
+- BEL: <\x07>
+- BS:  <\x08>
+- TAB: <\x09>  (special — advance to next stop)
+- LF:  <\x0a>  (newline — handled by VT)
+- VT:  <\x0b>
+- FF:  <\x0c>
+- CR:  <\x0d>  (handled by VT)
+
+C1 controls (sometimes used for OSC/CSI introducers — must not render):
+- IND: <\x84>
+- NEL: <\x85>
+- HTS: <\x88>
+- CSI: <\x9b>
+- ST:  <\x9c>
+- OSC: <\x9d>
+
+DEL: <\x7f>
+NUL: <\x00>  — embedded NUL must not crash atlas
+
+Loader note: `scripts/expand-control-fixtures.py` substitutes the <\xNN> placeholders with actual bytes when feeding to the engine. Avoids editor confusion.

@@ -1,0 +1,8 @@
+Arabic: مرحبا بالعالم
+Arabic with diacritics: السَّلَامُ عَلَيْكُم
+Hebrew: שלום עולם
+Hebrew with niqqud: שָׁלוֹם עוֹלָם
+Mixed LTR/RTL: Hello مرحبا World עולם — bidi rendering test
+RTL number: ٠١٢٣٤٥٦٧٨٩
+Arabic-Indic: ۰۱۲۳۴۵۶۷۸۹
+We don't support full RTL rendering in MVP — these strings should not crash and should display in logical (memory) order.

@@ -1,0 +1,6 @@
+The quick brown fox jumps over the lazy dog.
+THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG.
+0123456789
+!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
+abcdefghijklmnopqrstuvwxyz
+ABCDEFGHIJKLMNOPQRSTUVWXYZ

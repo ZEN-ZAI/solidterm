@@ -1,0 +1,9 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://corporate-proxy.example.com/anthropic",
+    "CLAUDE_CODE_USE_BEDROCK": "0",
+    "HTTP_PROXY": "http://proxy.example.com:8080"
+  },
+  "model": "claude-opus-4-7",
+  "effortLevel": "high"
+}

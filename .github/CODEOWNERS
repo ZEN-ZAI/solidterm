@@ -1,0 +1,25 @@
+# CODEOWNERS — human review is required on these paths.
+# AI agents can draft changes but merge is blocked until @ZEN-ZAI reviews.
+# See AGENTS.md "Human-only review gates" and research/14-quality-gates-and-ci.md §8.
+
+# Default: everyone can touch; human review optional for low-risk areas.
+
+# Security-sensitive paths — always human review
+/crates/nextterm-engine/src/osc/           @ZEN-ZAI
+/crates/nextterm-auth/                      @ZEN-ZAI
+/crates/nextterm-hooks/                     @ZEN-ZAI
+/crates/nextterm-ffi/                       @ZEN-ZAI
+
+# Network / policy paths — always human review
+/.claude/settings.json                      @ZEN-ZAI
+/.github/workflows/                         @ZEN-ZAI
+/scripts/check-no-analytics.sh              @ZEN-ZAI
+
+# Signed release paths
+/docs/release-runbook.md                    @ZEN-ZAI
+/Cargo.toml                                 @ZEN-ZAI
+/rust-toolchain.toml                        @ZEN-ZAI
+
+# Project memory — changes to conventions need review
+/AGENTS.md                                  @ZEN-ZAI
+/CLAUDE.md                                  @ZEN-ZAI

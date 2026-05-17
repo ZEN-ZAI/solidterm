@@ -1,0 +1,32 @@
+{
+  "captured_at": "2026-04-25T17:10:00+07:00",
+  "macos_version": "14.x",
+  "shell": "n/a (claude invoked directly)",
+  "claude_code_version": "2.1.120",
+  "term": "xterm-256color",
+  "invocation": "claude -p \"say the literal word hi and nothing else\" --output-format stream-json --verbose --max-turns 1",
+  "redacted": true,
+  "redactions": [
+    "session UUIDs → 00000000-0000-0000-0000-000000000000",
+    "/Users/zen → /Users/USER",
+    "hostname → host"
+  ],
+  "captured_via": "expect /tmp/capture-claude-exit.exp + script(1) -q -F",
+  "exercises": [
+    "Full stream-json event sequence: system/init, assistant message, result",
+    "All cleanup sequences claude emits on exit (per vault/research/05-shell-protocols.md):",
+    "  CSI ?1006l ?1003l ?1002l ?1000l — disable mouse tracking modes",
+    "  CSI >4m                          — reset modifyOtherKeys",
+    "  CSI <u                           — pop Kitty keyboard stack",
+    "  CSI ?1004l                       — disable focus events",
+    "  CSI ?2031l                       — disable color-scheme change notifications (contour ext)",
+    "  CSI ?2004l                       — disable bracketed paste",
+    "  CSI ?25h                         — show cursor",
+    "  ESC 7 / ESC [r / ESC 8           — DEC save/restore + reset scroll region",
+    "  OSC 9;4;0;BEL                    — iTerm2 progress bar reset",
+    "  OSC 0;BEL                        — reset window title",
+    "  CSI ?25h                         — show cursor (final)"
+  ],
+  "size_bytes": 9255,
+  "notes": "Critical fixture for engine OSC handling. Claude assumes Kitty keyboard, focus reporting, iTerm2 progress, bracketed paste, contour color-scheme — missing any = visible garbage on exit. This file is the canonical reference for our cleanup sequence parser."
+}

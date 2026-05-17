@@ -1,0 +1,7 @@
+{
+  "kind": "EnumMismatch",
+  "path": "permissions.defaultMode",
+  "expected": ["default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"],
+  "actual": "yolo",
+  "message": "permissions.defaultMode must be one of: default, acceptEdits, plan, auto, dontAsk, bypassPermissions"
+}

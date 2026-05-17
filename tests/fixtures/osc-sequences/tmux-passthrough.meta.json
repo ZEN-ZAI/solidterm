@@ -1,0 +1,28 @@
+{
+  "captured_at": "2026-04-25T17:30:00+07:00",
+  "macos_version": "14.x",
+  "tmux_version": "3.6a (homebrew)",
+  "term": "xterm-256color",
+  "redacted": true,
+  "captured_via": "expect /tmp/capture-tmux.exp + script(1) -q -F",
+  "invocation": "tmux -L nt-fixture new-session -s nt-fixture  → C-b d (detach)",
+  "exercises": [
+    "Tmux session startup:",
+    "  CSI ?1049h            — alt-screen on",
+    "  CSI 22;0;0t           — push title",
+    "  CSI 2J / [H           — clear + home",
+    "  CSI ?1000l ?1002l ?1003l ?1005l ?1006l — disable all mouse modes",
+    "  CSI ?2004h            — bracketed paste on",
+    "  CSI ?2031h            — color-scheme change reporting on (contour ext)",
+    "  CSI ?996n             — light/dark mode query",
+    "  CSI 1;24r             — DECSTBM scrollable region 1..24",
+    "  CSI [c / [>c / [>q    — capability queries",
+    "  OSC 10;? ST + 11;? ST — fg + bg color queries",
+    "  Status-line rendering with SGR sequences",
+    "On detach (C-b d):",
+    "  CSI ?1049l            — alt-screen off",
+    "  Title restore"
+  ],
+  "size_bytes": 1907,
+  "notes": "OSC 133 from inner zsh is NOT passed through — tmux strips DCS-wrapped sequences without `set -g allow-passthrough on`. This is realistic: most users run vanilla tmux. Engine sees alt-screen + tmux's own escapes only."
+}

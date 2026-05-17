@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "allow": ["Read", "Grep", "Glob", "Bash(git status:*)"],
+    "deny": ["Bash(rm:*)", "Write(/etc/**)"],
+    "ask": []
+  }
+}

@@ -1,0 +1,13 @@
+]7;file://host.local/Users/USER/Projects/nextterm\]133;A[1m[7m%[27m[1m[0m                                                                                ]133;D;0]133;A[0m[27m[24m[Juser@host nextterm % ]133;B[K[?2004heecho hello world[?2004l
+]133;Chello world
+[1m[7m%[27m[1m[0m                                                                                ]133;D;0]133;A[0m[27m[24m[Juser@host nextterm % ]133;B[K[?2004hppwd[?2004l
+]133;C/Users/USER/Projects/nextterm
+[1m[7m%[27m[1m[0m                                                                                ]133;D;0]133;A[0m[27m[24m[Juser@host nextterm % ]133;B[K[?2004hlls /tmp 2>&1 | head -3[?2004l
+]133;CTemporaryDirectory.2GM6OU
+TemporaryDirectory.4PrT5S
+TemporaryDirectory.4kUItA
+[1m[7m%[27m[1m[0m                                                                                ]133;D;0]133;A[0m[27m[24m[Juser@host nextterm % ]133;B[K[?2004hffalse[?2004l
+]133;C[1m[7m%[27m[1m[0m                                                                                ]133;D;1]133;A[0m[27m[24m[Juser@host nextterm % ]133;B[K[?2004httrue[?2004l
+]133;C[1m[7m%[27m[1m[0m                                                                                ]133;D;0]133;A[0m[27m[24m[Juser@host nextterm % ]133;B[K[?2004hccd /tmp && cd ~[?2004l
+]133;C]7;file://host.local/tmp\]7;file://host.local/Users/USER\[1m[7m%[27m[1m[0m                                                                                ]133;D;0]133;A[0m[27m[24m[Juser@host ~ % ]133;B[K[?2004heexit[?2004l
+]133;C

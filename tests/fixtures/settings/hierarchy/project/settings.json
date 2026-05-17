@@ -1,0 +1,11 @@
+{
+  "model": "claude-sonnet-4-6",
+  "permissions": {
+    "allow": ["Bash(git status:*)", "Bash(make *)"]
+  },
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "./scripts/sandbox-check.sh" }] }
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "captured_at": "2026-04-25T17:30:00+07:00",
+  "macos_version": "14.x",
+  "neovim_version": "0.10+ (homebrew)",
+  "term": "xterm-256color",
+  "redacted": true,
+  "captured_via": "expect /tmp/capture-nvim.exp + script(1) -q -F (nvim --clean +'set noswapfile')",
+  "invocation": "nvim --clean +'set noswapfile'  → :q",
+  "exercises": [
+    "On startup:",
+    "  CSI ?1049h            — alt-screen on",
+    "  CSI 22;0;0t           — XTWINOPS push window title",
+    "  CSI ?1h, CSI =        — DECCKM application cursor + DECPAM keypad app",
+    "  CSI 2J                — full erase",
+    "  CSI ?2004h            — bracketed paste on",
+    "  CSI ?2026$p / ?2027$p / ?2031$p / ?2048$p / ?69$p / ?u — DECRQM mode queries",
+    "  OSC 11;? ST           — bg color query (twice)",
+    "  CSI 5n                — device status report",
+    "  CSI ?25h / ?25l       — cursor show/hide",
+    "On exit:",
+    "  CSI ?1002l ?1006l     — mouse off",
+    "  CSI ?2004l            — bracketed paste off",
+    "  CSI ?1004l            — focus events off",
+    "  CSI [c                — DA1 query (sanity check)",
+    "  CSI 23;0;0t           — pop title",
+    "  CSI ?1049l            — alt-screen off"
+  ],
+  "size_bytes": 3183,
+  "notes": "Critical fixture — exercises alt-screen entry/exit which our blocks state machine handles via RAW_ALT transition (see decisions/06-blocks-state-machine.md). Engine should: (1) not crash on the DECRQM queries, (2) suppress block UI during alt-screen, (3) restore block mode on exit."
+}

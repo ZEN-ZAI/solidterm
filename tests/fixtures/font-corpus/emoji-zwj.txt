@@ -1,0 +1,10 @@
+👨‍👩‍👧‍👦 — family of 4 (4 codepoints + 3 ZWJ)
+👨‍💻 — man technologist (man + ZWJ + laptop)
+👩‍🚀 — woman astronaut
+🧑‍🎤 — singer (gender-neutral)
+🏳️‍🌈 — rainbow flag (waving white flag + ZWJ + rainbow)
+🏴‍☠️ — pirate flag
+🇹🇭 — Thailand flag (regional indicator T + H)
+🇯🇵 🇺🇸 🇰🇷 🇨🇳 🇭🇰 🇹🇼 — country flags
+👨🏿‍🦱 — man, dark skin tone, curly hair
+🧑🏼‍⚕️ — health worker, medium-light skin tone

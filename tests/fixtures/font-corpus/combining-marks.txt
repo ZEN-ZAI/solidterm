@@ -1,0 +1,8 @@
+NFC: à è ì ò ù — single codepoint precomposed
+NFD: à è ì ò ù — base + U+0300 combining grave
+Vietnamese: Hà Nội Đà Lạt Phố Cổ Hội An — multiple combining stacks
+Sanskrit Devanagari: मानवाधिकाराणाम् असमानानां
+Sanskrit IAST: mānavādhikārāṇām asamānānāṃ
+Combining diacritical marks: a̅ a̲ a̾ a̿ a͆ — over/under/strike forms
+Multi-stack: ñ̃́ — n + tilde + tilde + acute (rare but valid)
+Zalgo (intentional break test): T̵̢̛̗͕̆͊͋̕H̵̟̑͆Ḭ̴̊̔Ş̸̬̌͝ — must not crash atlas

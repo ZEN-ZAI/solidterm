@@ -1,0 +1,4 @@
+{"type":"system","subtype":"init","cwd":"/tmp/nextterm-fixture","session_id":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","model":"claude-haiku-4-5-20251001","permissionMode":"default","tools":["Read","Bash"],"agents":[],"plugins":[],"mcp_servers":[],"claude_code_version":"2.1.119"}
+{"type":"user","message":{"role":"user","content":"hi"},"session_id":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}
+{"type":"assistant","message":{"id":"msg_01","model":"claude-haiku-4-5-20251001","role":"assistant","content":[{"type":"text","text":"Hello! How can I help you today?"}],"usage":{"input_tokens":10,"output_tokens":11,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"session_id":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}
+{"type":"result","subtype":"success","is_error":false,"duration_ms":840,"num_turns":1,"session_id":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","total_cost_usd":0.001,"usage":{"input_tokens":10,"output_tokens":11}}

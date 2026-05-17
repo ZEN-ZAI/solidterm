@@ -1,0 +1,28 @@
+Single line:
+┌─┬─┐
+│ │ │
+├─┼─┤
+│ │ │
+└─┴─┘
+
+Double line:
+╔═╦═╗
+║ ║ ║
+╠═╬═╣
+║ ║ ║
+╚═╩═╝
+
+Mixed weights:
+┏━┯━┓
+┃ │ ┃
+┠─┼─┨
+┃ │ ┃
+┗━┷━┛
+
+Curved:
+╭─╮
+│ │
+╰─╯
+
+Half-blocks: ▀ ▄ █ ▌ ▐ ░ ▒ ▓
+Powerline:

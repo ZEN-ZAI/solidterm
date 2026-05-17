@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "deny": ["Bash(curl *)", "Bash(*--no-verify*)"],
+    "disableBypassPermissionsMode": "disable"
+  },
+  "allowManagedPermissionRulesOnly": true
+}

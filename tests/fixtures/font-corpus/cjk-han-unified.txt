@@ -1,0 +1,7 @@
+骨 — same codepoint, different glyph in zh-CN / zh-TW / ja
+直 — varies between zh-CN and ja
+今 — Han unification: same code, different shape per locale
+社 — different bottom-right component zh vs ja
+没 — different right component zh-Simp vs ja-old
+器 — central dot present/absent across locales
+Locale fallback expected: CTFontCreateForStringWithLanguage("zh") vs ("ja")

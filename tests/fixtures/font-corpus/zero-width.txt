@@ -1,0 +1,8 @@
+Zero-width characters — width 0, must not advance cursor:
+ZWSP between letters: a​b​c​d (U+200B)
+ZWNJ: ज्ञान vs ज‌्ञान (Devanagari conjunct vs broken)
+ZWJ: श्र (Devanagari conjunct via ZWJ)
+BOM at start: ﻿hello (U+FEFF — should be invisible)
+RTL marker: text ‏ Arabic ‎ text — bidi controls
+Soft hyphen: example‐word‐here (visible) vs example­word­here (only on break)
+Variation selectors: ✋ vs ✋︎ (text presentation) vs ✋︉ (emoji presentation if supported)

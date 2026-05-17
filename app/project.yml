@@ -1,0 +1,189 @@
+# XcodeGen spec for SolidTerm. Source of truth for app/SolidTerm.xcodeproj.
+# Edit this file, then run `./scripts/regen-xcodeproj.sh` from the repo root and
+# commit the regenerated `.xcodeproj` in the same commit.
+
+name: SolidTerm
+options:
+  bundleIdPrefix: com.zenzai
+  developmentLanguage: en
+  defaultConfig: Release
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+  groupSortPosition: top
+  deploymentTarget:
+    macOS: "14.0"
+  indentWidth: 4
+  tabWidth: 4
+
+settings:
+  base:
+    ARCHS: arm64
+    SDKROOT: macosx
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+  configs:
+    Debug:
+      ONLY_ACTIVE_ARCH: YES
+      ENABLE_TESTABILITY: YES
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEBUG $(inherited)"
+      SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+      MTL_ENABLE_DEBUG_INFO: INCLUDE_SOURCE
+    Release:
+      SWIFT_COMPILATION_MODE: wholemodule
+      MTL_ENABLE_DEBUG_INFO: NO
+      # `@testable import SolidTerm` requires `ENABLE_TESTABILITY = YES`.
+      # The latency harness in `LatencyMeasurementTests` is the canonical
+      # Phase 0 typing-to-pixel measurement; it must run in Release so the
+      # numbers reflect production `-O` codegen, not Debug `-Onone`. Cost
+      # is a small loss of inlining (Apple's "Performance" guide notes
+      # ~1-3% across most workloads); we accept it for the spike-stage
+      # signal. Revisit before the M5+ release branch ships if the
+      # XCTest target gets uninvited from Release.
+      ENABLE_TESTABILITY: YES
+      # Match Debug's ad-hoc signing for Release too. Without this, the
+      # Release-built XCTest bundle and host app get distinct Team IDs
+      # (host signed by xcodebuild's automatic identity, test bundle
+      # ad-hoc) and dlopen rejects the mismatch:
+      # "mapping process and mapped file (non-platform) have different
+      # Team IDs". The real release-signing path (developer ID +
+      # notarization) lands at the M5+ release runbook; for the spike
+      # ad-hoc is correct on both configs.
+      CODE_SIGN_IDENTITY: "-"
+      CODE_SIGNING_REQUIRED: NO
+
+configs:
+  Debug: debug
+  Release: release
+
+targets:
+  SolidTerm:
+    type: application
+    platform: macOS
+    sources:
+      - path: SolidTerm
+        excludes:
+          - "Resources/Shell/**"
+          - "Resources/Themes/**"
+        # Generated/ contains swift-bridge outputs that build-rust.sh refreshes
+        # on every build; treat them as regular sources for the compile phase.
+      - path: SolidTerm/Resources/Shell
+        type: folder
+        buildPhase: resources
+        # Bundled shell integration scripts (zsh/bash/fish OSC 133 hooks).
+        # Installed to ~/.config/nextterm/shell/ via the
+        # "Install Shell Integration" palette action.
+      - path: SolidTerm/Resources/Themes
+        type: folder
+        buildPhase: resources
+        # Bundled theme TOML files (zenzai, tokyo-night, gruvbox, light).
+        # Seeded into ~/.config/nextterm/themes/ on first launch by
+        # ThemeFileStore.ensureSeeded. Hot-reload via DispatchSource
+        # watch picks up user edits live.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.zenzai.SolidTerm
+        PRODUCT_NAME: "SolidTerm"
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_HARDENED_RUNTIME: YES
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_NSPrincipalClass: NSApplication
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        SWIFT_OBJC_BRIDGING_HEADER: SolidTerm/SolidTerm-Bridging-Header.h
+        SWIFT_EMIT_LOC_STRINGS: YES
+        COMBINE_HIDPI_IMAGES: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        LIBRARY_SEARCH_PATHS:
+          - $(inherited)
+          - $(BUILT_PRODUCTS_DIR)
+        LD_RUNPATH_SEARCH_PATHS:
+          - $(inherited)
+          - "@executable_path/../Frameworks"
+      configs:
+        Release:
+          # Override Automatic signing in Release so the test bundle and
+          # host app share an ad-hoc identity (matches Debug). See the
+          # project-level Release block above for the full rationale.
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "-"
+          CODE_SIGNING_REQUIRED: NO
+          DEVELOPMENT_TEAM: ""
+          # Disable hardened runtime in Release for the spike: the
+          # XCTest dlopen path validates library signatures against
+          # the host's runtime flags, and a host with hardened runtime
+          # rejects an ad-hoc xctest bundle that lacks the same
+          # entitlements. The real release path (developer ID +
+          # notarization at M5) will re-enable hardened runtime; for
+          # the spike-stage perf measurement we don't need it.
+          ENABLE_HARDENED_RUNTIME: NO
+    preBuildScripts:
+      - name: Build Rust core
+        script: '"$SRCROOT/scripts/build-rust.sh"'
+        inputFiles:
+          - $(SRCROOT)/../crates/nextterm-ffi/src/lib.rs
+          - $(SRCROOT)/../crates/nextterm-ffi/src/bridge.rs
+          - $(SRCROOT)/../crates/nextterm-ffi/build.rs
+          - $(SRCROOT)/../crates/nextterm-ffi/Cargo.toml
+          - $(SRCROOT)/../Cargo.toml
+          - $(SRCROOT)/../Cargo.lock
+        outputFiles:
+          - $(BUILT_PRODUCTS_DIR)/libnextterm_ffi.a
+          - $(SRCROOT)/SolidTerm/Generated/SwiftBridgeCore.swift
+          - $(SRCROOT)/SolidTerm/Generated/SwiftBridgeCore.h
+          - $(SRCROOT)/SolidTerm/Generated/nextterm_ffi.swift
+          - $(SRCROOT)/SolidTerm/Generated/nextterm_ffi.h
+        basedOnDependencyAnalysis: true
+    dependencies:
+      - framework: libnextterm_ffi.a
+        embed: false
+        implicit: false
+
+  SolidTermTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: SolidTermTests
+    dependencies:
+      - target: SolidTerm
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.zenzai.SolidTermTests
+        PRODUCT_NAME: "SolidTermTests"
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_EMIT_LOC_STRINGS: NO
+        BUNDLE_LOADER: $(TEST_HOST)
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/SolidTerm.app/Contents/MacOS/SolidTerm
+      configs:
+        Release:
+          # Same ad-hoc override as the host app — needed so the dlopen
+          # of this xctest bundle into the host process passes the
+          # codesign Team-ID match check.
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "-"
+          CODE_SIGNING_REQUIRED: NO
+          DEVELOPMENT_TEAM: ""
+
+schemes:
+  SolidTerm:
+    build:
+      targets:
+        SolidTerm: all
+        SolidTermTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - SolidTermTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

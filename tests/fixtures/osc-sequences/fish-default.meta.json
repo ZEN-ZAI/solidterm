@@ -1,0 +1,19 @@
+{
+  "captured_at": "2026-04-25T17:30:00+07:00",
+  "macos_version": "14.x",
+  "shell": "fish 3.7+ (homebrew)",
+  "term": "xterm-256color",
+  "redacted": true,
+  "captured_via": "expect /tmp/capture-fish.exp + script(1) -q -F",
+  "exercises": [
+    "Fish startup capability probing (NextTerm parser must handle these gracefully):",
+    "  CSI ?u                 — Kitty keyboard capability query",
+    "  CSI >0q                — XTVERSION query",
+    "  OSC 11;? ST            — background color query",
+    "  CSI ?1049h / ?1049l    — alt-screen probe (enters + exits)",
+    "  DCS +q <hex> ST        — terminfo capability queries (e.g. 'indn', 'query-os-name')",
+    "  CSI 0c                 — DA1 device attributes query"
+  ],
+  "size_bytes": 83,
+  "notes": "Capture is short because expect does not respond to the queries. Fish stalls waiting for replies. The captured byte stream is exactly the probing sequence — useful for testing that our parser identifies these as queries, not text, and responds (or no-ops) without crashing."
+}

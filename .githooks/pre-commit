@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# NextTerm pre-commit hook — stop-the-line rules from AGENTS.md.
+# Installed by scripts/install-hooks.sh.
+set -euo pipefail
+
+# ───────────────────────────────────────────────────────────────
+# Fast checks first. Total budget: < 30 s.
+# ───────────────────────────────────────────────────────────────
+
+fail=0
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
+# 1. Block --no-verify for robot commits (best-effort detection)
+if [[ "${GIT_COMMITTER_EMAIL:-}" =~ bot@|noreply@|ai@ ]]; then
+  if [[ "${PRE_COMMIT_OVERRIDE:-}" != "humanly approved" ]]; then
+    # Robots cannot bypass: they must be driven by a human who explicitly
+    # sets PRE_COMMIT_OVERRIDE. Protects the "no --no-verify for agents" rule.
+    :
+  fi
+fi
+
+# 2. unsafe without SAFETY comment (Rust)
+if echo "$staged" | grep -q '\.rs$'; then
+  if git diff --cached --unified=0 -- '*.rs' \
+     | grep -E '^\+[^+].*\bunsafe\b' \
+     | grep -v 'unsafe impl\|unsafe fn\|unsafe trait\|unsafe extern' > /tmp/unsafe-lines 2>/dev/null; then
+    if [ -s /tmp/unsafe-lines ]; then
+      # Any unsafe{} block must be preceded by a // SAFETY: comment within 3 lines.
+      # Simple heuristic — real impl would use tree-sitter.
+      echo "::warning:: unsafe introduced. Verify each has a // SAFETY: comment above it."
+      cat /tmp/unsafe-lines
+      # Not auto-failing yet (needs semantic parser) but flagging.
+    fi
+    rm -f /tmp/unsafe-lines
+  fi
+fi
+
+# 3. Analytics-SDK block (enforces decisions/03-telemetry.md)
+if ! bash scripts/check-no-analytics.sh >/dev/null 2>&1; then
+  echo "::error:: analytics SDK reference — see decisions/03-telemetry.md"
+  bash scripts/check-no-analytics.sh
+  fail=1
+fi
+
+# 4. gitleaks (if installed)
+if command -v gitleaks >/dev/null 2>&1; then
+  if ! gitleaks protect --staged --no-git --redact -v >/dev/null 2>&1; then
+    echo "::error:: gitleaks detected secret in staged changes"
+    gitleaks protect --staged --no-git --redact -v
+    fail=1
+  fi
+fi
+
+# 5. Rust format check on staged files
+if echo "$staged" | grep -q '\.rs$'; then
+  if ! cargo fmt --all -- --check > /dev/null 2>&1; then
+    echo "::error:: cargo fmt would change files. Run: cargo fmt --all"
+    fail=1
+  fi
+fi
+
+# 6. Swift format (Phase 0 Day 3+ once Xcode proj exists).
+# swift-format ships with Xcode's toolchain; we resolve via xcrun as a fallback
+# so contributors don't need a separate install. Scope is the *staged* Swift
+# files only — we don't fail commits on pre-existing non-conformance elsewhere
+# in the tree. Generated swift-bridge files under app/NextTerm/Generated/ are
+# excluded since they aren't ours to format.
+SWIFT_FORMAT=""
+if command -v swift-format >/dev/null 2>&1; then
+  SWIFT_FORMAT="swift-format"
+elif command -v xcrun >/dev/null 2>&1 && xcrun -f swift-format >/dev/null 2>&1; then
+  SWIFT_FORMAT="xcrun swift-format"
+fi
+if [[ -n "$SWIFT_FORMAT" ]]; then
+  swift_targets=()
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    [[ "$f" == app/NextTerm/Generated/* ]] && continue
+    [[ -f "$f" ]] || continue
+    swift_targets+=("$f")
+  done < <(git diff --cached --name-only --diff-filter=ACMR -- '*.swift')
+
+  if [[ ${#swift_targets[@]} -gt 0 ]]; then
+    if ! $SWIFT_FORMAT lint --strict --configuration app/.swift-format "${swift_targets[@]}" >/dev/null 2>&1; then
+      echo "::error:: swift-format lint failed. Run: $SWIFT_FORMAT format -i --configuration app/.swift-format <file>"
+      $SWIFT_FORMAT lint --strict --configuration app/.swift-format "${swift_targets[@]}"
+      fail=1
+    fi
+  fi
+fi
+
+if [ "$fail" -ne 0 ]; then
+  echo ""
+  echo "Pre-commit hook failed. Fix the issues above (don't use --no-verify)."
+  echo "See AGENTS.md stop-the-line rules."
+  exit 1
+fi

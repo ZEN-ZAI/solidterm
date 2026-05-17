@@ -1,0 +1,21 @@
+{
+  "captured_at": "2026-04-25T17:10:00+07:00",
+  "macos_version": "14.x",
+  "shell": "zsh 5.9 (arm64-apple-darwin)",
+  "term_program": "Apple_Terminal",
+  "term": "xterm-256color",
+  "redacted": true,
+  "redactions": [
+    "hostname → host.local",
+    "username → USER in file:// paths and prompt"
+  ],
+  "captured_via": "expect /tmp/capture-zsh-default.exp + script(1) -q -F",
+  "exercises": [
+    "OSC 7 cwd reporting (4 instances — emitted by /etc/zshrc_Apple_Terminal which Apple ships with macOS for Terminal.app integration)",
+    "Default zsh prompt rendering (no zenzai, no OSC 133)",
+    "SGR sequences from prompt"
+  ],
+  "commands_run": ["echo hello", "pwd", "false", "exit"],
+  "size_bytes": 932,
+  "notes": "Baseline zsh on macOS. Note: macOS's /etc/zshrc_Apple_Terminal still emits OSC 7 even when our zenzai integration is gated off — useful for verifying our parser handles OSC 7 from non-NextTerm sources."
+}

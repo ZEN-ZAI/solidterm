@@ -1,0 +1,6 @@
+{
+  "kind": "UnknownField",
+  "path": "permision",
+  "message": "unknown field 'permision' — did you mean 'permissions'?",
+  "suggestion": "permissions"
+}

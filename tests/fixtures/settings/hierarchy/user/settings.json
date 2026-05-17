@@ -1,0 +1,7 @@
+{
+  "model": "claude-opus-4-7",
+  "effortLevel": "high",
+  "permissions": {
+    "allow": ["Read", "Grep", "Glob", "Bash(cargo *)"]
+  }
+}
