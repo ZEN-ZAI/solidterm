@@ -1133,9 +1133,7 @@ final class MetalRenderer {
         // every frame (so highlights track content as the user scrolls
         // without re-running search).
         self.lastScrollTop = Int(frame.scroll_top)
-        // TODO(M1 Week 1 task 1.6 / #56): consume frame.scroll_top /
-        // frame.scroll_total (scroll widget, deferred), frame.pane_mode
-        // (M3+).
+        // TODO: consume frame.scroll_total — scrollbar widget deferred.
     }
 
     /// Apply a decoded cell stream as row-contiguous region writes.
