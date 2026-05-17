@@ -219,6 +219,12 @@ enum Theme {
         /// different color tint.
         static let linkUnderlineLinear: SIMD4<Float> = accentRunningLinear
 
+        /// Scrollbar thumb color — translucent text-primary so the
+        /// indicator reads as "secondary chrome" against any theme.
+        /// Drawn as a solid quad in the overlay pass (kind=0).
+        static let scrollbarThumbLinear: SIMD4<Float> = SIMD4<Float>(
+            textPrimaryLinear.x, textPrimaryLinear.y, textPrimaryLinear.z, 0.35)
+
         // MARK: Team mode (8 teammate colors)
 
         /// `team-red` ≡ `accent-error` (`#f7768e`).

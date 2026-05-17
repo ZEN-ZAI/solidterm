@@ -262,6 +262,11 @@ final class MetalRenderer {
     /// re-pulling the FFI frame delta (which would double-drain).
     private var lastScrollTop: Int = 0
 
+    /// Latest `scroll_total` from the engine (rows in scrollback). Cached
+    /// alongside `lastScrollTop` so the scrollbar overlay encode can
+    /// compute the thumb position without re-pulling the frame delta.
+    private var lastScrollTotal: Int = 0
+
     /// Mutable per-cell state. The renderer keeps the array so the
     /// keystroke handler can read the previous slot before producing
     /// a new one (and so a future "redraw whole grid" path can call
@@ -969,6 +974,16 @@ final class MetalRenderer {
                     cellSizePx: cellPx,
                     gridOriginPx: gridOriginPx,
                     overlay: overlay)
+                // SGR underline (\e[4m). Drawn after selection so it
+                // sits visually on top of the selection tint (matches
+                // how most terminals render — the underline survives
+                // into selected text).
+                encodeTextUnderlineOverlay(
+                    encoder: encoder,
+                    drawableSizePx: drawableSizePx,
+                    cellSizePx: cellPx,
+                    gridOriginPx: gridOriginPx,
+                    overlay: overlay)
                 encodeCursorOverlay(
                     encoder: encoder,
                     drawableSizePx: drawableSizePx,
@@ -1000,6 +1015,15 @@ final class MetalRenderer {
                 // selection so they overlay the user's existing
                 // selection rather than getting covered by it.
                 encodeSearchHighlightOverlay(
+                    encoder: encoder,
+                    drawableSizePx: drawableSizePx,
+                    cellSizePx: cellPx,
+                    gridOriginPx: gridOriginPx,
+                    overlay: overlay)
+                // Scrollbar thumb. Drawn last so it sits visually on
+                // top of any selection or highlight that brushes the
+                // right edge.
+                encodeScrollbarOverlay(
                     encoder: encoder,
                     drawableSizePx: drawableSizePx,
                     cellSizePx: cellPx,
@@ -1133,7 +1157,7 @@ final class MetalRenderer {
         // every frame (so highlights track content as the user scrolls
         // without re-running search).
         self.lastScrollTop = Int(frame.scroll_top)
-        // TODO: consume frame.scroll_total — scrollbar widget deferred.
+        self.lastScrollTotal = Int(frame.scroll_total)
     }
 
     /// Apply a decoded cell stream as row-contiguous region writes.
@@ -1246,7 +1270,8 @@ final class MetalRenderer {
                 let continuation = CellSlot(
                     glyph: nil,
                     fgColorLinear: primary.fgColorLinear,
-                    bgColorLinear: primary.bgColorLinear)
+                    bgColorLinear: primary.bgColorLinear,
+                    attrs: primary.attrs)
                 for k in 1..<Int(span) {
                     resolved.append((
                         row: Int(cell.row),
@@ -1432,14 +1457,14 @@ final class MetalRenderer {
             // All-zero grapheme — engine emits this for blank cells
             // populated by the default empty-cell template. Paint bg
             // only; no glyph lookup.
-            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg)
+            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
         }
 
         // Fast path: ASCII space renders pure background. Skips the
         // atlas lookup entirely (it would resolve to a blank glyph
         // anyway, but no point burning the CoreText path on it).
         if clusterString.unicodeScalars.count == 1, scalar.value == 0x20 {
-            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg)
+            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
         }
 
         // Multi-codepoint grapheme cluster (Thai base + tone mark,
@@ -1451,20 +1476,20 @@ final class MetalRenderer {
                 let entry = try atlas.entry(
                     forCluster: clusterString, commandQueue: commandQueue)
                 return CellSlot(
-                    glyph: entry, fgColorLinear: fg, bgColorLinear: bg)
+                    glyph: entry, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
             } catch {
                 onAtlasMiss?(scalar, error)
                 return CellSlot(
-                    glyph: nil, fgColorLinear: fg, bgColorLinear: bg)
+                    glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
             }
         }
 
         do {
             let entry = try atlas.entry(for: scalar, commandQueue: commandQueue)
-            return CellSlot(glyph: entry, fgColorLinear: fg, bgColorLinear: bg)
+            return CellSlot(glyph: entry, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
         } catch {
             onAtlasMiss?(scalar, error)
-            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg)
+            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
         }
     }
 
@@ -1517,11 +1542,11 @@ final class MetalRenderer {
 
         let clusterString = cell.grapheme
         guard let scalar = clusterString.unicodeScalars.first else {
-            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg)
+            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
         }
         if clusterString.unicodeScalars.count == 1,
            scalar.value == 0x20, cell.cellSpan <= 1 {
-            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg)
+            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
         }
 
         let span = max(UInt8(1), cell.cellSpan)
@@ -1533,21 +1558,21 @@ final class MetalRenderer {
                     cellSpan: span,
                     commandQueue: commandQueue)
                 return CellSlot(
-                    glyph: entry, fgColorLinear: fg, bgColorLinear: bg)
+                    glyph: entry, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
             } catch {
                 onAtlasMiss?(scalar, error)
                 return CellSlot(
-                    glyph: nil, fgColorLinear: fg, bgColorLinear: bg)
+                    glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
             }
         }
 
         // Single-scalar, single-cell: fast scalar atlas path.
         do {
             let entry = try atlas.entry(for: scalar, commandQueue: commandQueue)
-            return CellSlot(glyph: entry, fgColorLinear: fg, bgColorLinear: bg)
+            return CellSlot(glyph: entry, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
         } catch {
             onAtlasMiss?(scalar, error)
-            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg)
+            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
         }
     }
 
@@ -1977,6 +2002,97 @@ final class MetalRenderer {
             kind: OverlayKind.imeUnderline.rawValue,
             alpha: 1.0,
             cellSpanCols: UInt32(span))
+        overlay.encode(uniforms: uniforms, encoder: encoder)
+    }
+
+    /// SGR underline (`\e[4m`). Walks the cached `cells` array, coalescing
+    /// adjacent cells in the same row that carry the UNDERLINE attr bit
+    /// (alacritty `Flags::UNDERLINE` = 0x0008) into runs. One overlay
+    /// quad per run, tinted with the run's fg color.
+    private func encodeTextUnderlineOverlay(
+        encoder: MTLRenderCommandEncoder,
+        drawableSizePx: SIMD2<Float>,
+        cellSizePx: SIMD2<Float>,
+        gridOriginPx: SIMD2<Float>,
+        overlay: OverlayPipeline
+    ) {
+        let underlineBit: UInt16 = 0x0008
+        guard gridCols > 0, gridRows > 0, cells.count == gridCols * gridRows
+        else { return }
+        for row in 0..<gridRows {
+            var col = 0
+            while col < gridCols {
+                let idx = row * gridCols + col
+                guard (cells[idx].attrs & underlineBit) != 0 else {
+                    col += 1
+                    continue
+                }
+                let runStart = col
+                let runFg = cells[idx].fgColorLinear
+                while col < gridCols
+                    && (cells[row * gridCols + col].attrs & underlineBit) != 0
+                {
+                    col += 1
+                }
+                let span = col - runStart
+                let originPx = SIMD2<Float>(
+                    gridOriginPx.x + Float(runStart) * cellSizePx.x,
+                    gridOriginPx.y + Float(row) * cellSizePx.y)
+                let uniforms = OverlayUniforms(
+                    screenSizePx: drawableSizePx,
+                    cellOriginPx: originPx,
+                    cellSizePx: cellSizePx,
+                    colorLinear: runFg,
+                    kind: OverlayKind.textUnderline.rawValue,
+                    alpha: 1.0,
+                    cellSpanCols: UInt32(span))
+                overlay.encode(uniforms: uniforms, encoder: encoder)
+            }
+        }
+    }
+
+    /// Scrollbar thumb. Hidden when scrollback is empty (live tail with
+    /// no history). Right-edge strip with a thumb whose height is
+    /// proportional to (viewport / total) and whose y is proportional
+    /// to (scroll_top / scroll_total). scroll_top == 0 means we're at
+    /// the live tail, so the thumb sits at the bottom; scroll_top ==
+    /// scroll_total means oldest history, thumb at the top.
+    private func encodeScrollbarOverlay(
+        encoder: MTLRenderCommandEncoder,
+        drawableSizePx: SIMD2<Float>,
+        cellSizePx: SIMD2<Float>,
+        gridOriginPx: SIMD2<Float>,
+        overlay: OverlayPipeline
+    ) {
+        let total = lastScrollTotal
+        guard total > 0, gridRows > 0 else { return }
+
+        let viewportPx = Float(gridRows) * cellSizePx.y
+        let viewportRows = Float(gridRows)
+        let totalRowsF = Float(total)
+        let trackHeightPx = viewportPx
+        // Thumb height: proportional to viewport / (viewport + history).
+        // Min 24px so the thumb stays grabbable at very deep scrollback.
+        let rawThumbH = trackHeightPx * (viewportRows / (viewportRows + totalRowsF))
+        let thumbHPx = max(24, rawThumbH)
+        // scroll_top is "rows scrolled up into history" — 0 at live
+        // tail. Tail-anchored: fraction 1.0 puts the thumb at the
+        // bottom of the track; fraction 0.0 at the top.
+        let fractionFromTop = 1.0 - Float(lastScrollTop) / totalRowsF
+        let thumbYPx = gridOriginPx.y + (trackHeightPx - thumbHPx) * fractionFromTop
+        let widthPx: Float = 6.0
+        let originPx = SIMD2<Float>(
+            drawableSizePx.x - widthPx,
+            thumbYPx)
+        let sizePx = SIMD2<Float>(widthPx, thumbHPx)
+        let uniforms = OverlayUniforms(
+            screenSizePx: drawableSizePx,
+            cellOriginPx: originPx,
+            cellSizePx: sizePx,
+            colorLinear: Theme.Color.scrollbarThumbLinear,
+            kind: OverlayKind.cursorBlock.rawValue,  // kind=0: solid rect
+            alpha: 1.0,
+            cellSpanCols: 1)
         overlay.encode(uniforms: uniforms, encoder: encoder)
     }
 

@@ -50,6 +50,7 @@ enum OverlayKind: UInt32 {
     case selection = 2
     case imeUnderline = 3  // 4.9: bottom ~15% of cell, drawn under preedit cells
     case cursorUnderline = 4
+    case textUnderline = 5  // SGR underline: bottom ~8% of cell, drawn per run
 }
 
 final class OverlayPipeline {

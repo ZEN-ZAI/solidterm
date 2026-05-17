@@ -313,6 +313,10 @@ fragment float4 overlay_fragment(
             return in.cellUV.y > 0.85 ? c : float4(0);
         case 4:  // cursor_underline: bottom ~15% of cell height (~3px at 20px cell).
             return in.cellUV.y > 0.85 ? c : float4(0);
+        case 5:  // text_underline (SGR \e[4m): bottom ~8% of cell, thinner than
+                  // the IME / cursor underline so it reads as text decoration
+                  // rather than a UI cue.
+            return in.cellUV.y > 0.92 ? c : float4(0);
         default:
             discard_fragment();
             return float4(0);

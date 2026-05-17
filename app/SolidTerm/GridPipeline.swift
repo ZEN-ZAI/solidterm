@@ -18,6 +18,10 @@ struct CellSlot {
     var glyph: AtlasEntry?
     var fgColorLinear: SIMD4<Float>
     var bgColorLinear: SIMD4<Float>
+    /// alacritty `cell::Flags` low byte: INVERSE=0x01, BOLD=0x02,
+    /// ITALIC=0x04, UNDERLINE=0x08. Carried through so the overlay
+    /// pass can render underline runs without re-walking the FFI delta.
+    var attrs: UInt16 = 0
 
     static func blank(bgColorLinear: SIMD4<Float>) -> CellSlot {
         CellSlot(glyph: nil, fgColorLinear: SIMD4(0, 0, 0, 0), bgColorLinear: bgColorLinear)
