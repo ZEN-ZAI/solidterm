@@ -15,7 +15,7 @@ typedef struct __swift_bridge__$SessionConfig { uint16_t rows; uint16_t cols; ui
 typedef struct __swift_bridge__$Option$SessionConfig { bool is_some; __swift_bridge__$SessionConfig val; } __swift_bridge__$Option$SessionConfig;
 typedef struct __swift_bridge__$InputEvent { uint8_t kind; struct __swift_bridge__$KeyEvent key; struct __swift_bridge__$MouseEvent mouse; uint8_t modifiers; } __swift_bridge__$InputEvent;
 typedef struct __swift_bridge__$Option$InputEvent { bool is_some; __swift_bridge__$InputEvent val; } __swift_bridge__$Option$InputEvent;
-typedef struct __swift_bridge__$FrameDelta { void* cells; struct __swift_bridge__$CursorState cursor; uint32_t scroll_top; uint32_t scroll_total; uint8_t pane_mode; } __swift_bridge__$FrameDelta;
+typedef struct __swift_bridge__$FrameDelta { void* cells; struct __swift_bridge__$CursorState cursor; uint32_t scroll_top; uint32_t scroll_total; } __swift_bridge__$FrameDelta;
 typedef struct __swift_bridge__$Option$FrameDelta { bool is_some; __swift_bridge__$FrameDelta val; } __swift_bridge__$Option$FrameDelta;
 typedef struct TerminalSession TerminalSession;
 void __swift_bridge__$TerminalSession$_free(void* self);

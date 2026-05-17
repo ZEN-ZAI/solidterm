@@ -333,25 +333,23 @@ public struct FrameDelta {
     public var cursor: CursorState
     public var scroll_top: UInt32
     public var scroll_total: UInt32
-    public var pane_mode: UInt8
 
-    public init(cells: RustVec<UInt8>,cursor: CursorState,scroll_top: UInt32,scroll_total: UInt32,pane_mode: UInt8) {
+    public init(cells: RustVec<UInt8>,cursor: CursorState,scroll_top: UInt32,scroll_total: UInt32) {
         self.cells = cells
         self.cursor = cursor
         self.scroll_top = scroll_top
         self.scroll_total = scroll_total
-        self.pane_mode = pane_mode
     }
 
     @inline(__always)
     func intoFfiRepr() -> __swift_bridge__$FrameDelta {
-        { let val = self; return __swift_bridge__$FrameDelta(cells: { let val = val.cells; val.isOwned = false; return val.ptr }(), cursor: val.cursor.intoFfiRepr(), scroll_top: val.scroll_top, scroll_total: val.scroll_total, pane_mode: val.pane_mode); }()
+        { let val = self; return __swift_bridge__$FrameDelta(cells: { let val = val.cells; val.isOwned = false; return val.ptr }(), cursor: val.cursor.intoFfiRepr(), scroll_top: val.scroll_top, scroll_total: val.scroll_total); }()
     }
 }
 extension __swift_bridge__$FrameDelta {
     @inline(__always)
     func intoSwiftRepr() -> FrameDelta {
-        { let val = self; return FrameDelta(cells: RustVec(ptr: val.cells), cursor: val.cursor.intoSwiftRepr(), scroll_top: val.scroll_top, scroll_total: val.scroll_total, pane_mode: val.pane_mode); }()
+        { let val = self; return FrameDelta(cells: RustVec(ptr: val.cells), cursor: val.cursor.intoSwiftRepr(), scroll_top: val.scroll_top, scroll_total: val.scroll_total); }()
     }
 }
 extension __swift_bridge__$Option$FrameDelta {

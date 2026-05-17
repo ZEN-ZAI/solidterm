@@ -88,7 +88,7 @@ final class FFIDataTypeTests: XCTestCase {
         let frame = FrameDelta(
             cells: makeBytes(payload),
             cursor: cursor,
-            scroll_top: 42, scroll_total: 1024, pane_mode: 0
+            scroll_top: 42, scroll_total: 1024
         )
         let echoed = echo_frame_delta(frame)
 
@@ -99,7 +99,6 @@ final class FFIDataTypeTests: XCTestCase {
         XCTAssertFalse(echoed.cursor.hidden)
         XCTAssertEqual(echoed.scroll_top, 42)
         XCTAssertEqual(echoed.scroll_total, 1024)
-        XCTAssertEqual(echoed.pane_mode, 0)
 
         let decoded = try FrameDeltaDecoding.decodeCells(echoed.cells)
         XCTAssertEqual(decoded, cells)
@@ -110,7 +109,7 @@ final class FFIDataTypeTests: XCTestCase {
         let frame = FrameDelta(
             cells: makeBytes([]),
             cursor: cursor,
-            scroll_top: 0, scroll_total: 0, pane_mode: 1
+            scroll_top: 0, scroll_total: 0
         )
         let echoed = echo_frame_delta(frame)
         let decoded = try FrameDeltaDecoding.decodeCells(echoed.cells)
@@ -129,7 +128,7 @@ final class FFIDataTypeTests: XCTestCase {
         let frame = FrameDelta(
             cells: makeBytes(payload),
             cursor: CursorState(row: 0, col: 0, shape: 0, blink: false, hidden: false),
-            scroll_top: 0, scroll_total: 0, pane_mode: 0
+            scroll_top: 0, scroll_total: 0
         )
         let echoed = echo_frame_delta(frame)
         let decoded = try FrameDeltaDecoding.decodeCells(echoed.cells)

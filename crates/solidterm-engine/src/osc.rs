@@ -226,13 +226,20 @@ impl OscPerform {
         };
         let path_bytes = &after_scheme[slash_idx..];
 
-        // TODO(m2+): URL-decode `%XX` sequences if real shells emit
-        // paths with encoded characters (spaces, non-ASCII). M1 ships
-        // raw-bytes-to-UTF8 only — the typical zsh/bash/fish path is
-        // already plain ASCII.
-        let Ok(path) = std::str::from_utf8(path_bytes) else {
+        // Decode `%XX` sequences before UTF-8 validation so encoded
+        // non-ASCII paths (Thai, emoji, spaces) come through correctly.
+        // Shells often percent-encode whatever bytes the OS gave them,
+        // not just unsafe URL chars — so we decode unconditionally.
+        let Some(decoded) = percent_decode(path_bytes) else {
             tracing::debug!(
                 path = ?String::from_utf8_lossy(path_bytes),
+                "OSC 7 malformed %XX escape; dropping",
+            );
+            return;
+        };
+        let Ok(path) = std::str::from_utf8(&decoded) else {
+            tracing::debug!(
+                path = ?String::from_utf8_lossy(&decoded),
                 "OSC 7 path is not valid UTF-8; dropping",
             );
             return;
@@ -393,6 +400,36 @@ impl vte::Perform for OscPerform {
     // chunk loop) is the authoritative consumer for print / execute /
     // ESC / DCS state machines. We sit purely on the OSC + the
     // narrowly-scoped `modifyOtherKeys` CSI sideband.
+}
+
+/// Decode `%XX` sequences in a URL path. Returns `None` if a `%` is
+/// followed by anything other than two ASCII hex digits (treated as
+/// malformed input — the caller drops the OSC). Non-`%` bytes pass
+/// through unchanged so multi-byte UTF-8 already in the path survives.
+fn percent_decode(input: &[u8]) -> Option<Vec<u8>> {
+    let mut out = Vec::with_capacity(input.len());
+    let mut i = 0;
+    while i < input.len() {
+        if input[i] == b'%' {
+            let hi = input.get(i + 1).copied().and_then(hex_nibble)?;
+            let lo = input.get(i + 2).copied().and_then(hex_nibble)?;
+            out.push((hi << 4) | lo);
+            i += 3;
+        } else {
+            out.push(input[i]);
+            i += 1;
+        }
+    }
+    Some(out)
+}
+
+const fn hex_nibble(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -685,6 +722,42 @@ mod tests {
         assert!(
             events.is_empty(),
             "OSC 7 with invalid UTF-8 path must drop silently, not emit",
+        );
+    }
+
+    /// Percent-encoded ASCII (space, common in paths with directory
+    /// names that contain spaces). Shells percent-encode whatever
+    /// bytes are unsafe in a URL; we must decode before surfacing.
+    #[test]
+    fn osc_7_percent_decodes_ascii_space() {
+        let events = drive(b"\x1b]7;file:///tmp/foo%20bar\x1b\\");
+        assert_eq!(
+            events,
+            vec![EngineEvent::CwdChanged("/tmp/foo bar".to_string())],
+        );
+    }
+
+    /// Percent-encoded multi-byte UTF-8 (Thai `ก` = U+0E01 = `E0 B8 81`).
+    /// Each byte of the UTF-8 sequence comes through as its own `%XX`
+    /// triplet; we must decode all three and reassemble into valid UTF-8.
+    #[test]
+    fn osc_7_percent_decodes_utf8_thai() {
+        let events = drive(b"\x1b]7;file:///home/%E0%B8%81\x1b\\");
+        assert_eq!(
+            events,
+            vec![EngineEvent::CwdChanged("/home/ก".to_string())],
+        );
+    }
+
+    /// Malformed `%XX` (non-hex digits) — drop the entire OSC silently.
+    /// We never partially-decode, since a partial path could mislead the
+    /// host into displaying or following a wrong cwd.
+    #[test]
+    fn osc_7_malformed_percent_dropped() {
+        let events = drive(b"\x1b]7;file:///tmp/%XY\x1b\\");
+        assert!(
+            events.is_empty(),
+            "OSC 7 with malformed %XX must drop silently",
         );
     }
 

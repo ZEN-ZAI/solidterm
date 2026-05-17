@@ -33,11 +33,6 @@ pub mod kinds {
     pub const MOUSE_ACTION_RELEASE: u8 = 1;
     pub const MOUSE_ACTION_MOVE: u8 = 2;
 
-    // ── FrameDelta.pane_mode ──
-    pub const PANE_MODE_BLOCKS: u8 = 0;
-    pub const PANE_MODE_RAW_ALT: u8 = 1;
-    pub const PANE_MODE_RAW_DEGRADED: u8 = 2;
-
     // ── CursorState.shape ──
     pub const CURSOR_SHAPE_BLOCK: u8 = 0;
     pub const CURSOR_SHAPE_BEAM: u8 = 1;
@@ -239,7 +234,6 @@ mod ffi {
         cursor: CursorState,
         scroll_top: u32,
         scroll_total: u32,
-        pane_mode: u8,
     }
 
     // ── Session lifecycle ────────────────────────────────────────────────
@@ -521,7 +515,6 @@ impl TerminalSession {
             cursor,
             scroll_top: self.inner.scroll_top(),
             scroll_total: self.inner.scroll_total(),
-            pane_mode: kinds::PANE_MODE_BLOCKS,
         }
     }
 
@@ -536,7 +529,6 @@ impl TerminalSession {
             cursor,
             scroll_top: self.inner.scroll_top(),
             scroll_total: self.inner.scroll_total(),
-            pane_mode: kinds::PANE_MODE_BLOCKS,
         }
     }
 
@@ -782,7 +774,6 @@ mod tests {
             },
             scroll_top: 0,
             scroll_total: 0,
-            pane_mode: kinds::PANE_MODE_BLOCKS,
         };
         let out = super::echo_frame_delta(f);
         assert_eq!(out.scroll_top, 0);
