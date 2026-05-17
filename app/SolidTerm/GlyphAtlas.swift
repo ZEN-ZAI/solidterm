@@ -182,6 +182,26 @@ final class GlyphAtlas {
     /// every CJK/Thai/emoji cell once the block-cache is warm.
     private var fontHashByIdentity: [ObjectIdentifier: UInt64] = [:]
 
+    /// Cached bold / italic / bold-italic CTFont variants of the
+    /// primary `font`. Built lazily on first lookup so users who never
+    /// hit styled text pay nothing. The 4-entry max (including the
+    /// plain key) keeps the dictionary trivially small.
+    private var styledFonts: [UInt8: CTFont] = [:]
+
+    /// Resolve a CTFont variant for the primary atlas font. Pass
+    /// `(false, false)` for plain (returns `self.font` unchanged).
+    /// Used by the renderer's `makeSlot` to pick a styled face for
+    /// cells with the BOLD / ITALIC alacritty `Flags` bits set.
+    func styledFont(bold: Bool, italic: Bool) -> CTFont {
+        let key: UInt8 = (bold ? 1 : 0) | (italic ? 2 : 0)
+        if key == 0 { return self.font }
+        if let cached = styledFonts[key] { return cached }
+        let resolved = FontSettings.applyTraits(
+            to: self.font, bold: bold, italic: italic)
+        styledFonts[key] = resolved
+        return resolved
+    }
+
     /// Monotonic access counter — incremented on every `entry(for:)`
     /// call (both insert + cache hit). Wraps at `UInt64.max` (~6e8 years
     /// at 1 GHz access rate; ignore the wrap).
@@ -395,6 +415,58 @@ final class GlyphAtlas {
         }
 
         let raster = try rasterize(glyphId: glyphId, font: resolvedFont)
+        let entry = try place(raster: raster, queue: commandQueue)
+        entries[key] = Record(entry: entry, lastAccess: accessCounter)
+        return entry
+    }
+
+    /// Styled-glyph overload: rasterize `scalar` against `font`
+    /// (typically a bold / italic / bold-italic variant of the atlas's
+    /// primary CTFont) and cache the result keyed by the variant's own
+    /// fontHash. Independent of the unstyled `entry(for:)` path so
+    /// plain and styled cells coexist in the same atlas without
+    /// collisions — bold `A` and plain `A` cache as separate slots.
+    ///
+    /// Fast path skips the procedural-box / color-emoji / cascade
+    /// branches: bold/italic faces of monospace fonts cover the same
+    /// codepoint set as their plain face for any character that
+    /// actually carries styled text in practice (Latin, Cyrillic,
+    /// Greek, CJK). If the variant lacks the glyph, fall back to the
+    /// unstyled atlas entry — the user sees plain text instead of a
+    /// missing-glyph block, matching common terminal behavior.
+    func entry(
+        for scalar: Unicode.Scalar,
+        font: CTFont,
+        commandQueue: MTLCommandQueue
+    ) throws -> AtlasEntry {
+        // BMP-only fast path. Astrals + multi-scalar clusters fall
+        // through to the unstyled entry — styled astral text is rare
+        // and the cluster path doesn't accept a font override yet.
+        guard scalar.value <= 0xFFFF else {
+            return try entry(for: scalar, commandQueue: commandQueue)
+        }
+        var ch = UniChar(scalar.value)
+        var glyphId: CGGlyph = 0
+        let ok = CTFontGetGlyphsForCharacters(font, &ch, &glyphId, 1)
+        guard ok, glyphId != 0 else {
+            return try entry(for: scalar, commandQueue: commandQueue)
+        }
+
+        let resolvedFontHash = cachedFontHash(for: font)
+        let key = GlyphKey(
+            fontHash: resolvedFontHash,
+            glyphId: UInt32(glyphId),
+            pxSize: UInt16(round(CTFontGetSize(font) * 100)),
+            contentsScale: UInt8(contentsScale))
+
+        accessCounter &+= 1
+        if var cached = entries[key] {
+            cached.lastAccess = accessCounter
+            entries[key] = cached
+            return cached.entry
+        }
+
+        let raster = try rasterize(glyphId: glyphId, font: font)
         let entry = try place(raster: raster, queue: commandQueue)
         entries[key] = Record(entry: entry, lastAccess: accessCounter)
         return entry

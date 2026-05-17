@@ -1417,6 +1417,26 @@ final class MetalRenderer {
             })
     }
 
+    /// Pick the styled atlas entry for a (scalar, attrs) pair.
+    /// Branches on alacritty `Flags::BOLD` (0x0002) / `Flags::ITALIC`
+    /// (0x0004); plain text takes the unstyled fast path so the
+    /// per-cell cost stays the same as pre-styled-text.
+    static func lookupGlyph(
+        scalar: Unicode.Scalar,
+        attrs: UInt16,
+        atlas: GlyphAtlas,
+        commandQueue: MTLCommandQueue
+    ) throws -> AtlasEntry {
+        let bold = (attrs & 0x0002) != 0
+        let italic = (attrs & 0x0004) != 0
+        if !bold && !italic {
+            return try atlas.entry(for: scalar, commandQueue: commandQueue)
+        }
+        let font = atlas.styledFont(bold: bold, italic: italic)
+        return try atlas.entry(
+            for: scalar, font: font, commandQueue: commandQueue)
+    }
+
     /// Test-friendly static variant. Pure logic — no `self` capture, so
     /// `MetalRendererSGRColorTests` can drive it without standing up a
     /// renderer (which requires a window + display link). The instance
@@ -1485,7 +1505,9 @@ final class MetalRenderer {
         }
 
         do {
-            let entry = try atlas.entry(for: scalar, commandQueue: commandQueue)
+            let entry = try lookupGlyph(
+                scalar: scalar, attrs: cell.attrs, atlas: atlas,
+                commandQueue: commandQueue)
             return CellSlot(glyph: entry, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
         } catch {
             onAtlasMiss?(scalar, error)
@@ -1568,7 +1590,9 @@ final class MetalRenderer {
 
         // Single-scalar, single-cell: fast scalar atlas path.
         do {
-            let entry = try atlas.entry(for: scalar, commandQueue: commandQueue)
+            let entry = try lookupGlyph(
+                scalar: scalar, attrs: cell.attrs, atlas: atlas,
+                commandQueue: commandQueue)
             return CellSlot(glyph: entry, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
         } catch {
             onAtlasMiss?(scalar, error)

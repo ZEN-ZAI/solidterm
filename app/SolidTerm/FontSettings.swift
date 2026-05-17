@@ -156,6 +156,32 @@ public final class FontSettings: ObservableObject {
         return primary
     }
 
+    /// Apply bold / italic symbolic traits to a base CTFont. Used by
+    /// the renderer to look up styled glyphs without rebuilding the
+    /// whole font cascade — the base CTFont already encodes the
+    /// resolved monospace family, so we just toggle traits on top.
+    ///
+    /// Returns the base font unchanged when no traits are requested,
+    /// and falls back to the base font when CoreText can't synthesize
+    /// the requested combination (e.g. a font with no italic face).
+    /// The visible result of that fallback is plain text — same as
+    /// the pre-bold/italic behavior, so users with style-limited fonts
+    /// degrade gracefully instead of seeing missing glyphs.
+    public nonisolated static func applyTraits(
+        to base: CTFont, bold: Bool, italic: Bool
+    ) -> CTFont {
+        guard bold || italic else { return base }
+        var traits: CTFontSymbolicTraits = []
+        if bold { traits.insert(.boldTrait) }
+        if italic { traits.insert(.italicTrait) }
+        if let styled = CTFontCreateCopyWithSymbolicTraits(
+            base, 0.0, nil, traits, traits)
+        {
+            return styled
+        }
+        return base
+    }
+
     // MARK: - Helpers
 
     public static func clamp(_ raw: CGFloat) -> CGFloat {
