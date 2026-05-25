@@ -44,28 +44,83 @@ struct AppearanceTab: View {
     /// rows. Default `false` preserves the M5.5 dogfood "no stripes"
     /// out-of-the-box behavior.
     @AppStorage(Theme.OSC133.userDefaultsKey) private var osc133AccentEnabled: Bool = false
+    /// Q2 scrollback knob — 0 means "use engine default". Range
+    /// 1_000…1_000_000 enforced by the stepper; the engine rejects
+    /// anything above MAX_SCROLLBACK_LINES at session construction.
+    @AppStorage(ScrollbackSettings.userDefaultsKey) private var scrollbackLines: Int = 0
 
     @ObservedObject private var themeManager = ThemeManager.shared
     @ObservedObject private var fontSettings = FontSettings.shared
     @ObservedObject private var themeFiles = ThemeFileStore.shared
 
     var body: some View {
-        ZStack {
-            Color(NSColor.windowBackgroundColor).ignoresSafeArea()
-            ScrollView {
-                VStack(alignment: .leading, spacing: Theme.Spacing.three) {
-                    themeSection
-                    Divider()
-                    fontSection
-                    Divider()
-                    commandMarkersSection
-                    Divider()
-                    filePathSection
+        Form {
+            themeSection
+            fontSection
+            commandMarkersSection
+            filePathSection
+            scrollbackSection
+            resetSection
+        }
+        .formStyle(.grouped)
+        .frame(minWidth: 560, minHeight: 420)
+    }
+
+    // MARK: Q2 — Scrollback
+
+    private var scrollbackSection: some View {
+        Section {
+            HStack {
+                Stepper(
+                    value: $scrollbackLines,
+                    in: 0...1_000_000,
+                    step: 1_000
+                ) {
+                    LabeledContent("Lines") {
+                        Text(
+                            scrollbackLines == 0
+                                ? "Default (100,000)"
+                                : "\(scrollbackLines.formatted())")
+                            .monospacedDigit()
+                    }
                 }
-                .padding(Theme.Spacing.three)
+            }
+        } header: {
+            Text("Scrollback")
+        } footer: {
+            Text(
+                "Number of history lines kept per session. Takes effect on the next window or tab. 0 = engine default.")
+        }
+    }
+
+    // MARK: Q2 — Reset
+
+    @State private var showResetConfirm: Bool = false
+
+    private var resetSection: some View {
+        Section {
+            HStack {
+                Spacer()
+                Button(role: .destructive) {
+                    showResetConfirm = true
+                } label: {
+                    Text("Reset All Settings…")
+                }
+                .confirmationDialog(
+                    "Reset all SolidTerm settings to defaults?",
+                    isPresented: $showResetConfirm,
+                    titleVisibility: .visible
+                ) {
+                    Button("Reset", role: .destructive) {
+                        ScrollbackSettings.resetAll()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text(
+                        "Theme, font, keybindings, and all other preferences will be restored to defaults. Open windows are unaffected; the next window pickup the cleared values.")
+                }
             }
         }
-        .frame(minWidth: 520, minHeight: 360)
     }
 
     // MARK: M7-3 — Font section
@@ -96,15 +151,9 @@ struct AppearanceTab: View {
     }
 
     private var fontSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.two) {
-            Text("Font").font(.headline)
-            Text(
-                "Use ⌘+ / ⌘- to adjust size on the fly. ⌘0 resets to the default."
-            )
-            .font(.callout)
-            .foregroundColor(.secondary)
+        Section {
             Picker(
-                "Family:",
+                "Family",
                 selection: Binding(
                     get: { fontSettings.family },
                     set: { fontSettings.setFamily($0) }
@@ -114,42 +163,56 @@ struct AppearanceTab: View {
                     Text(name).tag(name)
                 }
             }
-            .pickerStyle(.menu)
-            HStack {
-                Text("Size:")
-                Stepper(
-                    value: Binding(
-                        get: { fontSettings.size },
-                        set: { fontSettings.setSize($0) }
-                    ),
-                    in: FontSettings.minSize...FontSettings.maxSize,
-                    step: 1
-                ) {
+            Stepper(
+                value: Binding(
+                    get: { fontSettings.size },
+                    set: { fontSettings.setSize($0) }
+                ),
+                in: FontSettings.minSize...FontSettings.maxSize,
+                step: 1
+            ) {
+                LabeledContent("Size") {
                     Text("\(Int(fontSettings.size)) pt")
                         .monospacedDigit()
                 }
             }
             Toggle(
-                "Enable ligatures (font must support them)",
+                "Enable ligatures",
                 isOn: Binding(
                     get: { fontSettings.ligatures },
                     set: { fontSettings.setLigatures($0) }
                 ))
+            // S2 font preview — renders the configured family/size/
+            // ligatures so the user can sanity-check before closing
+            // the panel. Stays inside Section so Form chrome groups
+            // it with the rest of the font controls.
+            fontPreviewRow
+        } header: {
+            Text("Font")
+        } footer: {
+            Text("Use ⌘+ / ⌘− to adjust size on the fly. ⌘0 resets to the default.")
+        }
+    }
+
+    /// S2: live font preview. Uses an NSViewRepresentable wrapper so we
+    /// can apply CoreText kCTFontFeatureTypeIdentifierKey for ligature
+    /// toggling — SwiftUI's `.font` doesn't expose the CT feature dict.
+    private var fontPreviewRow: some View {
+        LabeledContent("Preview") {
+            FontPreviewView(
+                family: fontSettings.family,
+                size: fontSettings.size,
+                ligatures: fontSettings.ligatures)
+                .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
         }
     }
 
     // MARK: M6-4a — Theme section
 
     private var themeSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.two) {
-            Text("Theme").font(.headline)
-            Text(
-                "Themes live in ~/.config/solidterm/themes/*.toml — edit any file and the change applies live. Built-in modes are still available below."
-            )
-            .font(.callout)
-            .foregroundColor(.secondary)
+        Section {
             Picker(
-                "Theme file:",
+                "Theme file",
                 selection: Binding(
                     get: { themeFiles.current?.name ?? "" },
                     set: { name in
@@ -164,9 +227,8 @@ struct AppearanceTab: View {
                     Text(name).tag(name)
                 }
             }
-            .pickerStyle(.menu)
             Picker(
-                "Built-in mode:",
+                "Built-in mode",
                 selection: Binding(
                     get: { themeManager.mode },
                     set: { themeManager.setMode($0) }
@@ -176,56 +238,71 @@ struct AppearanceTab: View {
                     Text(mode.label).tag(mode)
                 }
             }
-            .pickerStyle(.menu)
             .disabled(themeFiles.current != nil)
+            // S3 swatches — render the active theme's 16 ANSI colors +
+            // bg/fg/cursor as a compact preview strip so the user
+            // sees the palette without applying it first.
+            themeSwatchesRow
+        } header: {
+            Text("Theme")
+        } footer: {
+            Text(
+                "Themes live in ~/.config/solidterm/themes/*.toml — edit any file and the change applies live.")
+        }
+    }
+
+    /// S3: ANSI palette + bg/fg/cursor swatches for the active theme.
+    /// Reads from the same resolution path the renderer uses so what
+    /// the user sees here matches what lands on screen.
+    private var themeSwatchesRow: some View {
+        LabeledContent("Preview") {
+            ThemeSwatchesView(
+                file: themeFiles.current,
+                mode: themeManager.mode)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
     // MARK: M7-4 — Command markers section
 
     private var commandMarkersSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.two) {
-            Text("Command markers").font(.headline)
+        Section {
+            Toggle("Show command markers", isOn: $osc133AccentEnabled)
+        } header: {
+            Text("Command markers")
+        } footer: {
             Text(
-                "Show a slim left-margin accent at each shell prompt, color-coded by exit status (running / success / error). Requires shell integration (OSC 133); off by default."
-            )
-            .font(.callout)
-            .foregroundColor(.secondary)
-            Toggle(
-                "Show command markers",
-                isOn: $osc133AccentEnabled)
+                "Slim left-margin accent at each shell prompt, color-coded by exit status (running / success / error). Requires shell integration (OSC 133).")
         }
     }
 
     // MARK: M6-2 — File-path click section
 
     private var filePathSection: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.two) {
-            Text("File-path click").font(.headline)
-            Text(
-                "Hold ⌘ and click a file path in the terminal to open it. Detection is filesystem-confirmed — paths only highlight when the file exists."
-            )
-            .font(.callout)
-            .foregroundColor(.secondary)
-            Toggle(
-                "Detect file paths under the cursor",
-                isOn: $detectionEnabled)
-            Picker("Open files in:", selection: $editorRaw) {
+        Section {
+            Toggle("Detect file paths under the cursor", isOn: $detectionEnabled)
+            Picker("Open files in", selection: $editorRaw) {
                 ForEach(EditorChoice.fixedChoices, id: \.rawValue) { choice in
                     Text(choice.label).tag(choice.rawValue)
                 }
                 Text("Other…").tag(EditorChoice.other.rawValue)
             }
-            .pickerStyle(.menu)
             .disabled(!detectionEnabled)
             if EditorChoice(rawValue: editorRaw) == .other {
-                TextField(
-                    "CLI command (e.g. /usr/local/bin/mate)",
-                    text: $customCommand
-                )
-                .textFieldStyle(.roundedBorder)
-                .disabled(!detectionEnabled)
+                LabeledContent("Command") {
+                    TextField(
+                        "/usr/local/bin/mate",
+                        text: $customCommand
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .disabled(!detectionEnabled)
+                }
             }
+        } header: {
+            Text("File-path click")
+        } footer: {
+            Text(
+                "Hold ⌘ and click a file path in the terminal to open it. Detection is filesystem-confirmed — paths only highlight when the file exists.")
         }
     }
 }

@@ -72,7 +72,7 @@ targets:
         buildPhase: resources
         # Bundled shell integration scripts (zsh/bash/fish OSC 133 hooks).
         # Installed to ~/.config/solidterm/shell/ via the
-        # "Install Shell Integration" palette action.
+        # "Install Shell Integration" Settings action.
       - path: SolidTerm/Resources/Themes
         type: folder
         buildPhase: resources
@@ -90,7 +90,7 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_NSPrincipalClass: NSApplication
-        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright © 2026 Zen Kiattikhunnawong. Forked from NextTerm."
         SWIFT_OBJC_BRIDGING_HEADER: SolidTerm/SolidTerm-Bridging-Header.h
         SWIFT_EMIT_LOC_STRINGS: YES
         COMBINE_HIDPI_IMAGES: YES

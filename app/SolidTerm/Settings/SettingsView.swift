@@ -17,17 +17,11 @@ import SwiftUI
 struct SettingsView: View {
     let tabs: [SettingsTab]
 
-    @State private var selection: String
-
-    init(tabs: [SettingsTab]) {
-        self.tabs = tabs
-        // M7-0: default to Appearance (M5-2's Claude default lives in
-        // the differentiatorTabs path). Falls back to the first
-        // registered tab when an unusual tab list is injected.
-        let initial = tabs.first(where: { $0.id == "appearance" })?.id
-            ?? tabs.first?.id ?? ""
-        _selection = State(initialValue: initial)
-    }
+    /// S5: last-selected tab id, persisted across sessions so the
+    /// user lands back on the pane they were last editing. Falls
+    /// back to "appearance" on first launch (or after a wipe).
+    @AppStorage("solidterm.settings.selectedTab")
+    private var selection: String = "appearance"
 
     var body: some View {
         TabView(selection: $selection) {

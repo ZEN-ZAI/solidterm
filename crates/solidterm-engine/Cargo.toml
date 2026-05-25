@@ -20,6 +20,7 @@ smol_str.workspace = true
 regex.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+libc = "0.2"
 
 [features]
 # Exposes test-only injection helpers (e.g. `TerminalEngine::inject_claude_block_for_test`)

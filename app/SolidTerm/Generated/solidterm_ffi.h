@@ -11,7 +11,7 @@ typedef struct __swift_bridge__$CellDelta { uint16_t row; uint16_t col; void* gr
 typedef struct __swift_bridge__$Option$CellDelta { bool is_some; __swift_bridge__$CellDelta val; } __swift_bridge__$Option$CellDelta;
 typedef struct __swift_bridge__$HyperlinkHit { void* uri; uint16_t start_col; uint16_t span; } __swift_bridge__$HyperlinkHit;
 typedef struct __swift_bridge__$Option$HyperlinkHit { bool is_some; __swift_bridge__$HyperlinkHit val; } __swift_bridge__$Option$HyperlinkHit;
-typedef struct __swift_bridge__$SessionConfig { uint16_t rows; uint16_t cols; uint16_t pixel_w; uint16_t pixel_h; void* command; void* cwd; void* env; } __swift_bridge__$SessionConfig;
+typedef struct __swift_bridge__$SessionConfig { uint16_t rows; uint16_t cols; uint16_t pixel_w; uint16_t pixel_h; void* command; void* cwd; void* env; uint32_t scrollback_lines; } __swift_bridge__$SessionConfig;
 typedef struct __swift_bridge__$Option$SessionConfig { bool is_some; __swift_bridge__$SessionConfig val; } __swift_bridge__$Option$SessionConfig;
 typedef struct __swift_bridge__$InputEvent { uint8_t kind; struct __swift_bridge__$KeyEvent key; struct __swift_bridge__$MouseEvent mouse; uint8_t modifiers; } __swift_bridge__$InputEvent;
 typedef struct __swift_bridge__$Option$InputEvent { bool is_some; __swift_bridge__$InputEvent val; } __swift_bridge__$Option$InputEvent;
@@ -34,6 +34,7 @@ void* __swift_bridge__$TerminalSession$new(struct __swift_bridge__$SessionConfig
 uint16_t __swift_bridge__$TerminalSession$rows(void* self);
 uint16_t __swift_bridge__$TerminalSession$cols(void* self);
 void __swift_bridge__$TerminalSession$send_input(void* self, struct __swift_bridge__$InputEvent event);
+uint32_t __swift_bridge__$TerminalSession$paste_chunk(void* self, struct __private__FfiSlice bytes);
 struct __swift_bridge__$FrameDelta __swift_bridge__$TerminalSession$take_frame_delta(void* self);
 struct __swift_bridge__$FrameDelta __swift_bridge__$TerminalSession$take_full_frame_delta(void* self);
 struct __swift_bridge__$CursorState __swift_bridge__$TerminalSession$cursor_snapshot(void* self);
@@ -49,8 +50,11 @@ void __swift_bridge__$TerminalSession$clear_selection(void* self);
 void* __swift_bridge__$TerminalSession$selection_span(void* self);
 void* __swift_bridge__$TerminalSession$selection_text(void* self);
 bool __swift_bridge__$TerminalSession$bracketed_paste_enabled(void* self);
+uint8_t __swift_bridge__$TerminalSession$mouse_mode_bits(void* self);
 void* __swift_bridge__$TerminalSession$drain_latest_title(void* self);
 void* __swift_bridge__$TerminalSession$drain_latest_cwd(void* self);
+bool __swift_bridge__$TerminalSession$drain_bell(void* self);
+uint32_t __swift_bridge__$TerminalSession$child_pid(void* self);
 void* __swift_bridge__$TerminalSession$row_text(void* self, uint16_t row);
 void* __swift_bridge__$TerminalSession$cell_before_cursor(void* self);
 struct __swift_bridge__$HyperlinkHit __swift_bridge__$TerminalSession$hyperlink_at(void* self, uint16_t row, uint16_t col);

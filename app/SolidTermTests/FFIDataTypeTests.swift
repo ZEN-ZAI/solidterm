@@ -204,7 +204,8 @@ final class FFIDataTypeTests: XCTestCase {
             rows: 40, cols: 120, pixel_w: 1440, pixel_h: 900,
             command: "/bin/zsh".intoRustString(),
             cwd: "/Users/zen".intoRustString(),
-            env: makeBytes(envBytes)
+            env: makeBytes(envBytes),
+            scrollback_lines: 0
         )
         let echoed = echo_session_config(config)
 
@@ -229,7 +230,8 @@ final class FFIDataTypeTests: XCTestCase {
             rows: 24, cols: 80, pixel_w: 0, pixel_h: 0,
             command: "/bin/sh".intoRustString(),
             cwd: "/tmp".intoRustString(),
-            env: makeBytes([])
+            env: makeBytes([]),
+            scrollback_lines: 0
         )
         let echoed = echo_session_config(config)
         XCTAssertEqual(echoed.env.len(), 0)

@@ -226,6 +226,27 @@ final class GlyphAtlas {
     }
     private var pinnedRegions: [PinnedRegion] = []
 
+    /// Set by `evictOneLRU` / `resetAtlas` / `evictOneColorLRU`. The
+    /// renderer reads this once per frame via `consumePendingEviction`
+    /// and, when true, forces a full-viewport repaint via
+    /// `take_full_frame_delta` so every cell's UV is re-resolved
+    /// against the post-eviction atlas. Without this, cells whose
+    /// glyphs got evicted continue to display the previous occupant
+    /// of their UV slot — the user sees garbled (often Thai/CJK) text
+    /// until they scroll, which forces a redraw. Regression report
+    /// 2026-05-23: long sessions show garbled text mid-screen until
+    /// any scroll/cell-touch event re-pins the cells.
+    private var pendingEviction: Bool = false
+
+    /// Called by the renderer at the top of each draw tick. Returns
+    /// true when an eviction or reset happened since the last call
+    /// and resets the latch.
+    func consumePendingEviction() -> Bool {
+        let was = pendingEviction
+        pendingEviction = false
+        return was
+    }
+
     /// Total bytes currently allocated to live atlas entries (excludes
     /// pinned regions and free-listed rects). Asserted ≤ `maxBytes` on
     /// every allocation per the 4.2 acceptance gate.
@@ -1223,6 +1244,7 @@ final class GlyphAtlas {
         let bytes = UInt64(rect.sizePx.x) * UInt64(rect.sizePx.y) * Self.bytesPerPixel
         bytesAllocated -= min(bytesAllocated, bytes)
         entries.removeValue(forKey: victim.key)
+        pendingEviction = true
     }
 
     /// Full-atlas reset: clear all entries + free-list, reset shelf
@@ -1241,6 +1263,7 @@ final class GlyphAtlas {
         shelfY = 0
         shelfHeight = 0
         pinBlankSlot()
+        pendingEviction = true
     }
 
     private func uploadBitmap(
@@ -1461,6 +1484,7 @@ final class GlyphAtlas {
             * Self.colorBytesPerPixel
         colorBytesAllocated = colorBytesAllocated >= bytes
             ? colorBytesAllocated - bytes : 0
+        pendingEviction = true
     }
 
     private func resetColorAtlas() {
@@ -1470,6 +1494,7 @@ final class GlyphAtlas {
         colorShelfX = 0
         colorShelfY = 0
         colorShelfHeight = 0
+        pendingEviction = true
     }
 
     private func uploadColorBitmap(

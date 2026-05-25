@@ -218,6 +218,10 @@ mod ffi {
         command: String,
         cwd: String,
         env: Vec<u8>,
+        // Q2 configurable scrollback. 0 = use engine default
+        // (`DEFAULT_SCROLLBACK_LINES`). Capped by the engine at
+        // `MAX_SCROLLBACK_LINES`.
+        scrollback_lines: u32,
     }
 
     #[swift_bridge(swift_repr = "struct")]
@@ -248,6 +252,9 @@ mod ffi {
         fn cols(&self) -> u16;
 
         fn send_input(self: &mut TerminalSession, event: InputEvent);
+        // Non-blocking PTY write — returns bytes accepted before
+        // EAGAIN. Swift's paste/drop chunker re-queues the rest.
+        fn paste_chunk(self: &mut TerminalSession, bytes: &[u8]) -> u32;
         fn take_frame_delta(self: &mut TerminalSession) -> FrameDelta;
         fn take_full_frame_delta(self: &mut TerminalSession) -> FrameDelta;
         fn cursor_snapshot(self: &TerminalSession) -> CursorState;
@@ -268,9 +275,13 @@ mod ffi {
 
         fn selection_text(self: &TerminalSession) -> String;
         fn bracketed_paste_enabled(self: &TerminalSession) -> bool;
+        // PG1 mouse reporting — bits 0..3 = clicks / drag / motion / sgr.
+        fn mouse_mode_bits(self: &TerminalSession) -> u8;
 
         fn drain_latest_title(self: &mut TerminalSession) -> String;
         fn drain_latest_cwd(self: &mut TerminalSession) -> String;
+        fn drain_bell(self: &mut TerminalSession) -> bool;
+        fn child_pid(self: &TerminalSession) -> u32;
 
         fn row_text(self: &TerminalSession, row: u16) -> String;
         fn cell_before_cursor(self: &TerminalSession) -> Vec<u8>;
@@ -293,6 +304,12 @@ pub struct TerminalSession {
     inner: solidterm_engine::TerminalEngine,
     pending_title: Option<String>,
     pending_cwd: Option<String>,
+    /// I1 bell: latched on every `EngineEvent::Bell` seen by
+    /// `drain_pending_events`; cleared by `drain_bell()`. We only need
+    /// to know "did at least one bell happen since the last drain" —
+    /// rapid-fire `\a\a\a` collapses to one visible flash, matching
+    /// what iTerm2 / Terminal.app do.
+    pending_bell: bool,
     last_search_error: Option<String>,
 }
 
@@ -306,6 +323,7 @@ impl TerminalSession {
             inner,
             pending_title: None,
             pending_cwd: None,
+            pending_bell: false,
             last_search_error: None,
         }
     }
@@ -318,6 +336,9 @@ impl TerminalSession {
                 }
                 solidterm_engine::events::EngineEvent::CwdChanged(s) => {
                     self.pending_cwd = Some(s);
+                }
+                solidterm_engine::events::EngineEvent::Bell => {
+                    self.pending_bell = true;
                 }
                 _ => {}
             }
@@ -334,6 +355,19 @@ impl TerminalSession {
     #[allow(clippy::cast_possible_truncation)]
     pub fn cols(&self) -> u16 {
         self.inner.columns() as u16
+    }
+
+    /// Non-blocking PTY write. Returns the number of bytes the
+    /// kernel accepted before EAGAIN. Caller retries the remainder
+    /// next runloop tick.
+    pub fn paste_chunk(&mut self, bytes: &[u8]) -> u32 {
+        match self.inner.feed_input_nonblocking(bytes) {
+            Ok(n) => u32::try_from(n).unwrap_or(0),
+            Err(err) => {
+                tracing::warn!(?err, "paste_chunk: nonblocking write failed");
+                0
+            }
+        }
     }
 
     #[allow(clippy::needless_pass_by_value)]
@@ -440,6 +474,11 @@ impl TerminalSession {
         self.inner.bracketed_paste_enabled()
     }
 
+    /// PG1: bits 0..3 = clicks(1) / drag(2) / motion(4) / sgr(8).
+    pub fn mouse_mode_bits(&self) -> u8 {
+        self.inner.mouse_mode_bits()
+    }
+
     pub fn drain_latest_title(&mut self) -> String {
         self.drain_pending_events();
         self.pending_title.take().unwrap_or_default()
@@ -448,6 +487,25 @@ impl TerminalSession {
     pub fn drain_latest_cwd(&mut self) -> String {
         self.drain_pending_events();
         self.pending_cwd.take().unwrap_or_default()
+    }
+
+    /// I1: returns true once per bell event observed since the last
+    /// call. Consumed once-per-frame by the Swift renderer so a
+    /// single flash overlay fires per audible/visual bell.
+    pub fn drain_bell(&mut self) -> bool {
+        self.drain_pending_events();
+        let bell = self.pending_bell;
+        self.pending_bell = false;
+        bell
+    }
+
+    /// Shell child PID. Used by the Swift host to query the child's
+    /// live cwd via `proc_pidinfo` when OSC 7 isn't wired up — this is
+    /// the fallback path for `⌘N` / `⌘T` cwd inheritance and matches
+    /// what Terminal.app does when shell integration is absent.
+    #[must_use]
+    pub fn child_pid(&self) -> u32 {
+        self.inner.child_pid()
     }
 
     #[must_use]
@@ -611,13 +669,18 @@ fn config_to_engine_config(config: ffi::SessionConfig) -> solidterm_engine::Engi
     } else {
         std::path::PathBuf::from(&config.cwd)
     };
+    let scrollback = if config.scrollback_lines == 0 {
+        solidterm_engine::DEFAULT_SCROLLBACK_LINES
+    } else {
+        config.scrollback_lines
+    };
     solidterm_engine::EngineConfig {
         rows: config.rows,
         cols: config.cols,
         env,
         command,
         cwd,
-        scrollback_lines: solidterm_engine::DEFAULT_SCROLLBACK_LINES,
+        scrollback_lines: scrollback,
     }
 }
 
@@ -726,6 +789,7 @@ mod tests {
             command: "/bin/zsh".to_string(),
             cwd: "/tmp".to_string(),
             env: b"TERM=xterm-256color\n".to_vec(),
+            scrollback_lines: 0,
         }
     }
 

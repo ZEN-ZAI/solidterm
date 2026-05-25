@@ -153,9 +153,23 @@ public final class SearchPanelController: NSObject {
                         Theme.Motion.easeIn.2, Theme.Motion.easeIn.3)
                 p.animator().alphaValue = 0
             }, completionHandler: { [weak self, weak p] in
+                // If `present()` reset `isDismissing` to false while
+                // our fade-out was in flight, the user has re-opened
+                // the panel with ⌘F and a fresh fade-in is already
+                // animating. Bail without `orderOut` — otherwise we
+                // re-hide the panel the user just asked to see and
+                // the second ⌘F appears to "not open" (reproduced
+                // 2026-05-19).
+                guard let self, self.isDismissing else {
+                    // Still keep the visual state consistent for the
+                    // panel handle the previous flow grabbed — but
+                    // don't touch the panel because it may have been
+                    // re-presented with its own animator's alpha.
+                    return
+                }
                 p?.orderOut(nil)
                 p?.alphaValue = 1
-                self?.isDismissing = false
+                self.isDismissing = false
             })
         } else {
             p.orderOut(nil)

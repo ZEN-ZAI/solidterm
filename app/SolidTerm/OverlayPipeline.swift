@@ -123,3 +123,38 @@ func blinkAlpha(elapsed: CFTimeInterval, period: CFTimeInterval) -> Float {
     let phase = (elapsed / period).truncatingRemainder(dividingBy: 2.0)
     return phase < 1.0 ? 1.0 : 0.0
 }
+
+/// V2 cursor blink: sine-eased fade with steady-state dwells. Replaces
+/// the harsh binary `blinkAlpha` in production (the binary function
+/// stays for the existing OverlayPipelineTests pin). One full cycle is
+/// `period` seconds; within the cycle:
+///   - 0 .. 22.2 %  visible-steady     (alpha = 1.0)
+///   - 22.2 .. 50 % fade-out           (smoothstep 1 → 0)
+///   - 50 .. 72.2 % hidden-steady      (alpha = 0.0)
+///   - 72.2 .. 100% fade-in            (smoothstep 0 → 1)
+/// With the default 0.9 s period the four phases land on 200 ms / 250 ms
+/// / 200 ms / 250 ms — a calm pulse rather than a strobe.
+@inline(__always)
+func easedBlinkAlpha(elapsed: CFTimeInterval, period: CFTimeInterval) -> Float {
+    guard period > 0 else { return 1.0 }
+    let t = (elapsed / period).truncatingRemainder(dividingBy: 1.0)
+    // Boundaries expressed as fractions of the period so the curve
+    // scales linearly with `period` adjustments.
+    let visibleEnd = 0.2222   // 200 ms / 900 ms
+    let fadeOutEnd = 0.5      // 450 ms / 900 ms
+    let hiddenEnd = 0.7222    // 650 ms / 900 ms
+    if t < visibleEnd { return 1.0 }
+    if t < fadeOutEnd {
+        let local = Float((t - visibleEnd) / (fadeOutEnd - visibleEnd))
+        return 1.0 - smoothstep01(local)
+    }
+    if t < hiddenEnd { return 0.0 }
+    let local = Float((t - hiddenEnd) / (1.0 - hiddenEnd))
+    return smoothstep01(local)
+}
+
+@inline(__always)
+private func smoothstep01(_ x: Float) -> Float {
+    let c = max(0.0, min(1.0, x))
+    return c * c * (3.0 - 2.0 * c)
+}

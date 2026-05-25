@@ -22,13 +22,10 @@ final class SettingsWindowE2ETests: XCTestCase {
     }
 
     func testSettingsWindowExposesAllConfiguredTabs() {
-        // M7-0 baseline: only Appearance + Keybindings are surfaced;
-        // the differentiator tabs are hidden but preserved in
-        // `SettingsTab.differentiatorTabs` (pinned by SettingsViewTests).
         let projectRoot = URL(fileURLWithPath: NSTemporaryDirectory())
         let tabs = SettingsTab.defaults(projectRoot: projectRoot)
         XCTAssertEqual(tabs.count, 2,
-            "M7-0 baseline: Appearance + Keybindings only")
+            "SolidTerm exposes Appearance + Keybindings only")
         let ids = tabs.map(\.id)
         XCTAssertEqual(ids, ["appearance", "keybindings"])
     }

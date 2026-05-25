@@ -468,6 +468,53 @@ impl TerminalEngine {
         Ok(())
     }
 
+    /// Non-blocking PTY write — returns the number of bytes the
+    /// kernel accepted before EAGAIN (slave's TTY input buffer
+    /// full). Used by the paste/drop chunker so the UI thread can
+    /// resubmit the unwritten tail on the next runloop tick instead
+    /// of blocking. The master FD is flipped to `O_NONBLOCK` on the
+    /// first call (idempotent — subsequent calls find the flag
+    /// already set). Returns 0 on EAGAIN with empty input: the
+    /// caller treats that as "buffer full, try again next tick".
+    pub fn feed_input_nonblocking(&mut self, bytes: &[u8]) -> Result<usize, EngineError> {
+        use std::os::fd::AsRawFd;
+        if bytes.is_empty() {
+            return Ok(0);
+        }
+        let fd = self.pty.file().as_fd().as_raw_fd();
+        // Flip O_NONBLOCK for the duration of the write and restore
+        // the prior flag set on exit. Keeping the flag non-sticky
+        // means the keystroke path (`feed_input`'s blocking
+        // `write_all`) keeps working unchanged — its tiny writes
+        // never need non-blocking anyway.
+        let original_flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+        let did_set_nb = original_flags >= 0
+            && (original_flags & libc::O_NONBLOCK) == 0;
+        if did_set_nb {
+            unsafe {
+                let _ = libc::fcntl(
+                    fd, libc::F_SETFL,
+                    original_flags | libc::O_NONBLOCK);
+            }
+        }
+        let n = unsafe {
+            libc::write(fd, bytes.as_ptr() as *const _, bytes.len())
+        };
+        if did_set_nb {
+            unsafe {
+                let _ = libc::fcntl(fd, libc::F_SETFL, original_flags);
+            }
+        }
+        if n >= 0 {
+            return Ok(n as usize);
+        }
+        let err = std::io::Error::last_os_error();
+        match err.raw_os_error() {
+            Some(libc::EAGAIN) | Some(libc::EWOULDBLOCK) => Ok(0),
+            _ => Err(EngineError::Io(err)),
+        }
+    }
+
     /// Drain pending PTY output bytes from the reader thread channel
     /// and feed them through `vte::ansi::Processor` into `Term`.
     /// Returns the total bytes consumed (sum across all chunks drained
@@ -750,6 +797,37 @@ impl TerminalEngine {
         self.term
             .mode()
             .contains(alacritty_terminal::term::TermMode::FOCUS_IN_OUT)
+    }
+
+    /// Mouse-reporting mode bits packed into a single u8 for the
+    /// Swift host. The host checks these on every mouseDown / mouseUp
+    /// / mouseDragged / scrollWheel and, when any bit is set,
+    /// encodes the event as an xterm mouse sequence instead of
+    /// driving its own selection logic. Lets `vim`, `htop`,
+    /// `lazygit`, `tmux` etc. receive raw clicks.
+    ///
+    /// Bit 0 — `MOUSE_REPORT_CLICK` (DEC 1000): clicks only.
+    /// Bit 1 — `MOUSE_DRAG`         (DEC 1002): clicks + button-held drag.
+    /// Bit 2 — `MOUSE_MOTION`       (DEC 1003): clicks + all motion.
+    /// Bit 3 — `SGR_MOUSE`          (DEC 1006): use SGR-style encoding
+    ///                                          (`CSI < Cb;Cx;Cy M/m`).
+    #[must_use]
+    pub fn mouse_mode_bits(&self) -> u8 {
+        let m = self.term.mode();
+        let mut bits: u8 = 0;
+        if m.contains(alacritty_terminal::term::TermMode::MOUSE_REPORT_CLICK) {
+            bits |= 1;
+        }
+        if m.contains(alacritty_terminal::term::TermMode::MOUSE_DRAG) {
+            bits |= 2;
+        }
+        if m.contains(alacritty_terminal::term::TermMode::MOUSE_MOTION) {
+            bits |= 4;
+        }
+        if m.contains(alacritty_terminal::term::TermMode::SGR_MOUSE) {
+            bits |= 8;
+        }
+        bits
     }
 
     /// Currently-active Kitty keyboard protocol flags (task 2.9). A

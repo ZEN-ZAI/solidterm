@@ -31,7 +31,8 @@ final class TerminalSessionLifecycleTests: XCTestCase {
             rows: rows, cols: cols, pixel_w: 800, pixel_h: 600,
             command: "/bin/zsh".intoRustString(),
             cwd: "/tmp".intoRustString(),
-            env: makeBytes(Array("TERM=xterm-256color\nLANG=en_US.UTF-8\n".utf8))
+            env: makeBytes(Array("TERM=xterm-256color\nLANG=en_US.UTF-8\n".utf8)),
+            scrollback_lines: 0
         )
     }
 

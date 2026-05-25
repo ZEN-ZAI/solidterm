@@ -1,5 +1,5 @@
 // Minimal solidterm window controller. One pane per window; tabs +
-// command palette + find bar + font-size hotkeys are preserved.
+// find bar + font-size hotkeys are preserved.
 //
 // All Claude-specific features (left sidebar, team task list, rate-limit
 // HUD, block-timing HUD, team-pane event polling, native-mode toggle)
@@ -20,9 +20,6 @@ final class TerminalWindowController: NSWindowController, NSMenuItemValidation {
     /// E2E tests can reach the per-window renderer state without
     /// exposing the pane controller itself.
     var leadPaneViewForTesting: NSView { leadPane.view }
-
-    /// Command palette host. Lazy — first ⌘K builds the panel.
-    private var commandPaletteController: CommandPaletteController?
 
     /// Find-in-scrollback host. Lazy — first ⌘F builds the panel.
     private var searchPanelController: SearchPanelController?
@@ -89,6 +86,42 @@ final class TerminalWindowController: NSWindowController, NSMenuItemValidation {
         self.leadPane = leadPane
         self.wrapper = wrapper
         super.init(window: window)
+        observeThemeReload()
+    }
+
+    /// Q3 theme hot-reload toast. Listens for `ThemeFileStore.didChange`
+    /// — fires both on user-driven `setActive` AND on the file-system
+    /// watcher catching a TOML edit. The first event after launch is
+    /// swallowed so the user doesn't see a redundant "Theme: …" toast
+    /// every time they open a window. Subsequent events surface the
+    /// new theme name (or "Default" when reverting to the built-in
+    /// mode) as a transient toast at the bottom-center.
+    private var themeReloadObserver: NSObjectProtocol?
+    private var sawInitialThemeEvent = false
+
+    private func observeThemeReload() {
+        themeReloadObserver = NotificationCenter.default.addObserver(
+            forName: ThemeFileStore.didChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.handleThemeReload() }
+        }
+    }
+
+    @MainActor
+    private func handleThemeReload() {
+        guard sawInitialThemeEvent else {
+            sawInitialThemeEvent = true
+            return
+        }
+        let label: String
+        if let name = ThemeFileStore.shared.current?.name {
+            label = "Theme: \(name)"
+        } else {
+            label = "Theme: built-in (\(ThemeManager.shared.mode.label))"
+        }
+        ToastOverlay.shared.show(label, in: window)
     }
 
     @available(*, unavailable)
@@ -99,22 +132,17 @@ final class TerminalWindowController: NSWindowController, NSMenuItemValidation {
     // MARK: - View-menu selectors
 
     @objc public func increaseFontSize(_ sender: Any?) {
-        dispatch(paletteAction: .increaseFontSize)
+        dispatch(action: .increaseFontSize)
     }
     @objc public func decreaseFontSize(_ sender: Any?) {
-        dispatch(paletteAction: .decreaseFontSize)
+        dispatch(action: .decreaseFontSize)
     }
     @objc public func resetFontSize(_ sender: Any?) {
-        dispatch(paletteAction: .resetFontSize)
+        dispatch(action: .resetFontSize)
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         return true
-    }
-
-    @objc public func togglePalette(_ sender: Any?) {
-        let controller = ensurePaletteController()
-        controller.toggle()
     }
 
     @objc public func toggleFindBar(_ sender: Any?) {
@@ -136,23 +164,8 @@ final class TerminalWindowController: NSWindowController, NSMenuItemValidation {
         return controller
     }
 
-    private func ensurePaletteController() -> CommandPaletteController {
-        if let existing = commandPaletteController { return existing }
-        let controller = CommandPaletteController()
-        if let window {
-            controller.attach(to: window)
-        }
-        controller.setDispatcher { [weak self] action in
-            self?.dispatch(paletteAction: action)
-        }
-        commandPaletteController = controller
-        return controller
-    }
-
-    func dispatch(paletteAction action: CommandPaletteAction) {
+    func dispatch(action: KeybindingAction) {
         switch action {
-        case .openCommandPalette:
-            break
         case .openSettings:
             (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
         case .newWindow:

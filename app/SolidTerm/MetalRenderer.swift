@@ -14,6 +14,7 @@
 
 import AppKit
 import CoreText
+import Darwin
 import Metal
 import QuartzCore
 
@@ -164,10 +165,76 @@ final class MetalRenderer {
 
     /// Cursor blink phase reference. Populated lazily on first draw so
     /// the blink starts from "visible" the moment a window appears,
-    /// not from app-launch time. Per spec/metal-renderer.md:105 the
-    /// blink period is 500 ms (one full off-on cycle = 1.0 s).
+    /// not from app-launch time. V2 raised the period to 900 ms and
+    /// switched to a sine-eased curve (`easedBlinkAlpha`) with steady
+    /// dwell phases — calm pulse instead of a strobe.
     private var blinkOriginTime: CFTimeInterval?
-    private static let blinkPeriodSec: CFTimeInterval = 0.5
+    private static let blinkPeriodSec: CFTimeInterval = 0.9
+
+    /// V2 pause-on-type: timestamp of the most recent keystroke. While
+    /// `now - lastKeystrokeTime < blinkPauseAfterKeystrokeSec` the
+    /// cursor holds solid at alpha=1.0 (no fade) so the user sees a
+    /// stable insertion point during active typing.
+    private var lastKeystrokeTime: CFTimeInterval = 0
+    private static let blinkPauseAfterKeystrokeSec: CFTimeInterval = 0.5
+    /// UX6: tracks the previous frame's `typingActive` so the cursor
+    /// encode can detect the typing → idle transition and re-anchor
+    /// `blinkOriginTime` once at the boundary instead of every frame
+    /// during typing.
+    private var wasTypingLastFrame: Bool = false
+
+    /// V1 scrollbar fade: timestamp of the last `scroll_top` /
+    /// `scroll_total` change observed in `applyFrameDelta`. The thumb
+    /// is fully opaque for the first `scrollbarHoldSec`, then fades to
+    /// the resting alpha over the next `scrollbarFadeSec`.
+    private var lastScrollActivityTime: CFTimeInterval = 0
+    private static let scrollbarHoldSec: CFTimeInterval = 0.8
+    private static let scrollbarFadeSec: CFTimeInterval = 0.8
+    private static let scrollbarRestingAlpha: Float = 0.25
+    // UX4: bump 6→8pt resting and 9→12pt hover so the visual target
+    // matches the 16pt hit zone. Matches macOS-style "overlay
+    // scroller" proportions (Safari/Finder use 9pt → 15pt; we sit
+    // between that and the original Alacritty-style hairline).
+    private static let scrollbarHoverWidthPx: Float = 12.0
+    private static let scrollbarRestingWidthPx: Float = 8.0
+    private static let scrollbarHoverHitWidthPt: Float = 16.0
+
+    /// V1 scrollbar hover: latest mouse-in-view location in surface
+    /// points, set by `TerminalSurfaceView.mouseMoved`. Nil when the
+    /// pointer is outside the view. Used to detect right-edge hover
+    /// for the "grow + solid" affordance.
+    var hoverPointInView: CGPoint? {
+        didSet { pendingRedraw = true }
+    }
+
+    /// P1 idle-frame skip: when true, the next `draw(update:)` is
+    /// guaranteed to encode + present. Set by `markNeedsRedraw()` from
+    /// the host view on any user-driven state change that the engine
+    /// doesn't surface through `take_frame_delta` (selection drags,
+    /// scroll-to-bottom, theme switch, link-hover, search-match list
+    /// changes, …). Reset to false at the bottom of `draw(update:)`
+    /// after a successful encode.
+    private var pendingRedraw: Bool = true
+
+    /// P1: true once we've committed at least one drawable. Pre-first-
+    /// frame ticks must always encode — even when nothing's "dirty" —
+    /// so the compositor gets the cleared background instead of a
+    /// black surface.
+    private var hasPresented: Bool = false
+
+    /// P1: snapshot of `lastCursor` at the time of the last successful
+    /// encode. Used by `draw(update:)` to detect cursor field changes
+    /// (move/shape/blink/hidden) that warrant a redraw even when no
+    /// grid cells changed.
+    private var lastEncodedCursor: CursorState?
+
+    /// I1 bell flash: timestamp of the most recent `EngineEvent::Bell`
+    /// drained from the engine. Nil when no flash is in-flight; a
+    /// CACurrentMediaTime() when one is fading. The encode path fades
+    /// from 0.25 alpha to 0 over `bellFlashDurationSec` and clears the
+    /// timestamp once `elapsed > duration`.
+    private var bellFlashStartTime: CFTimeInterval?
+    private static let bellFlashDurationSec: CFTimeInterval = 0.15
 
     /// Owning handle to the Rust-side `TerminalSession`. Constructed in
     /// `windowChanged` once a window is available; reset to nil when the
@@ -223,10 +290,16 @@ final class MetalRenderer {
     /// Encoded as a bottom-of-cell underline (reusing the `imeUnderline`
     /// kind=3 shader path with a link-tint color). `nil` clears the
     /// underline. Set by `TerminalSurfaceView.mouseMoved` /
-    /// `flagsChanged` based on `FilePathDetector` output. The
-    /// `CAMetalDisplayLink` paints every vsync so a setter doesn't need
-    /// to mark dirty — the next frame picks up the new value.
-    var linkHover: LinkHover?
+    /// `flagsChanged` based on `FilePathDetector` output.
+    ///
+    /// Post-P1: writes go through a `didSet` that marks the next frame
+    /// dirty so the idle-skip path doesn't strand a stale (or missing)
+    /// underline on screen when the hover state changes between ticks.
+    var linkHover: LinkHover? {
+        didSet {
+            if linkHover != oldValue { pendingRedraw = true }
+        }
+    }
 
     /// One-row, N-cell underline span for ⌘+hover-detected file paths.
     struct LinkHover: Equatable {
@@ -254,7 +327,9 @@ final class MetalRenderer {
         let spans: [Span]
         let activeIndex: Int?
     }
-    var searchHighlights: SearchHighlights?
+    var searchHighlights: SearchHighlights? {
+        didSet { pendingRedraw = true }
+    }
 
     /// M7-2: latest `scroll_top` from the engine (rows scrolled up into
     /// history). Cached during `applyFrameDelta` so the search-highlight
@@ -468,6 +543,7 @@ final class MetalRenderer {
             try? gridPipeline?.setGrid(
                 self.cells, atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
         }
+        pendingRedraw = true
     }
 
     func attach(layer: CAMetalLayer) {
@@ -496,6 +572,33 @@ final class MetalRenderer {
     /// path.
     func invalidateCompositionRender() {
         compositionInvalidated = true
+        pendingRedraw = true
+    }
+
+    /// P1 idle-frame skip: called by the host view on any user-driven
+    /// state change that the engine doesn't surface through a
+    /// `FrameDelta` — selection drags, link-hover changes, search-list
+    /// updates, mouse / scroll events. The next display-link tick is
+    /// guaranteed to run a full encode + present.
+    func markNeedsRedraw() {
+        pendingRedraw = true
+    }
+
+    /// P1: equality on the fields that drive the cursor overlay encode.
+    /// `lastCursor` always reflects the latest engine snapshot; the
+    /// "encoded" mirror only updates on a successful draw. Any field
+    /// change between the two ticks must force a redraw — but updates
+    /// that no-op visually (e.g. same position with a flipped reserved
+    /// bit, should we add one) shouldn't.
+    private static func cursorEqual(_ a: CursorState?, _ b: CursorState?) -> Bool {
+        switch (a, b) {
+        case (nil, nil): return true
+        case let (l?, r?):
+            return l.row == r.row && l.col == r.col
+                && l.shape == r.shape && l.blink == r.blink
+                && l.hidden == r.hidden
+        default: return false
+        }
     }
 
     /// M7-3: subscribe to `FontSettings.didChange` exactly once per
@@ -806,6 +909,7 @@ final class MetalRenderer {
         }
 
         resizeRebuildCount &+= 1
+        pendingRedraw = true
     }
 
     /// 4.8: drain the engine's pending title-changed events and
@@ -815,16 +919,88 @@ final class MetalRenderer {
     /// callback already runs on the main thread (per
     /// `CAMetalDisplayLink.add(to: .main, ...)`) so the AppKit
     /// `setTitle` call is safe without a dispatch hop.
-    private func applyLatestTitleIfAny() {
-        guard let session else { return }
-        let title = session.drain_latest_title().toString()
-        guard !title.isEmpty else { return }
-        // Avoid a redundant assignment-and-redraw if the title hasn't
-        // actually changed. AppKit's `NSWindow.title` setter is
-        // technically idempotent but flagging it here is cheaper.
-        if hostWindow?.title != title {
-            hostWindow?.title = title
+    @discardableResult
+    private func applyLatestTitleIfAny() -> Bool {
+        guard let session else { return false }
+        let oscTitle = session.drain_latest_title().toString()
+        // V3 fallback rule: OSC 2 is "recently sticky". Once the
+        // shell (or any running TUI — Claude Code's spinner, vim's
+        // status, etc.) has emitted *any* OSC 2 title within the
+        // last `oscTitleRecencyWindow` seconds, we surrender the
+        // title bar to the engine and don't overwrite it with our
+        // cwd-basename fallback. After silence longer than the
+        // window we let the fallback re-engage so the title doesn't
+        // stay stuck on vim's last status line after the user quits.
+        let now = CACurrentMediaTime()
+        if !oscTitle.isEmpty {
+            lastOscTitleTime = now
         }
+        let oscRecent = (now - lastOscTitleTime) < Self.oscTitleRecencyWindow
+            && lastOscTitleTime > 0
+        let effective: String
+        let subtitle: String
+        if !oscTitle.isEmpty {
+            effective = oscTitle
+            subtitle = lastCwd.isEmpty ? "" : Self.displayCwd(lastCwd)
+        } else if oscRecent {
+            // OSC 2 active but quiet this tick: leave the title alone
+            // and only refresh the subtitle if the cwd changed.
+            // Returning `false` here is intentional — no encode
+            // dirty-bit, no AppKit title-bar redraw.
+            if let window = hostWindow,
+                window.styleMask.contains(.titled),
+                window.isVisible,
+                window.standardWindowButton(.closeButton) != nil
+            {
+                let desired = lastCwd.isEmpty ? "" : Self.displayCwd(lastCwd)
+                if window.subtitle != desired {
+                    window.subtitle = desired
+                    return true
+                }
+            }
+            return false
+        } else if !lastCwd.isEmpty {
+            effective = (lastCwd as NSString).lastPathComponent.isEmpty
+                ? lastCwd
+                : (lastCwd as NSString).lastPathComponent
+            subtitle = Self.displayCwd(lastCwd)
+        } else {
+            return false
+        }
+        var changed = false
+        if hostWindow?.title != effective {
+            hostWindow?.title = effective
+            changed = true
+        }
+        // V3 subtitle gate: assigning `NSWindow.subtitle` on a window
+        // without a fully-initialised titlebar (e.g. xctest-spun
+        // windows that haven't been ordered front yet) raises
+        // `NSInternalInconsistencyException: titlebarAccessoryViewControllers
+        // not supported for this window style` because subtitle is
+        // implemented under the hood as a titlebar accessory. Gate on
+        // the window having a real close-button — a reliable signal
+        // that AppKit has built the proper titlebar chrome.
+        if let window = hostWindow,
+            window.styleMask.contains(.titled),
+            window.standardWindowButton(.closeButton) != nil,
+            window.subtitle != subtitle
+        {
+            window.subtitle = subtitle
+            changed = true
+        }
+        return changed
+    }
+
+    /// V3: render a cwd absolute path with `$HOME` collapsed to `~`
+    /// for a tidier subtitle. Common case is `/Users/<me>/foo` →
+    /// `~/foo`; everything outside `$HOME` stays absolute.
+    private static func displayCwd(_ path: String) -> String {
+        let home = NSHomeDirectory()
+        if path == home { return "~" }
+        if path.hasPrefix(home + "/") {
+            return "~" + path.dropFirst(home.count)
+        }
+        return path
     }
 
     /// M6-2: latest OSC-7 cwd, polled once per frame off
@@ -834,10 +1010,80 @@ final class MetalRenderer {
     /// chpwd hook configured).
     private(set) var lastCwd: String = ""
 
-    private func applyLatestCwdIfAny() {
-        guard let session else { return }
+    @discardableResult
+    private func applyLatestCwdIfAny() -> Bool {
+        guard let session else { return false }
         let cwd = session.drain_latest_cwd().toString()
-        if !cwd.isEmpty { lastCwd = cwd }
+        if !cwd.isEmpty, cwd != lastCwd {
+            lastCwd = cwd
+            return true
+        }
+        // V3 fallback: when the shell hasn't wired OSC 7, periodically
+        // refresh `lastCwd` from `proc_pidinfo(child_pid)`. 500 ms is
+        // slow enough to keep the FFI/proc call rare and fast enough
+        // that the user sees the title flip within a frame or two
+        // after `cd`. Skip while OSC 7 has been observed at least
+        // once (the engine pushes events; we trust them).
+        if cwd.isEmpty {
+            let now = CACurrentMediaTime()
+            if now - lastCwdProcPollTime > 0.5 {
+                lastCwdProcPollTime = now
+                let pid = pid_t(session.child_pid())
+                if pid > 0, let refreshed = Self.cwdForPid(pid),
+                    refreshed != lastCwd
+                {
+                    lastCwd = refreshed
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    private var lastCwdProcPollTime: CFTimeInterval = 0
+
+    /// V3: timestamp of the most recent OSC 2 title we observed.
+    /// The cwd-basename fallback is dormant while OSC 2 has fired
+    /// within `oscTitleRecencyWindow` — this kills the Claude-spinner
+    /// blink — but re-engages after silence (e.g. user quits vim /
+    /// claude, returns to the shell), so the title doesn't stay
+    /// stuck at the last TUI value forever.
+    private var lastOscTitleTime: CFTimeInterval = 0
+    // 500ms catches Claude's ~16ms spinner ticks and vim's mode-line
+    // updates while keeping the post-exit revert snappy. The earlier
+    // 1.5s value lagged visibly when the user quit a TUI — title
+    // stayed stuck on the TUI's last value before the cwd basename
+    // re-engaged (regression report 2026-05-20 UX pass).
+    private static let oscTitleRecencyWindow: CFTimeInterval = 0.5
+
+    /// Best-effort working directory for ⌘N / ⌘T inheritance.
+    /// Prefers OSC 7 (`lastCwd`) when the shell has emitted it; falls
+    /// back to `proc_pidinfo` on the child PID so a vanilla zsh with no
+    /// shell integration still inherits cwd — matches Terminal.app's
+    /// behaviour. Returns nil if neither source has a value.
+    func currentCwd() -> String? {
+        if !lastCwd.isEmpty { return lastCwd }
+        guard let session else { return nil }
+        let pid = pid_t(session.child_pid())
+        guard pid > 0 else { return nil }
+        return Self.cwdForPid(pid)
+    }
+
+    /// macOS `proc_pidinfo(PROC_PIDVNODEPATHINFO)` wrapper. The struct
+    /// is laid out as two `vnode_info_path` blocks (proc + cwd); we
+    /// only want the cwd path. Returns nil on any libproc failure.
+    private static func cwdForPid(_ pid: pid_t) -> String? {
+        var info = proc_vnodepathinfo()
+        let size = MemoryLayout<proc_vnodepathinfo>.size
+        let n = withUnsafeMutablePointer(to: &info) {
+            proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, $0, Int32(size))
+        }
+        guard n == Int32(size) else { return nil }
+        return withUnsafePointer(to: &info.pvi_cdir.vip_path) { ptr in
+            ptr.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) {
+                String(validatingUTF8: $0)
+            }
+        }
     }
 
     // The delegate is held strongly by the renderer; the link only retains
@@ -856,8 +1102,17 @@ final class MetalRenderer {
         // event consumer" choice. The call cost is negligible (an
         // empty Vec on no events; the FFI overhead is one method
         // dispatch + a String allocation).
-        applyLatestTitleIfAny()
-        applyLatestCwdIfAny()
+        let titleChanged = applyLatestTitleIfAny()
+        let cwdChanged = applyLatestCwdIfAny()
+
+        // I1 bell flash: poll the engine for any bell events that
+        // landed since the last tick. Latched in the FFI's
+        // `drain_bell` (which collapses rapid-fire bells to one flash
+        // — matches iTerm2). Setting the start time here ensures the
+        // dirty-frame gate below treats the flash as a redraw reason.
+        if let session, session.drain_bell() {
+            bellFlashStartTime = CACurrentMediaTime()
+        }
 
         // Unconditional cursor refresh — matches alacritty's "cursor
         // read on every render tick" approach. `applyFrameDelta` also
@@ -881,9 +1136,121 @@ final class MetalRenderer {
         // steady state. Display-link delegate already pumps on the
         // main runloop (per `link.add(to: .main, ...)` in attach), so
         // assumeIsolated is safe here.
+        var fontReloaded = false
         if atlasDirty {
             MainActor.assumeIsolated { _ = reloadFont() }
+            fontReloaded = true
         }
+
+        // P1 idle-frame skip: do all engine-consuming work (frame
+        // delta drain, pending cell writes, composition apply) BEFORE
+        // deciding whether to encode. Each step reports back whether
+        // it produced visible changes; the encode path is short-
+        // circuited when nothing wants the GPU. We still tick at
+        // 120Hz to keep keystroke→pixel latency tight, but a quiescent
+        // terminal commits zero command buffers per frame.
+
+        // Pre-decode composition / pending-cells state. Both run inside
+        // the pipeline-ready guard, but their dirty signals must be
+        // observable here so we can decide whether to encode.
+        let hadPendingCells = !pendingCellWrites.isEmpty
+        let compositionWasInvalidated = compositionInvalidated
+        let compositionActive = (hostView?.activeComposition != nil)
+            || !preeditPaintedCells.isEmpty
+
+        // Apply engine-driven cell writes + keystroke-spike + composition
+        // to the pipeline textures. These call `MTLTexture.replace`
+        // which is synchronous CPU→GPU upload and doesn't need an
+        // encoder, so it's safe to run before the encode-skip decision.
+        var frameHadCells = false
+        if let atlas, let pipeline = gridPipeline {
+            // Atlas-eviction repaint: if any LRU eviction or full reset
+            // happened since the last frame, every cell's cached UV may
+            // now point at a different glyph. Pull a full-frame delta
+            // (re-emits every viewport row through the engine) so each
+            // cell re-runs `makeSlot` and re-pins its glyph at the
+            // post-eviction UV. Without this, the user sees garbled
+            // text (typically Thai/CJK) until scroll forces a redraw.
+            if atlas.consumePendingEviction(),
+                let session = session
+            {
+                let frame = session.take_full_frame_delta()
+                self.lastCursor = frame.cursor
+                if let decoded = try? FrameDeltaDecoding.decodeCells(frame.cells) {
+                    if useShaping {
+                        let coalesced = GraphemeClusterCoalescer.coalesce(decoded)
+                        Self.applyCoalescedCellsAsRegions(
+                            coalesced, pipeline: pipeline, atlas: atlas,
+                            makeSlot: { [weak self] cell in
+                                self?.makeSlot(from: cell, atlas: atlas)
+                            })
+                    } else {
+                        Self.applyCellsAsRegions(
+                            decoded, pipeline: pipeline, atlas: atlas,
+                            makeSlot: { [weak self] cell in
+                                self?.makeSlot(from: cell, atlas: atlas)
+                            })
+                    }
+                }
+                frameHadCells = true
+            } else {
+                frameHadCells = applyFrameDelta(pipeline: pipeline, atlas: atlas)
+            }
+            for (index, slot) in pendingCellWrites {
+                try? pipeline.setCell(
+                    at: index, slot: slot, atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
+            }
+            pendingCellWrites.removeAll(keepingCapacity: true)
+            applyCompositionStateIfNeeded(pipeline: pipeline, atlas: atlas)
+        }
+
+        let cursorChanged = !Self.cursorEqual(lastCursor, lastEncodedCursor)
+        // A blinking, visible cursor is animation work — we must encode
+        // every tick during blink (the eased curve from V2 will smooth
+        // this, but the simple binary fallback already requires it).
+        let blinkAnimating = (lastCursor?.blink ?? false)
+            && !(lastCursor?.hidden ?? true)
+
+        let pendingKeystrokeFrame = !pendingKeystrokeTimes.isEmpty
+
+        // V1 scrollbar fade: redraw is needed while the fade is in
+        // progress (between hold-end and resting). Past the fade end,
+        // the thumb sits at resting alpha and doesn't change again
+        // until the next scroll.
+        let scrollbarFadeActive: Bool = {
+            guard lastScrollActivityTime > 0 else { return false }
+            let elapsed = CACurrentMediaTime() - lastScrollActivityTime
+            return elapsed
+                < Self.scrollbarHoldSec + Self.scrollbarFadeSec
+        }()
+
+        let bellFlashing: Bool = {
+            guard let started = bellFlashStartTime else { return false }
+            let elapsed = CACurrentMediaTime() - started
+            if elapsed >= Self.bellFlashDurationSec {
+                bellFlashStartTime = nil
+                // One last frame to clear the flash overlay.
+                return true
+            }
+            return true
+        }()
+
+        let needsEncode = !hasPresented
+            || pendingRedraw
+            || frameHadCells
+            || hadPendingCells
+            || cursorChanged
+            || compositionWasInvalidated
+            || compositionActive
+            || blinkAnimating
+            || pendingKeystrokeFrame
+            || fontReloaded
+            || titleChanged
+            || cwdChanged
+            || bellFlashing
+            || scrollbarFadeActive
+
+        guard needsEncode else { return }
 
         let drawable = update.drawable
         let descriptor = MTLRenderPassDescriptor()
@@ -906,34 +1273,6 @@ final class MetalRenderer {
         pendingKeystrokeTimes.removeAll(keepingCapacity: true)
 
         if let atlas, let pipeline = gridPipeline, let layer = attachedLayer {
-            // Pull the latest FrameDelta from the engine and apply
-            // engine-driven cells as the per-frame baseline. The Phase 1
-            // stub producer at `bridge.rs::take_frame_delta` returns 0
-            // cells today (empty `Vec<u8>`); real grid producer lands
-            // at M1 Week 1 task 1.6. The keystroke spike below
-            // (`pendingCellWrites`) sits on top until that lands and
-            // retires this entire block alongside `recordKeystroke`.
-            applyFrameDelta(pipeline: pipeline, atlas: atlas)
-
-            // Apply pending per-cell mutations from the keystroke
-            // handler. `setCell` writes one cell into the three
-            // textures via 1×1 region replaces — measured at
-            // <0.1 ms per call vs ~3.5 ms for a full-grid `setGrid`
-            // rewrite (3.10 baseline measurement). The full
-            // `setGrid` path stays for one-shot grid initialization
-            // in `windowChanged`.
-            for (index, slot) in pendingCellWrites {
-                try? pipeline.setCell(
-                    at: index, slot: slot, atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
-            }
-            pendingCellWrites.removeAll(keepingCapacity: true)
-
-            // 4.9 composition pass: paint preedit cells over the grid
-            // texture, OR restore the underlying real cells when
-            // composition just ended. Preedit cells are transient —
-            // they sit on top of the engine's cell state until the IME
-            // commits / cancels.
-            applyCompositionStateIfNeeded(pipeline: pipeline, atlas: atlas)
             let cellPx = SIMD2<Float>(
                 Float(atlas.cellSizePx.x), Float(atlas.cellSizePx.y))
             let drawableSizePx = SIMD2<Float>(
@@ -1029,6 +1368,15 @@ final class MetalRenderer {
                     cellSizePx: cellPx,
                     gridOriginPx: gridOriginPx,
                     overlay: overlay)
+                // I1 bell flash: full-viewport tint quad that fades
+                // from 0.25 alpha to 0 over 150 ms. Drawn last so it
+                // tints every other overlay (cursor, scrollbar, …)
+                // uniformly — matches Terminal.app's whole-window
+                // flash semantics.
+                encodeBellFlashOverlay(
+                    encoder: encoder,
+                    drawableSizePx: drawableSizePx,
+                    overlay: overlay)
             }
         }
 
@@ -1085,6 +1433,16 @@ final class MetalRenderer {
         }
         commandBuffer.commit()
 
+        // P1: bookkeeping for the next idle-skip decision. The encoded
+        // cursor snapshot is what the just-presented frame painted; the
+        // next tick compares against it. `pendingRedraw` is cleared
+        // here, not at function entry, so concurrent `markNeedsRedraw`
+        // calls during this frame's encode don't get lost — they pile
+        // up into the next tick.
+        lastEncodedCursor = lastCursor
+        pendingRedraw = false
+        hasPresented = true
+
         let cpuEnd = CACurrentMediaTime()
         recordFrameTime((cpuEnd - cpuStart) * 1_000.0)  // ms
     }
@@ -1116,8 +1474,9 @@ final class MetalRenderer {
     /// `makeSlot(from:)` returns `nil` today (Phase 1 stub); the
     /// producer also returns 0 cells, so the inner loop runs zero
     /// times in practice. Both light up at M1 Week 1 task 1.6 (#56).
-    private func applyFrameDelta(pipeline: GridPipeline, atlas: GlyphAtlas) {
-        guard let session else { return }
+    @discardableResult
+    private func applyFrameDelta(pipeline: GridPipeline, atlas: GlyphAtlas) -> Bool {
+        guard let session else { return false }
         let frame = session.take_frame_delta()
         // Cursor state is consumed by the Stage-2 overlay encode in
         // `draw(update:)`. Snapshot it BEFORE the decode + apply so a
@@ -1136,7 +1495,7 @@ final class MetalRenderer {
             NSLog(
                 "MetalRenderer: frame delta decode failed: %@",
                 String(describing: error))
-            return
+            return false
         }
         if useShaping {
             let coalesced = GraphemeClusterCoalescer.coalesce(decoded)
@@ -1156,8 +1515,19 @@ final class MetalRenderer {
         // translate alacritty-absolute match lines into viewport rows
         // every frame (so highlights track content as the user scrolls
         // without re-running search).
+        let scrollChanged = self.lastScrollTop != Int(frame.scroll_top)
+            || self.lastScrollTotal != Int(frame.scroll_total)
         self.lastScrollTop = Int(frame.scroll_top)
         self.lastScrollTotal = Int(frame.scroll_total)
+        if scrollChanged {
+            // V1 scrollbar fade: bump activity so the thumb pops back
+            // to full opacity. Also any new cell delta counts as
+            // "user is scrolled into history and live tail moved"
+            // implicitly via the engine's scroll-on-output snap,
+            // but only the top/total changes are real scroll events.
+            lastScrollActivityTime = CACurrentMediaTime()
+        }
+        return !decoded.isEmpty || scrollChanged
     }
 
     /// Apply a decoded cell stream as row-contiguous region writes.
@@ -1661,7 +2031,14 @@ final class MetalRenderer {
     /// Spans are passed through `OverlayUniforms.cellSpanCols`; the
     /// vertex shader stretches the quad's x-extent so each row is one
     /// draw call regardless of width. Y-axis stays single-cell.
-    static let selectionAlpha: Float = 0.35
+    // PG4 selection contrast: 0.35 was the original "soft tint" that
+    // kept underlying glyphs visible but produced low contrast on
+    // dark themes (matcha selection #2a3424 over bg-base #0e0d10 at
+    // 35% looked like a barely-there green shadow). 0.55 reads as a
+    // confident selection while still letting the glyph show
+    // through. True reverse-video (swap fg/bg per cell) is shader
+    // work — tracked separately. This is the 80% win.
+    static let selectionAlpha: Float = 0.55
     private func encodeSelectionOverlay(
         encoder: MTLRenderCommandEncoder,
         drawableSizePx: SIMD2<Float>,
@@ -1774,6 +2151,13 @@ final class MetalRenderer {
         overlay: OverlayPipeline
     ) {
         guard let cursor = lastCursor, !cursor.hidden else { return }
+        // UX3: don't draw the cursor while the user is scrolled into
+        // history (display_offset > 0). It's misleading there — the
+        // I-beam-style overlay on old output reads as "this line is
+        // editable" when it isn't. Snap-to-bottom restores the cursor
+        // automatically on the next input frame, so we just gate the
+        // encode here. Matches Terminal.app / iTerm2 behaviour.
+        if lastScrollTop > 0 { return }
         // Defensive: a misbehaving producer could place the cursor
         // outside the grid; we drop rather than encode an off-screen
         // quad (which is harmless but wastes a draw call).
@@ -1790,10 +2174,37 @@ final class MetalRenderer {
         let now = CACurrentMediaTime()
         if blinkOriginTime == nil { blinkOriginTime = now }
         let elapsed = now - (blinkOriginTime ?? now)
-        let alpha =
-            cursor.blink
-            ? blinkAlpha(elapsed: elapsed, period: Self.blinkPeriodSec)
-            : 1.0
+
+        // V2 pause-on-type: hold solid while the user is actively
+        // typing. The blink resumes ~500 ms after the last keystroke.
+        // Re-anchor `blinkOriginTime` on resume so the cursor enters
+        // at the visible-steady phase rather than mid-fade.
+        let timeSinceKey = now - lastKeystrokeTime
+        let typingActive = lastKeystrokeTime > 0
+            && timeSinceKey < Self.blinkPauseAfterKeystrokeSec
+        // UX6: re-anchor `blinkOriginTime` only on the typing → idle
+        // transition. Continuously anchoring during typing (the
+        // previous behaviour) made `elapsed` jump to the pause
+        // duration the instant typing stopped — landing the first
+        // post-pause frame in the hidden-steady phase, so the cursor
+        // disappeared for ~150 ms right when the user finished typing
+        // and expected to see it. Anchoring only at the boundary
+        // guarantees the first idle frame enters the visible-steady
+        // phase (elapsed = 0).
+        if !typingActive && wasTypingLastFrame {
+            blinkOriginTime = now
+        }
+        wasTypingLastFrame = typingActive
+
+        let alpha: Float
+        if !cursor.blink || typingActive {
+            alpha = 1.0
+        } else {
+            // Recompute elapsed in case we re-anchored above.
+            let elapsedNow = now - (blinkOriginTime ?? now)
+            alpha = easedBlinkAlpha(
+                elapsed: elapsedNow, period: Self.blinkPeriodSec)
+        }
 
         // Blink-off phase: no encode, no waste.
         guard alpha > 0 else { return }
@@ -2090,6 +2501,10 @@ final class MetalRenderer {
     ) {
         let total = lastScrollTotal
         guard total > 0, gridRows > 0 else { return }
+        // V1: don't show the thumb at all until the buffer holds
+        // meaningful history — a shell that hasn't yet exceeded one
+        // viewport's worth of output doesn't need scrollback chrome.
+        guard total >= gridRows else { return }
 
         let viewportPx = Float(gridRows) * cellSizePx.y
         let viewportRows = Float(gridRows)
@@ -2104,21 +2519,101 @@ final class MetalRenderer {
         // bottom of the track; fraction 0.0 at the top.
         let fractionFromTop = 1.0 - Float(lastScrollTop) / totalRowsF
         let thumbYPx = gridOriginPx.y + (trackHeightPx - thumbHPx) * fractionFromTop
-        let widthPx: Float = 6.0
+
+        // V1 hover-grow: when the pointer sits within
+        // `scrollbarHoverHitWidthPt` of the right edge AND vertically
+        // overlaps the thumb, snap to the hover width and full opacity.
+        // `hoverPointInView` is in view-points (not pixels); convert
+        // by dividing drawableSize.x by `layer.contentsScale` to
+        // compare. We approximate via the drawable-points conversion
+        // here — for Retina (2×) the math is `drawableSizePx.x / 2`.
+        let scale = Float((attachedLayer?.contentsScale) ?? 2.0)
+        let viewWidthPt = drawableSizePx.x / scale
+        let viewHeightPt = drawableSizePx.y / scale
+        var hovering = false
+        if let p = hoverPointInView {
+            let xFromRight = viewWidthPt - Float(p.x)
+            // AppKit y origin is bottom-left; convert to top-down so it
+            // lines up with the drawable's pixel coords.
+            let yFromTop = viewHeightPt - Float(p.y)
+            let thumbYPt = thumbYPx / scale
+            let thumbHPt = thumbHPx / scale
+            if xFromRight >= 0
+                && xFromRight <= Self.scrollbarHoverHitWidthPt
+                && yFromTop >= thumbYPt - 4
+                && yFromTop <= thumbYPt + thumbHPt + 4
+            {
+                hovering = true
+            }
+        }
+
+        let widthPx: Float = hovering
+            ? Self.scrollbarHoverWidthPx
+            : Self.scrollbarRestingWidthPx
+
+        // V1 fade: solid for `scrollbarHoldSec` post-activity, then
+        // linear fade to `scrollbarRestingAlpha` over the next
+        // `scrollbarFadeSec`. Hover overrides to full opacity.
+        let elapsed = CACurrentMediaTime() - lastScrollActivityTime
+        let alpha: Float
+        if hovering {
+            alpha = 1.0
+        } else if elapsed < Self.scrollbarHoldSec {
+            alpha = 1.0
+        } else {
+            let fadeProgress = min(
+                1.0,
+                Float((elapsed - Self.scrollbarHoldSec) / Self.scrollbarFadeSec))
+            alpha = 1.0 - (1.0 - Self.scrollbarRestingAlpha) * fadeProgress
+        }
+
         let originPx = SIMD2<Float>(
             drawableSizePx.x - widthPx,
             thumbYPx)
         let sizePx = SIMD2<Float>(widthPx, thumbHPx)
+        var color = Theme.Color.scrollbarThumbLinear
+        color.w = 1.0
         let uniforms = OverlayUniforms(
             screenSizePx: drawableSizePx,
             cellOriginPx: originPx,
             cellSizePx: sizePx,
-            colorLinear: Theme.Color.scrollbarThumbLinear,
+            colorLinear: color,
             kind: OverlayKind.cursorBlock.rawValue,  // kind=0: solid rect
-            alpha: 1.0,
+            alpha: alpha,
             cellSpanCols: 1)
         overlay.encode(uniforms: uniforms, encoder: encoder)
     }
+
+    /// I1 bell flash: full-viewport tint quad. Linear fade from
+    /// `bellFlashPeakAlpha` to 0 over `bellFlashDurationSec`. No encode
+    /// when no flash is in-flight — common path is a no-op.
+    private func encodeBellFlashOverlay(
+        encoder: MTLRenderCommandEncoder,
+        drawableSizePx: SIMD2<Float>,
+        overlay: OverlayPipeline
+    ) {
+        guard let started = bellFlashStartTime else { return }
+        let elapsed = CACurrentMediaTime() - started
+        guard elapsed < Self.bellFlashDurationSec else { return }
+        let progress = Float(elapsed / Self.bellFlashDurationSec)
+        let alpha = Self.bellFlashPeakAlpha * (1.0 - progress)
+        // Use the theme's primary text color as the flash tint —
+        // contrasts with the background on both light and dark themes
+        // without needing a dedicated theme token.
+        var color = resolvedPalette.defaultFgLinear
+        color.w = 1.0
+        let uniforms = OverlayUniforms(
+            screenSizePx: drawableSizePx,
+            cellOriginPx: SIMD2<Float>(0, 0),
+            cellSizePx: drawableSizePx,
+            colorLinear: color,
+            kind: OverlayKind.cursorBlock.rawValue,  // kind=0: solid rect
+            alpha: alpha,
+            cellSpanCols: 1)
+        overlay.encode(uniforms: uniforms, encoder: encoder)
+    }
+
+    private static let bellFlashPeakAlpha: Float = 0.25
 
     /// M7-2 ⌘F: encode one selection-style overlay quad per visible
     /// search match. Active match uses the accent-running color at full
@@ -2259,6 +2754,17 @@ final class MetalRenderer {
         let envVec = RustVec<UInt8>()
         for byte in envPayload.utf8 { envVec.push(value: byte) }
 
+        // Q2 configurable scrollback. UserDefaults key `solidterm.scrollback`
+        // overrides the engine default; 0 (default) defers to
+        // `DEFAULT_SCROLLBACK_LINES`. Range gating happens engine-side
+        // (`MAX_SCROLLBACK_LINES`), so any user-injected garbage gets
+        // rejected at session construction rather than silently
+        // accepted.
+        let scrollback = UserDefaults.standard.integer(
+            forKey: ScrollbackSettings.userDefaultsKey)
+        let scrollbackLines = scrollback > 0
+            ? UInt32(clamping: scrollback)
+            : 0
         let config = SessionConfig(
             rows: UInt16(rows),
             cols: UInt16(cols),
@@ -2266,7 +2772,8 @@ final class MetalRenderer {
             pixel_h: 0,
             command: "/bin/zsh".intoRustString(),
             cwd: (cwd ?? NSHomeDirectory()).intoRustString(),
-            env: envVec
+            env: envVec,
+            scrollback_lines: scrollbackLines
         )
         return TerminalSession.new(config)
     }
@@ -2320,6 +2827,17 @@ final class MetalRenderer {
     /// cell, advancing through the atlas. The `eventTimestamp` is
     /// `NSEvent.timestamp` and is consumed by the next frame.
     func recordKeystroke(eventTimestamp: CFTimeInterval) {
+        // P1: every keystroke is a redraw — the shell echo will land
+        // on a later frame, but the user's expectation is "next frame
+        // moves". Even without a visible cell change, a keystroke
+        // produces a latency-meter sample that closes over the
+        // command-buffer completion handler, and idle-skip would
+        // otherwise drop that handler entirely.
+        pendingRedraw = true
+        // V2 pause-on-type: stamp the most recent keystroke so the
+        // cursor encode path holds solid for the next ~500 ms.
+        lastKeystrokeTime = CACurrentMediaTime()
+
         // Task #36 diagnostic: log the entry condition + the early-
         // return path. The atlas-nil / cells-empty silent skip is one
         // candidate for the harness corruption symptom (1000 keystrokes

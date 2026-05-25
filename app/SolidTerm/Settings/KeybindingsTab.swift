@@ -5,7 +5,7 @@
 // app-action keybindings.
 //
 // Responsibilities:
-// - List each `CommandPaletteAction` with its title + current key
+// - List each `KeybindingAction` with its title + current key
 // - Capture a new key combo via `KeyCaptureField`
 // - Reset-per-row + global "Reset all to defaults"
 // - Show conflict warnings + reserved-range warnings as chips
@@ -21,28 +21,72 @@ struct KeybindingsTab: View {
     /// Capture state — when user clicks a row's "Change…" button,
     /// the corresponding action ID lands here and the row swaps to
     /// `KeyCaptureField` for that one action.
-    @State private var capturingAction: CommandPaletteAction?
+    @State private var capturingAction: KeybindingAction?
     /// Last reserved-key rejection for the capture toast.
     @State private var rejectedKey: String?
+    /// S4: search-query filter. Empty → show every action. Otherwise
+    /// match (case-insensitively) against title, raw value, current
+    /// shortcut, and the action's category label.
+    @State private var query: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider()
             ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(CommandPaletteAction.allCases, id: \.self) {
-                        action in
-                        row(for: action)
-                            .padding(.horizontal, Theme.Spacing.three)
-                            .padding(.vertical, Theme.Spacing.one)
-                        Divider()
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(visibleCategories, id: \.self) { category in
+                        categorySection(category)
                     }
                 }
             }
             footer
         }
         .accessibilityIdentifier("settings.keybindings")
+    }
+
+    /// S4: categories that have at least one action matching the
+    /// current search query. Preserves the enum's declaration order
+    /// so the grouping stays stable.
+    private var visibleCategories: [KeybindingAction.Category] {
+        KeybindingAction.Category.allCases.filter { c in
+            actionsMatching(query).contains { $0.category == c }
+        }
+    }
+
+    private func actionsMatching(_ q: String) -> [KeybindingAction] {
+        guard !q.trimmingCharacters(in: .whitespaces).isEmpty else {
+            return KeybindingAction.allCases
+        }
+        let needle = q.lowercased()
+        return KeybindingAction.allCases.filter { action in
+            let key = (store.lookup(action) ?? "").lowercased()
+            return action.title.lowercased().contains(needle)
+                || action.rawValue.lowercased().contains(needle)
+                || action.category.rawValue.lowercased().contains(needle)
+                || key.contains(needle)
+        }
+    }
+
+    @ViewBuilder
+    private func categorySection(_ category: KeybindingAction.Category) -> some View {
+        let actions = actionsMatching(query).filter { $0.category == category }
+        if !actions.isEmpty {
+            Text(category.rawValue)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(
+                    Color(linear: Theme.Color.textSecondaryLinear))
+                .textCase(.uppercase)
+                .padding(.horizontal, Theme.Spacing.three)
+                .padding(.top, Theme.Spacing.two)
+                .padding(.bottom, 4)
+            ForEach(actions, id: \.self) { action in
+                row(for: action)
+                    .padding(.horizontal, Theme.Spacing.three)
+                    .padding(.vertical, Theme.Spacing.one)
+                Divider()
+            }
+        }
     }
 
     @ViewBuilder
@@ -57,6 +101,16 @@ struct KeybindingsTab: View {
                 .font(.system(size: 12))
                 .foregroundColor(
                     Color(linear: Theme.Color.textSecondaryLinear))
+            // S4: search across title / raw / shortcut / category.
+            HStack(spacing: Theme.Spacing.half) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(
+                        Color(linear: Theme.Color.textTertiaryLinear))
+                TextField("Filter actions or shortcuts…", text: $query)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("settings.keybindings.search")
+            }
+            .padding(.top, 2)
             if !store.diagnostics.isEmpty {
                 ForEach(0..<store.diagnostics.count, id: \.self) { i in
                     diagnosticChip(store.diagnostics[i])
@@ -103,7 +157,7 @@ struct KeybindingsTab: View {
     }
 
     @ViewBuilder
-    private func row(for action: CommandPaletteAction) -> some View {
+    private func row(for action: KeybindingAction) -> some View {
         HStack(spacing: Theme.Spacing.two) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(action.title)
@@ -153,16 +207,16 @@ struct KeybindingsTab: View {
         .padding(Theme.Spacing.three)
     }
 
-    private func displayKey(for action: CommandPaletteAction) -> String {
+    private func displayKey(for action: KeybindingAction) -> String {
         store.lookup(action) ?? "(unbound)"
     }
 
-    private func isAtDefault(_ action: CommandPaletteAction) -> Bool {
+    private func isAtDefault(_ action: KeybindingAction) -> Bool {
         store.lookup(action) == KeybindingStore.defaults[action]
     }
 
     private func handleCapture(
-        action: CommandPaletteAction, key: String
+        action: KeybindingAction, key: String
     ) {
         let normalized = KeybindingStore.normalizeKey(key)
         // Reserved-range gate — block save, show toast.

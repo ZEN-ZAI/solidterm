@@ -22,7 +22,8 @@ final class HyperlinkAccessorTests: XCTestCase {
             pixel_h: 0,
             command: "/bin/cat".intoRustString(),
             cwd: "/tmp".intoRustString(),
-            env: envVec)
+            env: envVec,
+            scrollback_lines: 0)
         return TerminalSession.new(config)
     }
 

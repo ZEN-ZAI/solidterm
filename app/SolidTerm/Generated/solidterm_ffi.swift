@@ -244,8 +244,9 @@ public struct SessionConfig {
     public var command: RustString
     public var cwd: RustString
     public var env: RustVec<UInt8>
+    public var scrollback_lines: UInt32
 
-    public init(rows: UInt16,cols: UInt16,pixel_w: UInt16,pixel_h: UInt16,command: RustString,cwd: RustString,env: RustVec<UInt8>) {
+    public init(rows: UInt16,cols: UInt16,pixel_w: UInt16,pixel_h: UInt16,command: RustString,cwd: RustString,env: RustVec<UInt8>,scrollback_lines: UInt32) {
         self.rows = rows
         self.cols = cols
         self.pixel_w = pixel_w
@@ -253,17 +254,18 @@ public struct SessionConfig {
         self.command = command
         self.cwd = cwd
         self.env = env
+        self.scrollback_lines = scrollback_lines
     }
 
     @inline(__always)
     func intoFfiRepr() -> __swift_bridge__$SessionConfig {
-        { let val = self; return __swift_bridge__$SessionConfig(rows: val.rows, cols: val.cols, pixel_w: val.pixel_w, pixel_h: val.pixel_h, command: { let rustString = val.command.intoRustString(); rustString.isOwned = false; return rustString.ptr }(), cwd: { let rustString = val.cwd.intoRustString(); rustString.isOwned = false; return rustString.ptr }(), env: { let val = val.env; val.isOwned = false; return val.ptr }()); }()
+        { let val = self; return __swift_bridge__$SessionConfig(rows: val.rows, cols: val.cols, pixel_w: val.pixel_w, pixel_h: val.pixel_h, command: { let rustString = val.command.intoRustString(); rustString.isOwned = false; return rustString.ptr }(), cwd: { let rustString = val.cwd.intoRustString(); rustString.isOwned = false; return rustString.ptr }(), env: { let val = val.env; val.isOwned = false; return val.ptr }(), scrollback_lines: val.scrollback_lines); }()
     }
 }
 extension __swift_bridge__$SessionConfig {
     @inline(__always)
     func intoSwiftRepr() -> SessionConfig {
-        { let val = self; return SessionConfig(rows: val.rows, cols: val.cols, pixel_w: val.pixel_w, pixel_h: val.pixel_h, command: RustString(ptr: val.command), cwd: RustString(ptr: val.cwd), env: RustVec(ptr: val.env)); }()
+        { let val = self; return SessionConfig(rows: val.rows, cols: val.cols, pixel_w: val.pixel_w, pixel_h: val.pixel_h, command: RustString(ptr: val.command), cwd: RustString(ptr: val.cwd), env: RustVec(ptr: val.env), scrollback_lines: val.scrollback_lines); }()
     }
 }
 extension __swift_bridge__$Option$SessionConfig {
@@ -400,6 +402,10 @@ extension TerminalSessionRefMut {
         __swift_bridge__$TerminalSession$send_input(ptr, event.intoFfiRepr())
     }
 
+    public func paste_chunk(_ bytes: UnsafeBufferPointer<UInt8>) -> UInt32 {
+        __swift_bridge__$TerminalSession$paste_chunk(ptr, bytes.toFfiSlice())
+    }
+
     public func take_frame_delta() -> FrameDelta {
         __swift_bridge__$TerminalSession$take_frame_delta(ptr).intoSwiftRepr()
     }
@@ -446,6 +452,10 @@ extension TerminalSessionRefMut {
         RustString(ptr: __swift_bridge__$TerminalSession$drain_latest_cwd(ptr))
     }
 
+    public func drain_bell() -> Bool {
+        __swift_bridge__$TerminalSession$drain_bell(ptr)
+    }
+
     public func resize(_ rows: UInt16, _ cols: UInt16) -> Bool {
         __swift_bridge__$TerminalSession$resize(ptr, rows, cols)
     }
@@ -488,6 +498,14 @@ extension TerminalSessionRef {
 
     public func bracketed_paste_enabled() -> Bool {
         __swift_bridge__$TerminalSession$bracketed_paste_enabled(ptr)
+    }
+
+    public func mouse_mode_bits() -> UInt8 {
+        __swift_bridge__$TerminalSession$mouse_mode_bits(ptr)
+    }
+
+    public func child_pid() -> UInt32 {
+        __swift_bridge__$TerminalSession$child_pid(ptr)
     }
 
     public func row_text(_ row: UInt16) -> RustString {

@@ -8,7 +8,7 @@
 // with any terminal that parses OSC 133").
 //
 // Activation flow:
-//   1. User runs ⌘K → "Install Shell Integration"
+//   1. User triggers "Install Shell Integration" (Settings action)
 //   2. Files copy to ~/.config/solidterm/shell/{solidterm.zsh,
 //      solidterm.bash,solidterm.fish}
 //   3. NSAlert shows the user the one-liner to add to their rc

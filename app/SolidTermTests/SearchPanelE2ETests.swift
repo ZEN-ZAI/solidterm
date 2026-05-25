@@ -1,6 +1,5 @@
-// E2E (in-process integration) tests for the M7-2 ⌘F find-in-scrollback
-// search panel. Mirrors the regression coverage pattern in
-// `CommandPaletteE2ETests` (the two `d2a966d` / `8e38b35` panel bugs).
+// E2E (in-process integration) tests for the ⌘F find-in-scrollback
+// search panel.
 //
 // E2E pattern: construct → drive public surface → pump runloop → walk
 // live state via test seams → assert at the integration boundary.
@@ -13,7 +12,7 @@ import XCTest
 @MainActor
 final class SearchPanelE2ETests: XCTestCase {
 
-    // MARK: - Panel key-eligibility (mirrors CommandPalette d2a966d)
+    // MARK: - Panel key-eligibility
 
     func testPanelBecomesKeyOnPresent() {
         let controller = SearchPanelController()
@@ -38,9 +37,9 @@ final class SearchPanelE2ETests: XCTestCase {
         XCTAssertEqual(controller.panelForTest?.isVisible, false)
     }
 
-    /// Regression for the `d2a966d`-class bug: panel shown but
-    /// keystrokes never reach the wrapped NSTextField. Same fix
-    /// (canBecomeKey + makeFirstResponder after present) applies here.
+    /// Regression: panel shown but keystrokes never reach the
+    /// wrapped NSTextField. Fix combines `canBecomeKey` override on
+    /// the panel with a deferred `makeFirstResponder` after present.
     func testTypingReachesSearchField() {
         let controller = SearchPanelController()
         controller.toggle()
@@ -83,6 +82,43 @@ final class SearchPanelE2ETests: XCTestCase {
             .controlTextDidChange?(n)
 
         XCTAssertEqual(model.query, "alpha")
+    }
+
+    /// Regression for the 2026-05-19 dismiss/present race: pressing
+    /// ⌘F a second time while the panel's dismiss fade-out animation
+    /// was still in flight used to leave the panel ordered-out. Root
+    /// cause: the stale `NSAnimationContext` completion handler ran
+    /// AFTER `present()` had already re-shown the panel and called
+    /// `orderOut` on the panel the user just asked to see again.
+    /// Fix: the completion handler now checks `isDismissing` before
+    /// touching the panel and bails when `present()` reset the flag.
+    func testReopenDuringDismissKeepsPanelVisible() {
+        let controller = SearchPanelController()
+        // 1. Open.
+        controller.toggle()
+        XCTAssertTrue(
+            controller.isVisible,
+            "first toggle should have presented the panel")
+        // 2. Start dismiss — the fade-out animator is now in flight.
+        controller.toggle()
+        // 3. Immediately re-open before the animator's completion
+        //    handler can run (motion-fast is ~100 ms; we re-toggle
+        //    on the same runloop tick, well inside that window).
+        controller.toggle()
+        // 4. Pump well past the original dismiss duration so any
+        //    stale completion handler has had a chance to fire.
+        RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+        // 5. Panel must still be on screen — that's what the user
+        //    expects and what the pre-fix code violated.
+        XCTAssertTrue(
+            controller.isVisible,
+            "re-opening during dismiss must keep the panel visible")
+        XCTAssertEqual(
+            controller.panelForTest?.isVisible, true,
+            "underlying NSPanel must remain ordered-in")
+        // Tear down cleanly.
+        controller.toggle()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
     }
 
     func testCounterTextFormat() {

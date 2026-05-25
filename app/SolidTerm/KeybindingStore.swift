@@ -1,11 +1,11 @@
 // M6-5 KeybindingStore — load/save ~/.solidterm/keybindings.json,
-// resolve `CommandPaletteAction` cases against effective bindings.
+// resolve `KeybindingAction` cases against effective bindings.
 //
 // Authoritative spec: spec/keyboard-system.md (M6 pre-flight pass 4
 // finalized 2026-05-10) + research/20-m6-plan.md §M6-5.
 //
 // Scope (M6 ship slice):
-// - Defaults table for the 8 `CommandPaletteAction` cases shipped in M6-1
+// - Defaults table for the 8 `KeybindingAction` cases shipped in M6-1
 // - JSON load/save with malformed-fallback (warn + use defaults, don't crash)
 // - Conflict semantics: last-wins in `bindings`; `disabled` beats
 //   `bindings`; user file beats built-ins (load order: defaults → user)
@@ -24,13 +24,13 @@
 //   M6 has only global-scope actions
 // - Find/Find-Next, splitPane*, focusPane*, zoom*, toggleNativeMode,
 //   etc. (the rest of spec/keyboard-system.md §App-action keybindings) —
-//   not yet in `CommandPaletteAction` enum, M3+/Phase-2
+//   not yet in `KeybindingAction` enum, M3+/Phase-2
 
 import AppKit
 import Foundation
 
 /// File-format DTOs for `~/.solidterm/keybindings.json`. Keep these as
-/// raw structs (not coupled to `CommandPaletteAction`) so unknown
+/// raw structs (not coupled to `KeybindingAction`) so unknown
 /// actions and reserved-range entries can be inspected pre-validation.
 public struct KeybindingsFile: Codable {
     public var bindings: [Entry] = []
@@ -67,11 +67,11 @@ public struct KeybindingsFile: Codable {
     }
 }
 
-/// Resolved (effective) binding from a `CommandPaletteAction` case to
+/// Resolved (effective) binding from a `KeybindingAction` case to
 /// a normalized key string (e.g. "cmd+b"). Suitable for AppMenu's
 /// `keyEquivalent` + modifier-mask wiring.
 public struct EffectiveBinding: Equatable {
-    public let action: CommandPaletteAction
+    public let action: KeybindingAction
     /// Normalized key string. ASCII-only, lowercased mods, single
     /// stroke (chord support pending per file-header note).
     public let key: String
@@ -98,7 +98,7 @@ public final class KeybindingStore: ObservableObject {
     /// Active effective bindings — defaults overlaid by user file
     /// minus disabled keys.
     @Published public private(set) var effective:
-        [CommandPaletteAction: String] = [:]
+        [KeybindingAction: String] = [:]
     /// Diagnostics emitted during the most recent load. UI surfaces
     /// these as warning chips per spec/keyboard-system.md §Conflict.
     @Published public private(set) var diagnostics:
@@ -122,19 +122,14 @@ public final class KeybindingStore: ObservableObject {
 
     // MARK: - Defaults table
 
-    /// Built-in defaults for `CommandPaletteAction` cases.
+    /// Built-in defaults for `KeybindingAction` cases.
     /// Source-of-truth pinned to spec/keyboard-system.md.
     /// M7-5 added the tab-surface bindings (newTab, closeTab, prevTab,
     /// nextTab, selectTab1..9) — this dropped them out of the reserved
     /// range and pushed `closeWindow` to ⌘⇧W so ⌘W goes to closeTab
     /// (AppKit's `performClose:` does the right "last tab → close
     /// window" thing in either case).
-    public static let defaults: [CommandPaletteAction: String] = [
-        // openCommandPalette: ⌘K binding hidden 2026-05-11 per user
-        // dogfood report (first-invocation works, subsequent invocations
-        // wedge in some focus configurations). Action stays in the enum
-        // so the dispatcher + selector wiring re-enable in one block;
-        // when the focus race is understood, restore: `.openCommandPalette: "cmd+k",`
+    public static let defaults: [KeybindingAction: String] = [
         .openSettings: "cmd+,",
         .newWindow: "cmd+n",
         .closeWindow: "cmd+shift+w",
@@ -155,7 +150,8 @@ public final class KeybindingStore: ObservableObject {
         .selectTab8: "cmd+8",
         .selectTab9: "cmd+9",
         .openFindBar: "cmd+f",
-        // Palette-only — rarely invoked, no muscle-memory hotkey.
+        // Rarely invoked — bound to an obscure chord rather than a
+        // muscle-memory hotkey.
         .installShellIntegration: "ctrl+alt+i",
     ]
 
@@ -181,9 +177,9 @@ public final class KeybindingStore: ObservableObject {
 
     // MARK: - Public API
 
-    /// Resolve a `CommandPaletteAction` to its current effective key
+    /// Resolve a `KeybindingAction` to its current effective key
     /// string (e.g. "cmd+b"), or `nil` if disabled / unbound.
-    public func lookup(_ action: CommandPaletteAction) -> String? {
+    public func lookup(_ action: KeybindingAction) -> String? {
         effective[action]
     }
 
@@ -218,7 +214,7 @@ public final class KeybindingStore: ObservableObject {
         let disabledSet = Set(parsed.disabled.map(Self.normalizeKey))
 
         // Apply user bindings in order; track keys for duplicate detection.
-        var lastForKey: [String: CommandPaletteAction] = [:]
+        var lastForKey: [String: KeybindingAction] = [:]
         for entry in parsed.bindings {
             let normalizedKey = Self.normalizeKey(entry.key)
             // Chord (space-separated) — decode but skip runtime
@@ -228,7 +224,7 @@ public final class KeybindingStore: ObservableObject {
                 continue
             }
             // Unknown action — warn + skip
-            guard let action = CommandPaletteAction(rawValue: entry.action)
+            guard let action = KeybindingAction(rawValue: entry.action)
             else {
                 diag.append(.unknownAction(
                     action: entry.action, key: entry.key))
@@ -310,7 +306,7 @@ public final class KeybindingStore: ObservableObject {
     /// Reset a single action to its default key. Implemented by
     /// rewriting the file without that action's user-override entry.
     public func resetActionToDefault(
-        _ action: CommandPaletteAction
+        _ action: KeybindingAction
     ) throws {
         // Read current file, drop entries pointing to this action,
         // rewrite. Disabled list survives.
@@ -362,7 +358,7 @@ extension KeybindingStore {
     /// the action is disabled or unbound. AppMenu calls this when
     /// constructing menu items; observers rebuild on store change.
     public func menuKeyEquivalent(
-        for action: CommandPaletteAction
+        for action: KeybindingAction
     ) -> (String, NSEvent.ModifierFlags) {
         guard let key = lookup(action) else { return ("", []) }
         return Self.parseToMenuKey(key)

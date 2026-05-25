@@ -6,7 +6,7 @@
 // drag-out are system-handled; ⌘1-9 routes through
 // `TerminalWindowController.selectTabN(_:)` selectors.
 //
-// These tests drive the public surface (palette dispatch, tab-group
+// These tests drive the public surface (action dispatch, tab-group
 // joining, performClose teardown) and walk live state — they catch
 // integration defects that per-file unit tests miss.
 
@@ -84,7 +84,7 @@ final class TabsE2ETests: XCTestCase {
         // is aw is still visible.
     }
 
-    // MARK: - Palette dispatch
+    // MARK: - Action dispatch
 
     /// `AppDelegate.openNewTab(_:)` builds a fresh `TerminalWindowController`
     /// and orders it on screen — joining the key window's tab group when
@@ -113,7 +113,7 @@ final class TabsE2ETests: XCTestCase {
 
     /// `dispatch(.closeTab)` calls performClose on the window, which
     /// closes the active tab.
-    func testPaletteDispatch_closeTab_closesActiveTab() {
+    func testActionDispatch_closeTab_closesActiveTab() {
         let a = makeController()
         let b = makeController()
         guard let aw = a.window, let bw = b.window else {
@@ -123,7 +123,7 @@ final class TabsE2ETests: XCTestCase {
         aw.addTabbedWindow(bw, ordered: .above)
         XCTAssertEqual(aw.tabbedWindows?.count, 2)
 
-        b.dispatch(paletteAction: .closeTab)
+        b.dispatch(action: .closeTab)
         controllers.removeAll { $0 === b }
 
         // aw still alive; tab group shrinks.
@@ -131,7 +131,7 @@ final class TabsE2ETests: XCTestCase {
     }
 
     /// `dispatch(.selectTab2)` activates the second tab in the group.
-    func testPaletteDispatch_selectTab2_makesSecondTabKey() {
+    func testActionDispatch_selectTab2_makesSecondTabKey() {
         let a = makeController()
         let b = makeController()
         guard let aw = a.window, let bw = b.window else {
@@ -142,7 +142,7 @@ final class TabsE2ETests: XCTestCase {
 
         // Dispatch from the *first* tab's controller; selectTab(2) walks
         // tabbedWindows and activates index 1.
-        a.dispatch(paletteAction: .selectTab2)
+        a.dispatch(action: .selectTab2)
 
         let tabs = aw.tabbedWindows ?? []
         XCTAssertEqual(tabs.count, 2)
@@ -236,24 +236,22 @@ final class TabsE2ETests: XCTestCase {
     }
 }
 
-// MARK: - CommandPaletteAction tab-action surface
+// MARK: - Action enum tab surface
 
 @MainActor
-final class TabsCommandPaletteActionTests: XCTestCase {
+final class TabsActionEnumTests: XCTestCase {
 
-    /// All five new tab actions plus `selectTab1..9` are present in
-    /// `allCases` and `paletteVisible` (only `toggleLeftSidebar` is
-    /// hidden in the M7-0 baseline).
-    func testTabActions_inPaletteVisible() {
-        let visible = Set(CommandPaletteAction.paletteVisible)
-        XCTAssertTrue(visible.contains(.newTab))
-        XCTAssertTrue(visible.contains(.closeTab))
-        XCTAssertTrue(visible.contains(.prevTab))
-        XCTAssertTrue(visible.contains(.nextTab))
+    /// Tab actions plus `selectTab1..9` are present in the action enum.
+    func testTabActions_inAllCases() {
+        let cases = Set(KeybindingAction.allCases)
+        XCTAssertTrue(cases.contains(.newTab))
+        XCTAssertTrue(cases.contains(.closeTab))
+        XCTAssertTrue(cases.contains(.prevTab))
+        XCTAssertTrue(cases.contains(.nextTab))
         for n in 1...9 {
             let raw = "selectTab\(n)"
             XCTAssertTrue(
-                CommandPaletteAction.allCases
+                KeybindingAction.allCases
                     .contains(where: { $0.rawValue == raw }),
                 "selectTab\(n) must be in allCases")
         }
@@ -262,10 +260,10 @@ final class TabsCommandPaletteActionTests: XCTestCase {
     /// `tabIndex` returns the digit for selectTabN cases and nil for
     /// non-tab-index cases.
     func testTabIndex_extractsDigit() {
-        XCTAssertEqual(CommandPaletteAction.selectTab1.tabIndex, 1)
-        XCTAssertEqual(CommandPaletteAction.selectTab9.tabIndex, 9)
-        XCTAssertNil(CommandPaletteAction.newTab.tabIndex)
-        XCTAssertNil(CommandPaletteAction.openSettings.tabIndex)
+        XCTAssertEqual(KeybindingAction.selectTab1.tabIndex, 1)
+        XCTAssertEqual(KeybindingAction.selectTab9.tabIndex, 9)
+        XCTAssertNil(KeybindingAction.newTab.tabIndex)
+        XCTAssertNil(KeybindingAction.openSettings.tabIndex)
     }
 
     /// KeybindingStore defaults bind every tab action to its M7-5

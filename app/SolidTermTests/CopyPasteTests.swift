@@ -121,6 +121,107 @@ final class CopyPasteTests: XCTestCase {
         XCTAssertEqual(bytes[12], UInt8(ascii: "~"))
     }
 
+    // MARK: - Paste chunking (regression: long-paste UI freeze)
+
+    /// Naive boundary lands inside ASCII → returned as-is.
+    func testPasteChunkEnd_ascii_returnsNaiveBoundary() {
+        let bytes = Array("hello world this is some ascii".utf8)
+        XCTAssertEqual(
+            TerminalSurfaceView.pasteChunkEnd(bytes: bytes, offset: 0, chunkSize: 5),
+            5)
+        XCTAssertEqual(
+            TerminalSurfaceView.pasteChunkEnd(bytes: bytes, offset: 5, chunkSize: 5),
+            10)
+    }
+
+    /// When the chunk size lands mid-multibyte, the helper walks
+    /// back to the previous code-point start. Thai cluster "ก่อน"
+    /// is 4 codepoints × 3 bytes = 12 bytes. Chunking at byte 5
+    /// would split the second codepoint mid-sequence — the helper
+    /// should back up to byte 3 (end of first codepoint).
+    func testPasteChunkEnd_walksBackFromMultibyteSplit() {
+        let bytes = Array("ก่อน".utf8)
+        XCTAssertEqual(bytes.count, 12,
+            "Thai 4-codepoint string should be 12 UTF-8 bytes")
+        // chunkSize=5 → naive end=5, walk back to 3 (codepoint boundary).
+        let end = TerminalSurfaceView.pasteChunkEnd(
+            bytes: bytes, offset: 0, chunkSize: 5)
+        XCTAssertEqual(end, 3, "must land on codepoint boundary")
+        // Verify the slice is valid UTF-8.
+        let slice = Array(bytes[0..<end])
+        XCTAssertNotNil(String(bytes: slice, encoding: .utf8))
+    }
+
+    /// End of buffer always wins — even if the last partial chunk
+    /// would normally walk back, the tail of the payload is allowed
+    /// because there's nothing more coming.
+    func testPasteChunkEnd_lastChunkAllowsRemainder() {
+        let bytes = Array("ก่อน".utf8)
+        // offset=6, chunkSize=10, naive end = 12 (== bytes.count) →
+        // return naive end as-is, no walk-back.
+        XCTAssertEqual(
+            TerminalSurfaceView.pasteChunkEnd(bytes: bytes, offset: 6, chunkSize: 10),
+            12)
+    }
+
+    /// Pathological: a single UTF-8 codepoint that exceeds chunkSize
+    /// (rare — 4-byte codepoints with chunkSize<4). Helper falls back
+    /// to the naive boundary rather than collapsing the chunk to zero
+    /// (which would loop forever).
+    func testPasteChunkEnd_pathologicalCodepointFallsBackToNaive() {
+        // 4-byte UTF-8 codepoint (emoji 😀 = F0 9F 98 80)
+        let bytes = Array("😀".utf8)
+        XCTAssertEqual(bytes.count, 4)
+        // chunkSize=2 mid-codepoint → naive=2, walk-back collapses
+        // to 0 (offset) → fallback returns naive 2.
+        let end = TerminalSurfaceView.pasteChunkEnd(
+            bytes: bytes, offset: 0, chunkSize: 2)
+        XCTAssertEqual(end, 2,
+            "single oversized codepoint must not collapse the chunk window")
+    }
+
+    // MARK: - PG2 paste-jail injection guard
+
+    /// Clipboard payload containing the bracketed-paste END marker
+    /// gets stripped before re-wrapping — otherwise an attacker-
+    /// controlled clipboard can break out of paste mode and execute
+    /// commands. Matches iTerm2 / Ghostty / Alacritty behaviour.
+    func testFormatPastePayloadStripsEmbeddedEndMarker() {
+        let malicious = "echo safe\u{1B}[201~\nrm -rf /\n"
+        let wrapped = TerminalSurfaceView.formatPastePayload(
+            malicious, bracketedPasteEnabled: true)
+        // Embedded `\e[201~` removed; exactly one start + one end marker.
+        XCTAssertTrue(wrapped.hasPrefix("\u{1B}[200~"))
+        XCTAssertTrue(wrapped.hasSuffix("\u{1B}[201~"))
+        XCTAssertEqual(
+            wrapped.components(separatedBy: "\u{1B}[201~").count, 2,
+            "exactly one end marker should remain (the trailing wrap)")
+        XCTAssertFalse(
+            wrapped.dropLast(6).contains("\u{1B}[201~"),
+            "embedded end marker must be stripped from the body")
+    }
+
+    /// Embedded START markers get stripped too — a defensive
+    /// symmetry. Without it the user-visible "paste" would still
+    /// end correctly, but the running app sees nested 200~ pairs.
+    func testFormatPastePayloadStripsEmbeddedStartMarker() {
+        let payload = "before\u{1B}[200~middle\u{1B}[201~after"
+        let wrapped = TerminalSurfaceView.formatPastePayload(
+            payload, bracketedPasteEnabled: true)
+        let body = String(wrapped.dropFirst(6).dropLast(6))
+        XCTAssertEqual(body, "beforemiddleafter")
+    }
+
+    /// When bracketed-paste is OFF, the payload passes through
+    /// untouched — even if it carries marker bytes. Disabled mode
+    /// has no injection surface (no envelope to escape).
+    func testFormatPastePayloadDoesNotStripWhenBracketedDisabled() {
+        let payload = "echo\u{1B}[201~next"
+        let wrapped = TerminalSurfaceView.formatPastePayload(
+            payload, bracketedPasteEnabled: false)
+        XCTAssertEqual(wrapped, payload)
+    }
+
     /// Multiline payload (typical "paste a code snippet") is wrapped as
     /// a single block — the markers wrap the whole payload, not each
     /// line. Matches xterm's behavior; ZLE-style "paste fired into a
@@ -581,7 +682,8 @@ final class CopyPasteTests: XCTestCase {
             pixel_h: 0,
             command: "/bin/cat".intoRustString(),
             cwd: "/tmp".intoRustString(),
-            env: envVec)
+            env: envVec,
+            scrollback_lines: 0)
         return TerminalSession.new(config)
     }
 

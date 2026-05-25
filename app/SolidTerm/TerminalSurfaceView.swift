@@ -10,6 +10,7 @@
 // anchoring (Thai dead-key composition, CJK candidates, macOS Dictation).
 
 import AppKit
+import Carbon.HIToolbox
 import CoreText
 import Metal
 import QuartzCore
@@ -94,6 +95,19 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     /// handoff completes a few frames later.
     private var inputSourceObserver: NSObjectProtocol?
 
+    /// Cached ID of the currently-selected keyboard input source, polled
+    /// synchronously at the top of every `keyDown`. macOS's
+    /// `keyboardSelectionDidChangeNotification` is dispatched on the
+    /// main queue *after* the OS has already routed the next keystroke
+    /// through the new IME — so for a few frames after ⌃Space / globe,
+    /// `compositionState` from the outgoing IME is stale but the
+    /// observer hasn't run yet. We compare on each keystroke and run
+    /// the reset path synchronously when the ID changes, eliminating
+    /// the post-switch input lag entirely (the notification-driven
+    /// path stays as a backstop for switches that don't coincide with
+    /// a keystroke).
+    private var lastInputSourceID: String?
+
     /// Test-friendly read accessor. Returns nil when no composition is
     /// active. Called from the renderer each frame to paint preedit
     /// cells; tuple shape minimizes coupling so future composition
@@ -140,7 +154,8 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
 
     /// Reset IME state on input-source change. Called from the
     /// `NSTextInputContext.keyboardSelectionDidChangeNotification`
-    /// observer.
+    /// observer AND synchronously from `keyDown` when the cached
+    /// input-source ID has rotated since the last keystroke.
     private func handleInputSourceChange() {
         if compositionState != nil {
             compositionState = nil
@@ -151,14 +166,46 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         // this, the next keyDown still routes through the old
         // context's residual state for a few hundred ms.
         inputContext?.discardMarkedText()
+        // Refresh the input-context binding so the next handleEvent
+        // dispatch uses the new input source's plugin without waiting
+        // for AppKit's lazy re-bind.
+        inputContext?.invalidateCharacterCoordinates()
         // Force `hasMarkedText` to flip back to false next read so
         // the keyDown gate stops suppressing direct send.
         insertTextFiredThisKeyDown = false
+        lastInputSourceID = Self.currentInputSourceID()
+    }
+
+    /// Current selected keyboard input source ID via Carbon TIS.
+    /// Cheap (a `CFRetain` + dictionary lookup); safe to poll on every
+    /// keystroke. Returns nil if TIS is unavailable, which collapses
+    /// the keyDown change-check to a no-op so we don't reset state
+    /// based on transient failures.
+    private static func currentInputSourceID() -> String? {
+        guard let src = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue()
+        else { return nil }
+        guard let raw = TISGetInputSourceProperty(src, kTISPropertyInputSourceID)
+        else { return nil }
+        let cf = Unmanaged<CFString>.fromOpaque(raw).takeUnretainedValue()
+        return cf as String
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("TerminalSurfaceView is AppKit-only; storyboards are not supported")
+    }
+
+    deinit {
+        // `DispatchSourceTimer` instances must be cancelled before their
+        // last strong reference drops; releasing an un-cancelled source
+        // is undefined per Apple's GCD docs and has caused hangs in the
+        // wild. Both timers below outlive the view by a few ms when the
+        // window closes mid-drag / mid-resize, so the deinit guard is
+        // load-bearing — not cosmetic.
+        autoScrollTimer?.cancel()
+        autoScrollTimer = nil
+        pendingResizeTimer?.cancel()
+        pendingResizeTimer = nil
     }
 
     var metalLayer: CAMetalLayer { layer as! CAMetalLayer }
@@ -300,8 +347,8 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     ///  - `extendSelectionByArrow` (shift+arrow) clears it; keyboard
     ///    takes over and the engine selection stays authoritative for
     ///    that mode.
-    ///  - Explicit clear paths (programmatic select in `copyBlock`
-    ///    restore, `quickLook` restore) clear it.
+    ///  - Programmatic selection paths (e.g. `selectAll`) write to it
+    ///    after running their own `start_selection` + `update_selection`.
     struct PendingSelection {
         var start: (row: UInt16, col: UInt16)
         var end: (row: UInt16, col: UInt16)
@@ -362,6 +409,28 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
 
     override func keyDown(with event: NSEvent) {
         insertTextFiredThisKeyDown = false
+
+        // Synchronous input-source-change check. macOS's
+        // keyboardSelectionDidChangeNotification can land a few frames
+        // after the user's first post-switch keystroke; without this
+        // check, that keystroke gets eaten by the outgoing IME's stale
+        // marked-text state. Compare the cached ID against TIS's
+        // current source — if it rotated, run the same reset path the
+        // notification observer does, then continue processing this
+        // keystroke against the new IME context.
+        let currentID = Self.currentInputSourceID()
+        if let currentID, currentID != lastInputSourceID {
+            // Seed-on-first-keystroke is intentional: when
+            // `lastInputSourceID` is nil (first keyDown after view
+            // creation) we still want to record the ID, but don't
+            // tear down composition state that may already exist
+            // from a legitimate setMarkedText call.
+            if lastInputSourceID != nil {
+                handleInputSourceChange()
+            } else {
+                lastInputSourceID = currentID
+            }
+        }
 
         // 4.5: shift+arrow extends the selection from the cursor (or
         // current selection-end). Runs BEFORE the IME / inputContext
@@ -570,6 +639,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         keyboardSelectionEnd = (row: r, col: c)
         // Ensure the next frame paints the updated tint immediately.
         needsDisplay = true
+        renderer.markNeedsRedraw()
     }
 
     /// Convert a window-space point into terminal grid `(row, col)`.
@@ -608,6 +678,22 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
             super.mouseDown(with: event)
             return
         }
+        // PG1 mouse reporting — when a TUI has enabled DEC 1000/1002/1003
+        // we forward the click as an xterm mouse sequence instead of
+        // driving our own selection. Modifier-held clicks (⌘ for
+        // hyperlink open, ⌥ for block-select) still own the gesture
+        // so the user can override the TUI's mouse capture.
+        let modKeysHeld = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            .intersection([.command, .option])
+        if !modKeysHeld.contains(.command),
+            !modKeysHeld.contains(.option),
+            MouseReporting.modeActive(session: session)
+        {
+            MouseReporting.sendButtonEvent(
+                session: session, event: event, row: row, col: col,
+                button: 0, pressed: true)
+            return
+        }
         // M7-1: ⌘+click → open the hovered OSC 8 hyperlink via
         // NSWorkspace (browser for http(s)://, default app per scheme
         // for everything else). Takes priority over the M6-2 path
@@ -637,6 +723,10 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         // mouse-driven selection's end.
         keyboardSelectionEnd = nil
 
+        // I2 auto-copy: capture the click origin so `mouseUp` can
+        // compute drag distance and only auto-copy on a real drag.
+        mouseDownLocationInView = convert(event.locationInWindow, from: nil)
+
         // NSEvent.clickCount reflects macOS's own double/triple-click
         // detector (NSDoubleClickInterval-aware). Anything above 3 is
         // collapsed to triple — quad-clicks are not a terminal idiom.
@@ -657,23 +747,146 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         syncPendingSelection(
             from: session, fallback: (row: row, col: col), mode: mode)
         needsDisplay = true
+        renderer.markNeedsRedraw()
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let session = renderer.session,
-            let (row, col) = pointToCell(event.locationInWindow)
-        else {
+        guard let session = renderer.session else {
             super.mouseDragged(with: event)
             return
         }
-        session.update_selection(row, col)
-        // Mirror from the engine so RTL drag (end.col < start.col) lands
-        // as a normalized [start, end] pair, matching what alacritty's
-        // `selection_span()` produces after `Side::Right` update.
+        // PG1: forward as button-held motion to TUIs that subscribed
+        // to mode 1002 / 1003. Mode 1000 (clicks only) drops drags.
+        if MouseReporting.modeActive(session: session) {
+            let bits = session.mouse_mode_bits()
+            let dragOn = (bits & 0x02) != 0 || (bits & 0x04) != 0
+            if dragOn,
+                let (row, col) = pointToCell(event.locationInWindow)
+            {
+                MouseReporting.sendMotionEvent(
+                    session: session, event: event,
+                    row: row, col: col, button: 0)
+            }
+            return
+        }
+        // I4 auto-scroll: when the drag goes off the top/bottom edge,
+        // start a repeating timer that scrolls the viewport and
+        // re-extends the selection to the clamped (in-view) cell. When
+        // the user drags back inside the viewport, kill the timer.
+        let pointInView = convert(event.locationInWindow, from: nil)
+        let viewportTop = bounds.maxY
+        let viewportBottom = bounds.minY
+        let edgeHysteresisPt: CGFloat = 12.0
+        let aboveTop = pointInView.y > viewportTop - edgeHysteresisPt
+        let belowBottom = pointInView.y < viewportBottom + edgeHysteresisPt
+        if aboveTop || belowBottom {
+            // UX7: tier the scroll cadence by distance past the
+            // viewport edge — slow near the edge (60 ms / line) so
+            // the user can stop precisely, fast when dragged far
+            // outside (30 ms / line). Boundary at 30pt outside.
+            let distPastEdge: CGFloat = aboveTop
+                ? pointInView.y - viewportTop
+                : viewportBottom - pointInView.y
+            let intervalMs: Int = distPastEdge > 30 ? 30 : 60
+            // Direction: above top → scroll content down (positive),
+            // exposing earlier scrollback. Below bottom → scroll up
+            // (negative), back toward live tail.
+            let delta: Int32 = aboveTop ? 1 : -1
+            startAutoScroll(direction: delta, session: session, intervalMs: intervalMs)
+        } else {
+            stopAutoScroll()
+        }
+
+        if let (row, col) = pointToCell(event.locationInWindow) {
+            session.update_selection(row, col)
+            let mode = pendingSelection?.mode ?? Self.SELECTION_MODE_SIMPLE
+            syncPendingSelection(
+                from: session, fallback: (row: row, col: col), mode: mode)
+            needsDisplay = true
+            renderer.markNeedsRedraw()
+        }
+    }
+
+    /// I4: in-flight repeating timer for drag-select auto-scroll.
+    /// Nil when the drag is inside the viewport. Fires every 30 ms on
+    /// the main queue; killed in `mouseUp` and when the drag returns
+    /// inside the viewport.
+    private var autoScrollTimer: DispatchSourceTimer?
+
+    private func startAutoScroll(
+        direction: Int32,
+        session: TerminalSession,
+        intervalMs: Int = 60
+    ) {
+        // If a timer is already running in the same direction AND
+        // at the same cadence, leave it. A cadence change (e.g.,
+        // user drags farther past the edge) restarts the timer.
+        if autoScrollTimer != nil
+            && autoScrollDirection == direction
+            && autoScrollIntervalMs == intervalMs
+        {
+            return
+        }
+        stopAutoScroll()
+        autoScrollDirection = direction
+        autoScrollIntervalMs = intervalMs
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        let dti: DispatchTimeInterval = .milliseconds(intervalMs)
+        timer.schedule(deadline: .now() + dti, repeating: dti)
+        // Re-resolve the session via `self.renderer.session` on each
+        // tick rather than capturing the parameter strongly. If the
+        // window closes mid-drag and the view deallocates before
+        // `mouseUp` fires, the strong capture would keep the
+        // `TerminalSession` alive until the timer source releases —
+        // wasted retention. `[weak self]` collapses the tick to a
+        // no-op once `self` is gone, and `self.renderer.session`
+        // tracks whatever session is currently bound.
+        timer.setEventHandler { [weak self] in
+            guard let self, let session = self.renderer.session else { return }
+            self.autoScrollTick(session: session, direction: direction)
+        }
+        timer.resume()
+        autoScrollTimer = timer
+    }
+
+    private var autoScrollDirection: Int32 = 0
+    /// UX7: tracks the cadence the in-flight `autoScrollTimer` was
+    /// scheduled with (in milliseconds) so we can detect when the
+    /// user drags farther out and needs the faster tier.
+    private var autoScrollIntervalMs: Int? = nil
+
+    private func stopAutoScroll() {
+        autoScrollTimer?.cancel()
+        autoScrollTimer = nil
+        autoScrollDirection = 0
+        autoScrollIntervalMs = nil
+    }
+
+    private func autoScrollTick(session: TerminalSession, direction: Int32) {
+        session.scroll_lines(direction)
+        // Extend the selection toward the edge in the scroll direction —
+        // top of the viewport for upward scroll, bottom for downward.
+        let edgeRow: UInt16 = direction > 0
+            ? 0
+            : UInt16(max(0, renderer.viewportRows - 1))
+        // Column stays at last drag position; we don't have a fresh
+        // mouse event here, so use the engine's current end-of-
+        // selection by reading the span. Fallback to col 0.
+        let span = session.selection_span()
+        let edgeCol: UInt16
+        if span.len() == 5, let endCol = span.get(index: 3) {
+            // span = [start_row, start_col, end_row, end_col, is_block]
+            edgeCol = UInt16(clamping: endCol)
+        } else {
+            edgeCol = 0
+        }
+        session.update_selection(edgeRow, edgeCol)
         let mode = pendingSelection?.mode ?? Self.SELECTION_MODE_SIMPLE
         syncPendingSelection(
-            from: session, fallback: (row: row, col: col), mode: mode)
-        needsDisplay = true
+            from: session,
+            fallback: (row: edgeRow, col: edgeCol),
+            mode: mode)
+        renderer.markNeedsRedraw()
     }
 
     /// Read the engine's current selection span and store it into
@@ -698,13 +911,148 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     }
 
     override func mouseUp(with event: NSEvent) {
-        // Selection persists past mouseUp; the next non-extending
-        // mouseDown clears it via `start_selection` replacing the
-        // prior `Term::selection`. 4.6 hooks copy via the Edit menu's
-        // ⌘C selector (NSResponder routing through `copy(_:)` below)
-        // — auto-copy-on-select is iTerm2 polish deferred per the
-        // atomic 4.6 brief.
-        super.mouseUp(with: event)
+        defer { super.mouseUp(with: event) }
+        // I4: kill any active drag-select auto-scroll timer.
+        stopAutoScroll()
+        // PG1 mouse reporting — if the click went through to the TUI,
+        // the release does too. Selection logic skipped.
+        if let session = renderer.session,
+            let (row, col) = pointToCell(event.locationInWindow),
+            MouseReporting.modeActive(session: session),
+            !event.modifierFlags.contains(.command),
+            !event.modifierFlags.contains(.option)
+        {
+            MouseReporting.sendButtonEvent(
+                session: session, event: event, row: row, col: col,
+                button: 0, pressed: false)
+            return
+        }
+        // I2 auto-copy on selection: when the user just finished a
+        // drag-select (clickCount==1 + non-trivial distance from the
+        // anchor) or any word/line select (clickCount ≥ 2), populate
+        // the system pasteboard. iTerm2-style — the user can paste
+        // immediately without reaching for ⌘C, and the visible
+        // selection highlight stays put as the source-of-truth.
+        guard renderer.session != nil, pendingSelection != nil else {
+            return
+        }
+        let isWordOrLine = event.clickCount >= 2
+        var wasDrag = false
+        if let origin = mouseDownLocationInView {
+            let endInView = convert(event.locationInWindow, from: nil)
+            let dx = endInView.x - origin.x
+            let dy = endInView.y - origin.y
+            wasDrag = (dx * dx + dy * dy) > Self.autoCopyMinDragSquared
+        }
+        guard isWordOrLine || wasDrag else { return }
+        copy(nil)
+    }
+
+    /// I2: minimum drag distance (squared, in view-space points) to
+    /// treat a click-drag as a selection worth auto-copying. 4 pt is
+    /// roughly one cell width and rejects accidental jitter on a
+    /// single click without rejecting deliberate one-cell drags.
+    private static let autoCopyMinDragSquared: CGFloat = 16.0
+
+    /// I2: mouse-down origin in view-space points, captured at the top
+    /// of `mouseDown` so `mouseUp` can compute drag distance for the
+    /// auto-copy gate.
+    private var mouseDownLocationInView: CGPoint?
+
+    /// I3 right-click context menu. Reuses the existing `copy:` and
+    /// `paste:` selectors so menu validation flows through the same
+    /// `validateMenuItem` path as the Edit menu items.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let m = NSMenu()
+        let copyItem = NSMenuItem(
+            title: "Copy", action: #selector(copy(_:)), keyEquivalent: "")
+        copyItem.target = self
+        m.addItem(copyItem)
+        let pasteItem = NSMenuItem(
+            title: "Paste", action: #selector(paste(_:)), keyEquivalent: "")
+        pasteItem.target = self
+        m.addItem(pasteItem)
+        m.addItem(NSMenuItem.separator())
+        // UX5: Select All — matches macOS HIG context-menu pattern
+        // (Mail, TextEdit, Safari all expose Select All in right-click).
+        let selectAllItem = NSMenuItem(
+            title: "Select All",
+            action: #selector(selectAll(_:)),
+            keyEquivalent: "")
+        selectAllItem.target = self
+        m.addItem(selectAllItem)
+        // UX5: Look Up — uses NSResponder.quickLookPreviewItems / the
+        // system Look-Up panel when text is selected. The action is
+        // wired via the responder chain; AppKit auto-disables when
+        // no text is selected, so no per-item validateMenuItem.
+        let lookUpItem = NSMenuItem(
+            title: "Look Up “Selection”",
+            action: #selector(showLookUpPanel(_:)),
+            keyEquivalent: "")
+        lookUpItem.target = self
+        m.addItem(lookUpItem)
+        // UX5: Services submenu — wraps `NSApp.servicesMenu` so users
+        // can route the selected text to Translate, Spotlight, custom
+        // Automator workflows, etc. AppKit populates this submenu
+        // lazily based on the pasteboard, so we just need to expose
+        // the hook.
+        let servicesItem = NSMenuItem(
+            title: "Services", action: nil, keyEquivalent: "")
+        let servicesMenu = NSMenu()
+        servicesItem.submenu = servicesMenu
+        NSApp.servicesMenu = servicesMenu
+        m.addItem(servicesItem)
+        m.addItem(NSMenuItem.separator())
+        let clearItem = NSMenuItem(
+            title: "Clear Buffer",
+            action: #selector(clearScrollbackBuffer(_:)),
+            keyEquivalent: "")
+        clearItem.target = self
+        m.addItem(clearItem)
+        return m
+    }
+
+    /// UX5: "Look Up" — populate `quickLookPreviewItems` and ask
+    /// AppKit to show the dictionary panel for the current selection.
+    /// Falls back to a no-op when nothing is selected.
+    @objc func showLookUpPanel(_ sender: Any?) {
+        guard let session = renderer.session else { return }
+        let text = session.selection_text().toString()
+        guard !text.isEmpty else { return }
+        let range = NSRange(location: 0, length: (text as NSString).length)
+        self.showDefinition(
+            for: NSAttributedString(string: text),
+            range: range,
+            options: nil,
+            baselineOriginProvider: nil)
+    }
+
+    /// NSView's `menu(for:)` is a hook — it doesn't auto-pop a
+    /// contextual menu on right-click. We have to either set
+    /// `self.menu` (static) or explicitly pop the menu from
+    /// `rightMouseDown`. The static path doesn't let us validate
+    /// items per-call against the live selection / pasteboard, so
+    /// we pop dynamically here instead. Without this override, our
+    /// `menu(for:)` was never reached and right-click silently did
+    /// nothing (regression report 2026-05-19).
+    override func rightMouseDown(with event: NSEvent) {
+        guard let m = self.menu(for: event) else {
+            super.rightMouseDown(with: event)
+            return
+        }
+        NSMenu.popUpContextMenu(m, with: event, for: self)
+    }
+
+    /// I3 "Clear Buffer" menu action. Sends FF (`\u{0C}`) — the same
+    /// byte zsh / bash / fish bind to `clear-screen` (matches ⌘K in
+    /// iTerm2 / Terminal.app). The shell's binding redraws the prompt
+    /// on the cleared screen; we don't reach into the scrollback ring
+    /// from here (alacritty owns it).
+    @objc func clearScrollbackBuffer(_ sender: Any?) {
+        guard let session = renderer.session else { return }
+        session.send_input(
+            InputEventEncoder.makeKeyInputEvent(
+                characters: "\u{0C}", keycode: 0, modifiers: []))
     }
 
     // MARK: 4.6 copy / paste — system pasteboard
@@ -749,6 +1097,30 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     /// exactly the visible state the user wants to copy. Post-copy the
     /// engine span stays set so the visible overlay-tint persists; the
     /// mirror is the source-of-truth for which cells are highlighted.
+    /// UX2: ⌘A — Select the entire visible viewport. Matches Terminal.app's
+    /// "viewport-only" interpretation (iTerm2 selects scrollback too;
+    /// we keep parity with the stock terminal until users ask for the
+    /// broader version). The selection is built by `start_selection`
+    /// at (0,0) and `update_selection` at the last cell of the
+    /// viewport, then mirrored into `pendingSelection` so `copy(_:)`
+    /// can read the text the same way it does for mouse-driven
+    /// selections.
+    @objc override func selectAll(_ sender: Any?) {
+        guard let session = renderer.session else { return }
+        let rows = renderer.viewportRows
+        let cols = renderer.viewportCols
+        guard rows > 0, cols > 0 else { return }
+        let endRow = UInt16(rows - 1)
+        let endCol = UInt16(cols - 1)
+        session.start_selection(Self.SELECTION_MODE_SIMPLE, 0, 0)
+        session.update_selection(endRow, endCol)
+        syncPendingSelection(
+            from: session,
+            fallback: (row: endRow, col: endCol),
+            mode: Self.SELECTION_MODE_SIMPLE)
+        renderer.markNeedsRedraw()
+    }
+
     @objc func copy(_ sender: Any?) {
         guard let session = renderer.session else { return }
         // Detect engine-dropped selection: mirror present, engine span
@@ -762,41 +1134,6 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(text, forType: .string)
-    }
-
-    /// M2-6 — "Copy focused block" (⌘⇧C). Establishes a programmatic
-    /// engine selection over the focused block's row range, reads the
-    /// resulting cell text, restores the previous selection, and writes
-    /// the text to the system pasteboard. When no block is focused,
-    /// falls through to the standard `copy(_:)` path so the binding is
-    /// not a dead-key when invoked outside a focused block.
-    ///
-    /// **Architectural note**: the selection round-trip leverages
-    /// alacritty's existing range → text path inside the engine — no
-    /// new FFI surface is needed. The "clean text" guarantee (no block
-    /// chrome, no AppKit overlay characters) follows for free from
-    /// Stack A: `selection_text()` returns alacritty grid cell content;
-    /// the SwiftUI block UI is a sibling NSHostingView that doesn't
-    /// touch the cell store. Pinned by Part A's contract tests.
-    ///
-    /// **Selection restore**: if the user had a manual selection active
-    /// when they invoked Copy Block, we restore it after extracting the
-    /// block's text so ⌘⇧C is non-destructive to the visible selection.
-    /// Implementation reads `selection_span()` (the existing FFI sentinel
-    /// — empty Vec means no active selection, 5-element Vec carries
-    /// `[start_row, start_col, end_row, end_col, is_block]`), runs the
-    /// programmatic select, extracts text, and re-establishes the
-    /// original via `start_selection` + `update_selection`.
-    ///
-    /// **M6-5 keybinding source**: the ⌘⇧C key equivalent is sourced
-    /// from `KeybindingStore.shared.lookup(.copyBlock)` via `AppMenu`,
-    /// not hardcoded here. The selector is reached through the
-    /// responder chain regardless of the bound key. Settings →
-    /// Keybindings rebinds without touching this file.
-    /// Copy-block was a Claude-block-aware variant of Copy. With block
-    /// chrome stripped from solidterm, this is now a plain alias to Copy.
-    @objc func copyBlock(_ sender: Any?) {
-        copy(sender)
     }
 
     /// Paste from the system pasteboard. Reads the public-utf8 string
@@ -813,9 +1150,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
             text, bracketedPasteEnabled: session.bracketed_paste_enabled())
         // 4.4 snap-to-bottom on user input — paste behaves like typing.
         session.scroll_to_bottom()
-        session.send_input(
-            InputEventEncoder.makeKeyInputEvent(
-                characters: payload, keycode: 0, modifiers: []))
+        Self.feedChunked(payload, into: session)
     }
 
     /// "Paste (Plain)" — ⌘⇧V. Pastes the pasteboard text verbatim,
@@ -836,9 +1171,100 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         guard let text = pb.string(forType: .string), !text.isEmpty else { return }
         let payload = Self.formatPastePayload(text, bracketedPasteEnabled: false)
         session.scroll_to_bottom()
-        session.send_input(
-            InputEventEncoder.makeKeyInputEvent(
-                characters: payload, keycode: 0, modifiers: []))
+        Self.feedChunked(payload, into: session)
+    }
+
+    /// Paste/long-input chunker. macOS's PTY input buffer is small —
+    /// ~1 KB per direction (`TTYHOG`). A single multi-KB `write_all`
+    /// on the master FD blocks the moment the kernel buffer fills.
+    /// On the main thread that meant the entire UI froze until the
+    /// child drained, which on a slow / paused shell could be tens
+    /// of seconds for a long paste.
+    ///
+    /// Fix: route the payload through the engine's
+    /// `paste_chunk` FFI, which sets `O_NONBLOCK` for the duration
+    /// of one `write(2)` and returns the byte count the kernel
+    /// accepted (0 on EAGAIN). We resubmit whatever wasn't accepted
+    /// on the next runloop tick via `DispatchQueue.main.async` so
+    /// keystrokes / mouse / display link all interleave between
+    /// retries. The first call also runs through `async` so the
+    /// `paste(_:)` selector returns immediately and the user sees
+    /// the menu close before any byte hits the PTY.
+    static func feedChunked(_ payload: String, into session: TerminalSession) {
+        let bytes = Array(payload.utf8)
+        guard !bytes.isEmpty else { return }
+        // Run the first round synchronously — small pastes (a few
+        // hundred bytes, the common case) finish before this method
+        // returns, which keeps the existing test contract intact
+        // (`surface.paste(nil)` followed by a `take_frame_delta`
+        // assert sees the bytes immediately) and avoids the visible
+        // "paste delay" for keystroke-sized payloads. Only when the
+        // kernel returns EAGAIN do we defer the tail to runloop ticks.
+        feedPasteTail(bytes: bytes, offset: 0, session: session)
+    }
+
+    /// Maximum bytes to attempt per non-blocking `write(2)`. Anything
+    /// the kernel can't accept lands in EAGAIN and gets re-queued
+    /// for the next tick — so the value only governs throughput
+    /// upper bound when the buffer is empty (no syscall-rate cliff
+    /// in practice). 4 KB keeps the syscall count modest for a
+    /// 200 KB paste (~50 ticks) without making any one slice big
+    /// enough to be wasted on an immediate EAGAIN.
+    private static let pasteChunkBytes: Int = 4096
+
+    private static func feedPasteTail(
+        bytes: [UInt8], offset: Int, session: TerminalSession
+    ) {
+        var cursor = offset
+        // Drain as much as the kernel will accept in this tick.
+        // `paste_chunk` returns 0 on EAGAIN — at that point we defer
+        // the remainder to the runloop so other main-thread work
+        // (keystrokes, draw, mouse) interleaves while the child
+        // drains its TTY input buffer.
+        while cursor < bytes.count {
+            let end = min(cursor + pasteChunkBytes, bytes.count)
+            let written = bytes.withUnsafeBufferPointer { buf -> Int in
+                let slice = UnsafeBufferPointer(
+                    start: buf.baseAddress!.advanced(by: cursor),
+                    count: end - cursor)
+                return Int(session.paste_chunk(slice))
+            }
+            if written == 0 {
+                // EAGAIN: schedule the rest for the next tick + small
+                // delay so the kernel has time to copy bytes out to
+                // the child.
+                let nextOffset = cursor
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(2)) {
+                    feedPasteTail(
+                        bytes: bytes, offset: nextOffset, session: session)
+                }
+                return
+            }
+            cursor += written
+        }
+    }
+
+    /// Pure helper for paste chunking — exposed to XCTest. Given a
+    /// UTF-8 byte buffer, a start `offset`, and a target chunk size,
+    /// returns the end index for a chunk that:
+    ///   1. Ends at or before `offset + chunkSize`
+    ///   2. Falls on a UTF-8 code-point boundary (so the chunk is
+    ///      valid UTF-8 by itself).
+    /// Walks backward from the naive boundary while the byte is a
+    /// continuation byte (`10xxxxxx`). If the whole window collapses
+    /// (pathological payload with a multibyte sequence longer than
+    /// `chunkSize`), falls back to the naive boundary — we'd rather
+    /// emit one invalid chunk than hang.
+    static func pasteChunkEnd(
+        bytes: [UInt8], offset: Int, chunkSize: Int
+    ) -> Int {
+        let naive = min(offset + chunkSize, bytes.count)
+        if naive >= bytes.count { return naive }
+        var end = naive
+        while end > offset && (bytes[end] & 0xC0) == 0x80 {
+            end -= 1
+        }
+        return end == offset ? naive : end
     }
 
     /// Pure helper exposed to XCTest. Returns `text` unchanged when
@@ -847,7 +1273,18 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     /// doesn't need to stand up a session.
     static func formatPastePayload(_ text: String, bracketedPasteEnabled: Bool) -> String {
         if bracketedPasteEnabled {
-            return "\u{1B}[200~" + text + "\u{1B}[201~"
+            // PG2 paste-jail guard: if the clipboard payload contains
+            // the bracketed-paste end marker `\e[201~`, the running
+            // app would see "paste over" mid-payload and process the
+            // tail as regular input — letting an attacker-controlled
+            // clipboard execute commands. Strip the embedded marker
+            // (matches iTerm2 / Ghostty / Alacritty behaviour). We
+            // also strip the start marker for symmetry; without it
+            // the leftover end marker has nothing to close anyway.
+            let scrubbed = text
+                .replacingOccurrences(of: "\u{1B}[200~", with: "")
+                .replacingOccurrences(of: "\u{1B}[201~", with: "")
+            return "\u{1B}[200~" + scrubbed + "\u{1B}[201~"
         }
         return text
     }
@@ -880,9 +1317,10 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         let payload = items.map { Self.shellQuote($0.path) }
             .joined(separator: " ")
         session.scroll_to_bottom()
-        session.send_input(
-            InputEventEncoder.makeKeyInputEvent(
-                characters: payload, keycode: 0, modifiers: []))
+        // Drag-drop payloads can be large (many paths × long names).
+        // Use the same chunked feeder as paste so the main thread
+        // doesn't stall on a PTY-buffer-full `write_all`.
+        Self.feedChunked(payload, into: session)
         return true
     }
 
@@ -1027,8 +1465,12 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
             // the two selectors; both require usable clipboard content.
             return NSPasteboard.general.canReadObject(forClasses: [NSString.self], options: nil)
         }
-        if action == #selector(copyBlock(_:)) {
-            return true
+        if action == #selector(selectAll(_:)) {
+            // UX2: Always enabled when there's a session — even an
+            // empty viewport gets the selection rectangle (the user
+            // can still confirm "nothing to copy" via the resulting
+            // empty highlight).
+            return renderer.session != nil
         }
         // Default: enable the item — NSResponder will route to the
         // first responder that can handle the selector, or fail
@@ -1061,6 +1503,26 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         let lines = Int(accumulatedScrollPt / cellHeightPt)
         if lines == 0 { return }
         accumulatedScrollPt -= CGFloat(lines) * cellHeightPt
+
+        // PG1: forward wheel events to TUIs that have enabled mouse
+        // reporting (vim/less/htop normal-mode pagers use this). Each
+        // line of wheel delta becomes one button-press at the cursor
+        // cell — button 64 = wheel-up, 65 = wheel-down (xterm
+        // convention). Selection-side scroll snap is bypassed; the
+        // TUI owns its scroll feel while in mouse mode.
+        if MouseReporting.modeActive(session: session),
+            let (row, col) = pointToCell(event.locationInWindow)
+        {
+            let wheelButton: UInt8 = lines > 0 ? 64 : 65
+            for _ in 0..<abs(lines) {
+                MouseReporting.sendButtonEvent(
+                    session: session, event: event,
+                    row: row, col: col,
+                    button: wheelButton, pressed: true)
+            }
+            return
+        }
+
         // Int → Int32: viewport scroll deltas are bounded by the
         // user's accumulated swipe length; saturating cast is safe.
         let clamped = Int32(clamping: lines)
@@ -1352,15 +1814,70 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         updateDrawableSize()
-        // 4.8: derive grid dimensions from the new view size and
-        // forward to the renderer (which rebuilds GridPipeline +
-        // forwards to the engine via FFI). `cellWidthPt` /
-        // `cellHeightPt` return nil before the atlas is built —
-        // `windowChanged` runs first on `viewDidMoveToWindow`, so by
-        // the time the user can drag-resize the atlas exists.
-        // Initial-attach `setFrameSize` calls land before
-        // `windowChanged` and skip here (atlas nil).
-        propagateGridSizeToRenderer(viewSize: newSize)
+        // P2 resize debounce: trackpad pinch-resize fires 10–50
+        // setFrameSize events per gesture; each `resizeGrid` rebuilds
+        // the GridPipeline (texture re-alloc + memcpy + FFI roundtrip)
+        // and is the dominant per-event cost. Coalesce by deferring
+        // the propagation through a short DispatchSourceTimer. Live
+        // window-drag resize bypasses the debounce via
+        // `windowDidEndLiveResize` so the post-drag frame is sharp.
+        if inLiveResize {
+            scheduleDebouncedResize(targetSize: newSize)
+        } else {
+            // Non-live resize (programmatic, viewDidMoveToWindow,
+            // backing-scale change, …) — apply immediately for the
+            // same-tick visual that callers expect.
+            cancelDebouncedResize()
+            propagateGridSizeToRenderer(viewSize: newSize)
+        }
+    }
+
+    /// P2 resize debounce: pending timer + the size it will apply on
+    /// fire. Last-write-wins — subsequent `setFrameSize` calls during
+    /// the debounce window replace `pendingResizeSize` and reset the
+    /// timer. The timer fires on main queue at ~50 ms cadence; with
+    /// a fast trackpad pinch the user sees one resize at gesture-end
+    /// instead of 30.
+    private var pendingResizeTimer: DispatchSourceTimer?
+    private var pendingResizeSize: NSSize?
+
+    private func scheduleDebouncedResize(targetSize: NSSize) {
+        pendingResizeSize = targetSize
+        if let _ = pendingResizeTimer { return }  // timer in flight
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + .milliseconds(50))
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            self.flushPendingResize()
+        }
+        timer.resume()
+        pendingResizeTimer = timer
+    }
+
+    private func cancelDebouncedResize() {
+        pendingResizeTimer?.cancel()
+        pendingResizeTimer = nil
+        pendingResizeSize = nil
+    }
+
+    private func flushPendingResize() {
+        defer { pendingResizeTimer = nil }
+        guard let size = pendingResizeSize else { return }
+        pendingResizeSize = nil
+        propagateGridSizeToRenderer(viewSize: size)
+    }
+
+    /// P2: window finished live-resize (mouse-up after edge drag).
+    /// Flush immediately so the post-drag frame lands at the right
+    /// dimensions without waiting for the debounce timer.
+    override func viewDidEndLiveResize() {
+        super.viewDidEndLiveResize()
+        pendingResizeTimer?.cancel()
+        pendingResizeTimer = nil
+        if let size = pendingResizeSize ?? Optional(bounds.size) {
+            pendingResizeSize = nil
+            propagateGridSizeToRenderer(viewSize: size)
+        }
     }
 
     /// 4.8: compute floor-divided cell dimensions from the view's
@@ -1437,11 +1954,17 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
 
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
+        // V1 scrollbar hover: push the latest pointer position to the
+        // renderer so the encode path can decide whether to grow the
+        // thumb and pin opacity. `convert(_:from:)` with nil source
+        // maps window-space → view-space.
+        renderer.hoverPointInView = convert(event.locationInWindow, from: nil)
         recomputeFileClickHover(at: event.locationInWindow, modifiers: event.modifierFlags)
     }
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
+        renderer.hoverPointInView = nil
         clearFileClickHover()
     }
 

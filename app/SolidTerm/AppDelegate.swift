@@ -55,14 +55,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Read the active pane's OSC 7-reported cwd so ⌘N / ⌘T inherit
-    /// the source window's working directory. Returns nil when no
-    /// terminal window is key (app launch, settings window front, etc.)
-    /// or when the shell hasn't emitted OSC 7 yet — caller falls back
-    /// to `NSHomeDirectory()`. The cwd is cached on the renderer by
-    /// `applyLatestCwdIfAny` from `drain_latest_cwd()`; this just
-    /// surfaces it from whichever TerminalSurfaceView is in the key
-    /// window's view hierarchy.
+    /// Read the active pane's working directory so ⌘N / ⌘T inherit it.
+    /// Prefers OSC 7 (cached as `lastCwd` from `drain_latest_cwd()`) and
+    /// falls back to `proc_pidinfo` on the shell PID — so a fresh zsh
+    /// with no shell integration still propagates cwd. Returns nil when
+    /// no terminal window is key (app launch, settings window front,
+    /// etc.); caller falls back to `NSHomeDirectory()`.
     private static func activePaneCwd() -> String? {
         guard let keyWindow = NSApp.keyWindow,
             let contentView = keyWindow.contentView
@@ -70,8 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let surface = Self.findSurfaceView(in: contentView) else {
             return nil
         }
-        let cwd = surface.rendererForTesting.lastCwd
-        return cwd.isEmpty ? nil : cwd
+        return surface.rendererForTesting.currentCwd()
     }
 
     /// Depth-first walk of the view tree looking for the first
@@ -95,6 +92,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated {
             SettingsWindowController.shared.showWindow(nil)
         }
+    }
+
+    /// Q1: custom About panel. AppKit's stock panel reads version
+    /// + copyright from Info.plist but defaults the credits pane to
+    /// an empty box. We populate it with the project's one-line
+    /// description + a credit to alacritty_terminal (the engine
+    /// solidterm builds on). `applicationName` falls back to
+    /// `CFBundleName`; everything else flows through the standard
+    /// keys so the user gets the native macOS About chrome.
+    @objc func showAboutPanel(_ sender: Any?) {
+        let credits = NSMutableAttributedString(
+            string:
+                "A minimal, fast, solid native macOS terminal.\n\n"
+                + "Built on alacritty_terminal + swift-bridge.\n"
+                + "Forked from NextTerm — Claude integration stripped.",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 11),
+                .foregroundColor: NSColor.secondaryLabelColor,
+            ])
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .credits: credits
+        ])
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 

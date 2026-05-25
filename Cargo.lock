@@ -1045,6 +1045,7 @@ dependencies = [
  "alacritty_terminal",
  "criterion",
  "crossbeam-channel",
+ "libc",
  "parking_lot",
  "regex",
  "serde",

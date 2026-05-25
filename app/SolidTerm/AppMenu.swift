@@ -1,17 +1,11 @@
 // Implements spec/swift-app-modules.md §Menu Bar and Services.
 // Programmatic menu bar — no MainMenu.xib.
 //
-// M6-5: app-action menu items (Toggle Sidebar, Copy Block, Preferences,
-// New Window, Close Window) draw their `keyEquivalent` from
-// `KeybindingStore.shared` instead of hardcoding strings. Items are
-// rebuilt when the store publishes a change so user-edited bindings
-// take effect without an app restart.
-//
-// Note for consolidation: when M6-1 (Command Palette ⌘K) merges, the
-// "Command Palette…" menu item should follow the same pattern —
-// `keybinding: .openCommandPalette` — so its keyEquivalent honors
-// user overrides. M6-1's hardcoded `keyEquivalent: "k"` is the
-// pre-M6-5 placeholder.
+// M6-5: app-action menu items (Preferences, New Window, Close Window,
+// Find…) draw their `keyEquivalent` from `KeybindingStore.shared`
+// instead of hardcoding strings. Items are rebuilt when the store
+// publishes a change so user-edited bindings take effect without an
+// app restart.
 
 import AppKit
 import Combine
@@ -54,7 +48,7 @@ enum AppMenu {
     @discardableResult
     private static func addItem(
         in menu: NSMenu, title: String, action: Selector,
-        binding: CommandPaletteAction
+        binding: KeybindingAction
     ) -> NSMenuItem {
         let (keyEq, mask) = KeybindingStore.shared
             .menuKeyEquivalent(for: binding)
@@ -74,7 +68,7 @@ enum AppMenu {
 
         menu.addItem(
             withTitle: "About \(appName)",
-            action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+            action: #selector(AppDelegate.showAboutPanel(_:)),
             keyEquivalent: "")
         menu.addItem(.separator())
         // M5-2 — Preferences opens `SettingsWindowController` per
@@ -139,15 +133,6 @@ enum AppMenu {
 
         menu.addItem(.separator())
 
-        // Command Palette (⌘K) — temporarily hidden per user dogfood
-        // report 2026-05-11: ⌘K works on first invocation but the
-        // panel becomes unresponsive after dismiss/re-present cycles
-        // in some focus configurations. The controller code stays
-        // intact (settings/code path preserved); we just stop binding
-        // ⌘K and stop surfacing the menu item until the focus race
-        // is understood + fixed. Re-enable: restore this block + the
-        // KeybindingStore.defaults entry for .openCommandPalette.
-
         // M7-2 — ⌘F find-in-scrollback. Routes through KeybindingStore
         // so the user can rebind via Settings → Keybindings.
         addItem(
@@ -192,7 +177,7 @@ enum AppMenu {
     }
 
     /// View menu — zoom-style font-size controls (M7-3). These post
-    /// to the responder chain via `dispatch(paletteAction:)` selector so
+    /// to the responder chain via `dispatch(action:)` selector so
     /// every TerminalWindowController in the app picks up the active
     /// keystroke; the FontSettings store is process-wide so a single
     /// invocation updates every renderer.
@@ -244,7 +229,7 @@ enum AppMenu {
         // `TerminalWindowController.selectTabN(_:)` (one selector per
         // index so the responder-chain dispatch maps cleanly without a
         // tag/sender lookup).
-        let tabSelectors: [(CommandPaletteAction, Selector)] = [
+        let tabSelectors: [(KeybindingAction, Selector)] = [
             (.selectTab1, #selector(TerminalWindowController.selectTab1(_:))),
             (.selectTab2, #selector(TerminalWindowController.selectTab2(_:))),
             (.selectTab3, #selector(TerminalWindowController.selectTab3(_:))),
