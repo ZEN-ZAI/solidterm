@@ -317,8 +317,23 @@ impl TerminalSession {
     #[must_use]
     pub fn new(config: ffi::SessionConfig) -> TerminalSession {
         let engine_config = config_to_engine_config(config);
-        let inner = solidterm_engine::TerminalEngine::new(engine_config)
-            .expect("TerminalSession: engine construction failed (geometry / PTY spawn)");
+        // `TerminalEngine::new` is genuinely fallible (openpty / FD exhaustion /
+        // bad geometry). This `expect` is an intentional, explicit abort: with
+        // `panic = "abort"` (see workspace Cargo.toml) a spawn failure becomes a
+        // deterministic process abort rather than an unwind across the
+        // swift-bridge extern "C" boundary into Swift (which is unsupported).
+        //
+        // TODO(ffi): the proper fix is a fallible/nullable FFI surface (e.g.
+        // returning `Option<TerminalSession>` / a result code) so Swift can
+        // recover from spawn failure instead of crashing. That requires a
+        // coordinated Swift change at app/SolidTerm/MetalRenderer.swift:2778 and
+        // a swift-bridge regen, so it is out of scope for this Rust-only pass —
+        // changing the signature here would break the Swift call site we cannot
+        // rebuild in this pass.
+        let inner = solidterm_engine::TerminalEngine::new(engine_config).expect(
+            "TerminalSession::new: engine construction failed (geometry / PTY spawn); \
+             aborting — see TODO(ffi) for the fallible FFI surface that would let Swift recover",
+        );
         TerminalSession {
             inner,
             pending_title: None,

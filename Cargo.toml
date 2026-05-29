@@ -66,6 +66,13 @@ module_name_repetitions = "allow"
 lto = "thin"
 codegen-units = 1
 strip = "symbols"
+# Abort (not unwind) on panic: the swift-bridge extern "C" surface is entered
+# from Swift, and unwinding across that FFI boundary is unsupported. Aborting
+# turns any engine panic (e.g. PTY/openpty spawn failure in TerminalSession::new)
+# into a deterministic process abort instead of an unwind into Swift.
+panic = "abort"
 
 [profile.dev]
 opt-level = 1
+# See [profile.release]: abort instead of unwinding across the swift-bridge FFI.
+panic = "abort"

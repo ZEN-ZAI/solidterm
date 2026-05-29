@@ -459,12 +459,36 @@ impl TerminalEngine {
     /// concurrent writes from different threads to the same PTY would
     /// interleave bytes in undefined order.
     pub fn feed_input(&mut self, bytes: &[u8]) -> Result<(), EngineError> {
-        // Write all user bytes immediately to the PTY master. Single
-        // `write_all` keeps ordering deterministic.
-        self.pty
-            .writer()
-            .write_all(bytes)
-            .map_err(EngineError::Io)?;
+        // The PTY master is `O_NONBLOCK` (alacritty forces it at
+        // construction — see `tty/unix.rs:293`), so a plain `write_all`
+        // aborts on the first `EAGAIN`/`WouldBlock` and silently drops
+        // the unwritten tail. To honour the all-or-`Io`-error contract
+        // above, loop from the current offset: advance by the bytes the
+        // kernel accepted, and on `WouldBlock` back off briefly (1 ms,
+        // mirroring `WOULDBLOCK_BACKOFF` in `pty.rs` and the read-loop's
+        // EAGAIN cadence) before retrying. `Interrupted` (EINTR) retries
+        // immediately. Only a real error is surfaced as `Err`.
+        let mut written = 0usize;
+        let writer = self.pty.writer();
+        while written < bytes.len() {
+            match writer.write(&bytes[written..]) {
+                Ok(0) => {
+                    // Zero-length write with bytes remaining means the
+                    // FD won't make progress — surface as a write-zero
+                    // I/O error rather than spin forever.
+                    return Err(EngineError::Io(io::Error::new(
+                        io::ErrorKind::WriteZero,
+                        "PTY master accepted zero bytes",
+                    )));
+                }
+                Ok(n) => written += n,
+                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => {}
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+                Err(err) => return Err(EngineError::Io(err)),
+            }
+        }
         Ok(())
     }
 
@@ -472,9 +496,10 @@ impl TerminalEngine {
     /// kernel accepted before EAGAIN (slave's TTY input buffer
     /// full). Used by the paste/drop chunker so the UI thread can
     /// resubmit the unwritten tail on the next runloop tick instead
-    /// of blocking. The master FD is flipped to `O_NONBLOCK` on the
-    /// first call (idempotent — subsequent calls find the flag
-    /// already set). Returns 0 on EAGAIN with empty input: the
+    /// of blocking. The master FD is already `O_NONBLOCK` (alacritty
+    /// forces it at construction, `tty/unix.rs:293`), so no flag
+    /// mutation happens here — important because the reader thread
+    /// shares the same file description. Returns 0 on EAGAIN: the
     /// caller treats that as "buffer full, try again next tick".
     pub fn feed_input_nonblocking(&mut self, bytes: &[u8]) -> Result<usize, EngineError> {
         use std::os::fd::AsRawFd;
@@ -482,29 +507,16 @@ impl TerminalEngine {
             return Ok(0);
         }
         let fd = self.pty.file().as_fd().as_raw_fd();
-        // Flip O_NONBLOCK for the duration of the write and restore
-        // the prior flag set on exit. Keeping the flag non-sticky
-        // means the keystroke path (`feed_input`'s blocking
-        // `write_all`) keeps working unchanged — its tiny writes
-        // never need non-blocking anyway.
-        let original_flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
-        let did_set_nb = original_flags >= 0
-            && (original_flags & libc::O_NONBLOCK) == 0;
-        if did_set_nb {
-            unsafe {
-                let _ = libc::fcntl(
-                    fd, libc::F_SETFL,
-                    original_flags | libc::O_NONBLOCK);
-            }
-        }
+        // The master is already `O_NONBLOCK` — alacritty forces it at
+        // construction (`tty/unix.rs:293`). The reader thread holds a
+        // `dup` of this *same* file description, so mutating its status
+        // flags here would be a cross-thread hazard; we rely on the
+        // documented non-blocking invariant and issue the raw write
+        // directly. A short write / `EAGAIN` is returned as the count
+        // accepted so far, which `paste_chunk` resubmits next tick.
         let n = unsafe {
             libc::write(fd, bytes.as_ptr() as *const _, bytes.len())
         };
-        if did_set_nb {
-            unsafe {
-                let _ = libc::fcntl(fd, libc::F_SETFL, original_flags);
-            }
-        }
         if n >= 0 {
             return Ok(n as usize);
         }
@@ -1497,7 +1509,14 @@ impl TerminalEngine {
         if (col as usize) >= cols {
             return None;
         }
-        let cell = &self.term.grid()[Point::new(Line(i32::from(row)), Column(col as usize))];
+        // Translate the viewport row into a grid `Line` by subtracting
+        // `display_offset`, matching `viewport_cells`/`viewport_point`.
+        // Without this, a ⌘+hover while scrolled into scrollback reads
+        // the live-tail row instead of the displayed one.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+        let display_offset = self.term.grid().display_offset() as i32;
+        let line = Line(i32::from(row) - display_offset);
+        let cell = &self.term.grid()[Point::new(line, Column(col as usize))];
         cell.hyperlink().map(|h| h.uri().to_owned())
     }
 
@@ -1523,7 +1542,13 @@ impl TerminalEngine {
         if (anchor_col as usize) >= cols {
             return None;
         }
-        let line = Line(i32::from(row));
+        // Translate the viewport row into a grid `Line` by subtracting
+        // `display_offset`, matching `viewport_cells`/`hyperlink_at`, so
+        // the span resolves against the displayed row when scrolled into
+        // scrollback rather than the live tail.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+        let display_offset = self.term.grid().display_offset() as i32;
+        let line = Line(i32::from(row) - display_offset);
         let grid = self.term.grid();
         let anchor_link = grid[Point::new(line, Column(anchor_col as usize))].hyperlink()?;
 
@@ -2693,6 +2718,89 @@ mod tests {
         );
         assert_eq!(engine.hyperlink_span(9999, 0), None);
         assert_eq!(engine.hyperlink_span(0, 9999), None);
+    }
+
+    /// M7-1 regression: `hyperlink_at`/`hyperlink_span` must subtract
+    /// `display_offset` so they resolve against the *displayed* row when
+    /// the viewport is scrolled into scrollback — not the live tail.
+    /// Mirrors the `scroll_lines_*` fixtures: print the OSC 8 link, push
+    /// it up into history with newlines, then assert the link is absent
+    /// at the live tail but reappears once we scroll back to it.
+    #[test]
+    fn hyperlink_resolves_against_scrolled_history_row() {
+        let mut engine =
+            TerminalEngine::new(cat_config()).expect("/bin/cat spawn should succeed on macOS");
+
+        // Print the link on its own line, then ~40 blank lines to push
+        // it off the top of the 24-row viewport into scrollback.
+        engine
+            .feed_input(b"\x1b]8;;https://example.com\x1b\\Click me\x1b]8;;\x1b\\\n")
+            .expect("feed_input should write OSC 8 sequence to cat");
+        engine
+            .feed_input(&b"\n".repeat(40))
+            .expect("feed_input should write newlines to cat");
+
+        // Wait until enough scrollback has accumulated that the link row
+        // is no longer in the live viewport.
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline && engine.scroll_total() < 20 {
+            let _ = engine.poll_output().expect("poll_output infallible");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(
+            engine.scroll_total() >= 20,
+            "fixture must push the link row into scrollback; scroll_total={}",
+            engine.scroll_total()
+        );
+
+        // Helper: scan the live viewport for the example.com link.
+        let find_link = |engine: &TerminalEngine| -> Option<(u16, u16)> {
+            for r in 0..24u16 {
+                for c in 0..80u16 {
+                    if engine.hyperlink_at(r, c).as_deref() == Some("https://example.com") {
+                        return Some((r, c));
+                    }
+                }
+            }
+            None
+        };
+
+        // At the live tail (display_offset == 0) the link has scrolled
+        // off the top, so it must NOT be found in the viewport. This is
+        // what makes the offset translation load-bearing.
+        assert_eq!(engine.scroll_top(), 0, "starts at the live tail");
+        assert!(
+            find_link(&engine).is_none(),
+            "link row is in history; it must not appear in the live viewport"
+        );
+
+        // Scroll back through history until the link row enters the
+        // viewport, then assert both accessors resolve against it.
+        let mut hit = None;
+        for _ in 0..engine.scroll_total() {
+            engine.scroll_lines(1);
+            if let Some((r, c)) = find_link(&engine) {
+                hit = Some((r, c));
+                break;
+            }
+        }
+        let (row, col) =
+            hit.expect("scrolling back into history must surface the OSC 8 link via hyperlink_at");
+        assert!(
+            engine.scroll_top() > 0,
+            "the link must be found while scrolled into history (display_offset > 0)"
+        );
+
+        // hyperlink_span at the scrolled-in anchor covers the 8-cell
+        // "Click me" run, proving the span walk also honours the offset.
+        let span = engine
+            .hyperlink_span(row, col)
+            .expect("scrolled-in anchor carries a link, span must be Some");
+        assert_eq!(
+            span.1, 8,
+            "expected span to cover the 8 cells of \"Click me\"; got start={}, span={}",
+            span.0, span.1
+        );
     }
 
     /// `drain_events` returns an empty Vec when no events have been

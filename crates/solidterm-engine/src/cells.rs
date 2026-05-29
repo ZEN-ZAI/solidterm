@@ -162,7 +162,10 @@ impl CellView {
 }
 
 /// Pack `cell.c` plus any `cell.zerowidth()` characters into the
-/// 8-byte UTF-8 buffer, null-padded and truncated.
+/// 16-byte UTF-8 buffer, null-padded and truncated. Zerowidth marks
+/// are appended only if they fit whole, so the buffer is always valid
+/// UTF-8 — a mark that would straddle the 16-byte boundary is dropped
+/// rather than written as a partial codepoint.
 fn encode_grapheme(cell: &Cell) -> [u8; 16] {
     let mut out = [0u8; 16];
     let mut written = 0usize;
@@ -180,8 +183,14 @@ fn encode_grapheme(cell: &Cell) -> [u8; 16] {
             }
             let mut zw_buf = [0u8; 4];
             let zw_str = zw.encode_utf8(&mut zw_buf);
-            let n = zw_str.len().min(16 - written);
-            out[written..written + n].copy_from_slice(&zw_str.as_bytes()[..n]);
+            // Only append a mark that fits WHOLE: a partial copy would
+            // leave a lone UTF-8 lead byte and corrupt the buffer for
+            // the downstream FFI (bridge.rs row_text / cell_before_cursor).
+            if zw_str.len() > 16 - written {
+                break;
+            }
+            let n = zw_str.len();
+            out[written..written + n].copy_from_slice(zw_str.as_bytes());
             written += n;
         }
     }
@@ -375,6 +384,35 @@ mod tests {
         // 字 is U+5B57; UTF-8 = E5 AD 97.
         assert_eq!(&view.grapheme[..3], &[0xe5, 0xad, 0x97]);
         assert_eq!(&view.grapheme[3..], &[0u8; 13]);
+    }
+
+    /// Stacking many combining marks past the 16-byte buffer must never
+    /// emit a partial UTF-8 sequence. Thai consonant U+0E19 (NO NU, 3
+    /// bytes) plus five U+0E4A (MAI TRI tone mark, 3 bytes each) is 18
+    /// bytes of intent — only the primary + four marks fit (15 bytes),
+    /// and the fifth mark is dropped WHOLE rather than half-written. The
+    /// buffer must remain valid UTF-8 so the downstream FFI (bridge.rs
+    /// row_text / cell_before_cursor) never sees a lone lead byte.
+    #[test]
+    fn from_alacritty_cell_zerowidth_overflow_stays_valid_utf8() {
+        let mut cell = blank_cell();
+        cell.c = '\u{0E19}';
+        for _ in 0..5 {
+            cell.push_zerowidth('\u{0E4A}');
+        }
+
+        let view =
+            CellView::from_alacritty_cell(0, 0, &cell).expect("Thai cluster cell is not a spacer");
+
+        // The buffer up to the first null must be valid UTF-8 — no
+        // truncated codepoint at the 16-byte boundary.
+        let end = view.grapheme.iter().position(|&b| b == 0).unwrap_or(16);
+        let s = std::str::from_utf8(&view.grapheme[..end])
+            .expect("overflowing zerowidth marks must never leave a partial UTF-8 sequence");
+        // Primary + four whole tone marks fit in 15 bytes; the fifth is
+        // dropped rather than half-copied.
+        assert_eq!(s, "\u{0E19}\u{0E4A}\u{0E4A}\u{0E4A}\u{0E4A}");
+        assert_eq!(end, 15);
     }
 
     #[test]

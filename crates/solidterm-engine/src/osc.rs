@@ -245,6 +245,20 @@ impl OscPerform {
             return;
         };
 
+        // Percent-decoding runs after vte has stripped C0 controls, so
+        // encoded controls (`%1b`, `%0d`, `%0a`, `%07`) would decode back
+        // to raw control/ESC bytes that are valid UTF-8 and thus survive,
+        // re-introducing bytes vte deliberately removed. A legitimate cwd
+        // never contains C0/C1 controls — reject the event rather than
+        // emit a path carrying reinjected control bytes.
+        if path.chars().any(char::is_control) {
+            tracing::debug!(
+                path = ?path,
+                "OSC 7 decoded path contains control characters; dropping",
+            );
+            return;
+        }
+
         self.emit(EngineEvent::CwdChanged(path.to_string()));
     }
 
@@ -781,6 +795,20 @@ mod tests {
         assert!(
             events.is_empty(),
             "OSC 7 with no URL argument must not emit",
+        );
+    }
+
+    /// Percent-encoded control bytes (`%1b` = ESC, `%0d` = CR) decode
+    /// back to raw controls that are valid UTF-8 and would otherwise
+    /// survive — reinjecting bytes vte deliberately stripped. The
+    /// post-decode control-char guard must reject the event so no
+    /// control/ESC-bearing cwd reaches consumers.
+    #[test]
+    fn osc_7_percent_encoded_control_bytes_do_not_emit() {
+        let events = drive(b"\x1b]7;file:///tmp/%1bfoo%0dbar\x1b\\");
+        assert!(
+            events.is_empty(),
+            "OSC 7 with percent-encoded control bytes must not emit CwdChanged",
         );
     }
 
