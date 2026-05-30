@@ -2739,9 +2739,14 @@ final class MetalRenderer {
     /// directory. Consumed once on session construction and cleared.
     var pendingInitialCwd: String?
 
+    /// Returns `nil` if the Rust engine fails to spawn the PTY (openpty
+    /// / FD exhaustion / bad geometry). The Rust side logs the cause; the
+    /// caller stores the result in the optional `session`, which every
+    /// consumer already guards, so a failed spawn degrades to an inert
+    /// surface instead of crashing the app.
     private static func makeDefaultSession(
         rows: Int, cols: Int, cwd: String? = nil
-    ) -> TerminalSession {
+    ) -> TerminalSession? {
         // COLORTERM=truecolor advertises 24-bit SGR support to apps that
         // check the terminfo cap (Claude Code, vim, tmux). Without it,
         // many TUIs fall back to 256-color quantization — Claude Code's

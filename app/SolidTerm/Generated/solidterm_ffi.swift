@@ -388,8 +388,8 @@ public class TerminalSession: TerminalSessionRefMut {
     }
 }
 extension TerminalSession {
-    class public func new(_ config: SessionConfig) -> TerminalSession {
-        TerminalSession(ptr: __swift_bridge__$TerminalSession$new(config.intoFfiRepr()))
+    class public func new(_ config: SessionConfig) -> Optional<TerminalSession> {
+        { let val = __swift_bridge__$TerminalSession$new(config.intoFfiRepr()); if val != nil { return TerminalSession(ptr: val!) } else { return nil } }()
     }
 }
 public class TerminalSessionRefMut: TerminalSessionRef {

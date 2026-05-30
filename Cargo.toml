@@ -68,8 +68,9 @@ codegen-units = 1
 strip = "symbols"
 # Abort (not unwind) on panic: the swift-bridge extern "C" surface is entered
 # from Swift, and unwinding across that FFI boundary is unsupported. Aborting
-# turns any engine panic (e.g. PTY/openpty spawn failure in TerminalSession::new)
-# into a deterministic process abort instead of an unwind into Swift.
+# turns any unexpected engine panic into a deterministic process abort instead
+# of an unwind into Swift. (Expected fallible paths like TerminalSession::new
+# return nil rather than panicking — this is the backstop for everything else.)
 panic = "abort"
 
 [profile.dev]
