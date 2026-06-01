@@ -507,7 +507,12 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
 
         if !insertTextFiredThisKeyDown && !hasMarkedText() {
             if let session = renderer.session {
-                session.send_input(InputEventEncoder.encode(event))
+                // Pass the live Kitty keyboard flags so the encoder can
+                // CSI-u-encode modified Enter (Shift+Enter → \e[13;2u)
+                // when a TUI (e.g. Claude Code) has pushed kitty mode.
+                session.send_input(
+                    InputEventEncoder.encode(
+                        event, kittyFlags: session.kitty_keyboard_flags()))
             }
         }
         renderer.recordKeystroke(eventTimestamp: event.timestamp)

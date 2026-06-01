@@ -329,6 +329,53 @@ final class CopyPasteTests: XCTestCase {
         XCTAssertEqual(payload, "\u{1B}[200~x\u{1B}[201~")
     }
 
+    /// End-to-end Kitty keyboard protocol: a TUI pushes kitty mode
+    /// (`CSI > 1 u`), the engine flips `DISAMBIGUATE_ESC_CODES`, the FFI
+    /// surfaces it via `kitty_keyboard_flags()`, and the live key encoder
+    /// — fed that flag exactly as `keyDown` does — emits `\e[13;2u` for
+    /// Shift+Enter (vs the bare `\r` "submit"). Drives the enable through
+    /// cat-loopback the same way the bracketed-paste round-trip does.
+    func testShiftEnterEmitsCSIuAfterKittyEnabledEndToEnd() throws {
+        // /bin/cat loopback (the proven engine-test pattern): cat echoes
+        // the pushed escape back so the parser processes it. A real shell
+        // wouldn't echo the raw sequence for the parser to see.
+        let session = Self.makeCatSession()
+
+        // Precondition: no kitty mode → encoder keeps the legacy ESC+CR.
+        XCTAssertEqual(session.kitty_keyboard_flags(), 0)
+        XCTAssertEqual(
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x24, modifiers: .shift,
+                kittyFlags: session.kitty_keyboard_flags()),
+            "\u{1B}\r")
+
+        // Push the Kitty disambiguate flag via cat-loopback.
+        let push = InputEventEncoder.makeKeyInputEvent(
+            characters: "\u{1B}[>1u\n", keycode: 0, modifiers: [])
+        session.send_input(push)
+        let deadline = Date().addingTimeInterval(5.0)
+        while Date() < deadline && session.kitty_keyboard_flags() == 0 {
+            _ = session.take_frame_delta()
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        XCTAssertNotEqual(
+            session.kitty_keyboard_flags() & 0x01, 0,
+            "precondition: CSI > 1 u must set DISAMBIGUATE_ESC_CODES")
+
+        // The real keyDown path: encoder reads the live FFI flag and
+        // upgrades modified Enter to CSI u; plain Enter stays bare \r.
+        let flags = session.kitty_keyboard_flags()
+        XCTAssertEqual(
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x24, modifiers: .shift, kittyFlags: flags),
+            "\u{1B}[13;2u",
+            "Shift+Enter under kitty must be CSI 13 ; 2 u")
+        XCTAssertNil(
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x24, modifiers: [], kittyFlags: flags),
+            "plain Enter stays a bare \\r even under kitty")
+    }
+
     /// ⌘⇧V "Paste (Plain)" never wraps the payload, even when the
     /// running program has enabled DECSET 2004. Pin the formatter call
     /// with `bracketedPasteEnabled: false` matches the live selector's

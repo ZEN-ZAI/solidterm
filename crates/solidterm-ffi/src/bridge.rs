@@ -278,6 +278,10 @@ mod ffi {
         fn bracketed_paste_enabled(self: &TerminalSession) -> bool;
         // PG1 mouse reporting — bits 0..3 = clicks / drag / motion / sgr.
         fn mouse_mode_bits(self: &TerminalSession) -> u8;
+        // Kitty keyboard protocol flags (bit0 = disambiguate-esc-codes).
+        // Swift's key encoder reads this to CSI-u-encode modified Enter
+        // (Shift+Enter → \e[13;2u) when a TUI has pushed kitty mode.
+        fn kitty_keyboard_flags(self: &TerminalSession) -> u8;
 
         fn drain_latest_title(self: &mut TerminalSession) -> String;
         fn drain_latest_cwd(self: &mut TerminalSession) -> String;
@@ -498,6 +502,17 @@ impl TerminalSession {
     /// PG1: bits 0..3 = clicks(1) / drag(2) / motion(4) / sgr(8).
     pub fn mouse_mode_bits(&self) -> u8 {
         self.inner.mouse_mode_bits()
+    }
+
+    /// Kitty keyboard protocol flags currently active (bit0 =
+    /// disambiguate-esc-codes, per `KeyboardModes`). Swift's key encoder
+    /// reads this each keystroke to decide whether to emit CSI u
+    /// sequences for keys a TUI can only disambiguate under the protocol
+    /// — notably Shift+Enter (`\e[13;2u`), which Claude Code and other
+    /// editors treat as "insert newline" vs the bare `\r` "submit".
+    #[must_use]
+    pub fn kitty_keyboard_flags(&self) -> u8 {
+        self.inner.kitty_keyboard_flags().bits()
     }
 
     pub fn drain_latest_title(&mut self) -> String {

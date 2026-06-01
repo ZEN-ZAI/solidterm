@@ -504,6 +504,10 @@ extension TerminalSessionRef {
         __swift_bridge__$TerminalSession$mouse_mode_bits(ptr)
     }
 
+    public func kitty_keyboard_flags() -> UInt8 {
+        __swift_bridge__$TerminalSession$kitty_keyboard_flags(ptr)
+    }
+
     public func child_pid() -> UInt32 {
         __swift_bridge__$TerminalSession$child_pid(ptr)
     }

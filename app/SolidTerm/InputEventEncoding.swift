@@ -86,7 +86,7 @@ enum InputEventEncoder {
     /// to `makeKeyInputEvent(...)` so the lower-level overload is the
     /// unit-testable seam. Always emits `kind = .key` and `action = .press`
     /// — keyDown only this PR.
-    static func encode(_ event: NSEvent) -> InputEvent {
+    static func encode(_ event: NSEvent, kittyFlags: UInt8 = 0) -> InputEvent {
         // NSEvent.characters: the *text* the user typed (modifier-aware,
         // dead-key/IME-resolved on commit). For modifier-only events
         // (e.g. just ⌘) it returns nil or empty; the encoder treats
@@ -106,7 +106,8 @@ enum InputEventEncoder {
         // also accept CSI; full DECCKM support waits on the engine
         // exposing `mode().contains(APP_CURSOR)` to Swift.
         if let escSeq = ansiEscapeForSpecialKey(
-            keyCode: event.keyCode, modifiers: event.modifierFlags)
+            keyCode: event.keyCode, modifiers: event.modifierFlags,
+            kittyFlags: kittyFlags)
         {
             return makeKeyInputEvent(
                 characters: escSeq,
@@ -126,19 +127,32 @@ enum InputEventEncoder {
     /// without synthesizing NSEvents (which is fragile in headless
     /// XCTest — see encoder header comment).
     static func ansiEscapeForSpecialKey(
-        keyCode: UInt16, modifiers: NSEvent.ModifierFlags
+        keyCode: UInt16, modifiers: NSEvent.ModifierFlags,
+        kittyFlags: UInt8 = 0
     ) -> String? {
         let ESC = "\u{1B}"
-        // Shift+Return → ESC+CR. Plain Return / Enter both send `\r`
-        // (0x0D) — the byte is byte-identical with or without Shift,
-        // so a TUI that wants to distinguish "submit" from "insert
-        // newline" can't tell them apart without an extended keyboard
-        // protocol. iTerm2 / Alacritty / WezTerm all encode Shift+Enter
-        // as `ESC \r` by convention; Claude Code CLI, fish, readline
-        // and other line editors interpret that sequence as "insert
-        // a literal newline into the input buffer" without submitting.
-        // Full kitty CSI u / modifyOtherKeys support deferred.
-        let shift = modifiers.contains(.shift)
+        let mods = modifiers.intersection(.deviceIndependentFlagsMask)
+        let shift = mods.contains(.shift)
+        // Kitty keyboard protocol (any flag set ⇒ a TUI pushed it; bit0 =
+        // disambiguate-esc-codes). Under the protocol an editor like
+        // Claude Code expects *modified* Enter as a CSI u sequence so it
+        // can tell "submit" (bare `\r`) from "insert newline"
+        // (Shift+Enter → `\e[13;2u`). Kitty exempts *plain* Enter from
+        // CSI u for shell compatibility, so we only upgrade when a
+        // modifier is held; the rest of the keymap stays legacy (Claude
+        // Code accepts legacy sequences for the keys we don't upgrade).
+        if kittyFlags != 0,
+            keyCode == 0x24 || keyCode == 0x4C,  // Return / KeypadEnter
+            let m = kittyModifierParam(mods)
+        {
+            return ESC + "[13;\(m)u"
+        }
+        // Non-kitty fallback for Shift+Return → ESC+CR. Plain Return /
+        // Enter both send `\r` (0x0D) — byte-identical with or without
+        // Shift — so without the kitty protocol a TUI can't distinguish
+        // "submit" from "insert newline". iTerm2 / Alacritty / WezTerm
+        // all encode Shift+Enter as `ESC \r` by convention; many line
+        // editors read that as "insert a literal newline".
         if shift && (keyCode == 0x24 || keyCode == 0x4C) {  // Return / KeypadEnter
             return ESC + "\r"
         }
@@ -164,6 +178,20 @@ enum InputEventEncoder {
         case 0x75: return ESC + "[3~"  // Forward Delete (fn-Delete)
         default: return nil
         }
+    }
+
+    /// Kitty keyboard protocol modifier parameter: `1 + bitmask`, where
+    /// bitmask is shift(1) | alt(2) | ctrl(4) | super(8). Returns `nil`
+    /// when no modifier is held — the caller leaves an unmodified key on
+    /// its legacy path (e.g. plain Enter stays a bare `\r`). Shift alone
+    /// → `1 + 1 = 2`, matching the `\e[13;2u` Shift+Enter sequence.
+    static func kittyModifierParam(_ mods: NSEvent.ModifierFlags) -> Int? {
+        var bits = 0
+        if mods.contains(.shift) { bits |= 1 }
+        if mods.contains(.option) { bits |= 2 }
+        if mods.contains(.control) { bits |= 4 }
+        if mods.contains(.command) { bits |= 8 }
+        return bits == 0 ? nil : bits + 1
     }
 
     /// Lower-level encoder. Builds an `InputEvent` from already-extracted

@@ -224,4 +224,46 @@ final class InputEventEncodingTests: XCTestCase {
         XCTAssertNil(InputEventEncoder.ansiEscapeForSpecialKey(
             keyCode: 0x4C, modifiers: []))
     }
+
+    // MARK: - Kitty keyboard protocol: modified Enter → CSI u
+
+    func testShiftEnterUnderKittyEmitsCSIu() {
+        // With kitty disambiguate active (flag bit0), Shift+Enter must
+        // be `\e[13;2u` so Claude Code reads it as "insert newline",
+        // distinct from the bare `\r` "submit". Modifier param = 1 +
+        // shift(1) = 2.
+        let seq = InputEventEncoder.ansiEscapeForSpecialKey(
+            keyCode: 0x24, modifiers: .shift, kittyFlags: 0x01)
+        XCTAssertEqual(seq, "\u{1B}[13;2u")
+    }
+
+    func testShiftKeypadEnterUnderKittyEmitsCSIu() {
+        let seq = InputEventEncoder.ansiEscapeForSpecialKey(
+            keyCode: 0x4C, modifiers: .shift, kittyFlags: 0x01)
+        XCTAssertEqual(seq, "\u{1B}[13;2u")
+    }
+
+    func testCtrlEnterUnderKittyEmitsCSIu() {
+        // Ctrl modifier → kitty param 1 + ctrl(4) = 5.
+        let seq = InputEventEncoder.ansiEscapeForSpecialKey(
+            keyCode: 0x24, modifiers: .control, kittyFlags: 0x01)
+        XCTAssertEqual(seq, "\u{1B}[13;5u")
+    }
+
+    func testPlainEnterUnderKittyStaysBareCR() {
+        // Kitty exempts *unmodified* Enter from CSI u — it must fall
+        // through to NSEvent.characters (`\r`), never `\e[13;1u`.
+        XCTAssertNil(InputEventEncoder.ansiEscapeForSpecialKey(
+            keyCode: 0x24, modifiers: [], kittyFlags: 0x01))
+        XCTAssertNil(InputEventEncoder.ansiEscapeForSpecialKey(
+            keyCode: 0x4C, modifiers: [], kittyFlags: 0x01))
+    }
+
+    func testShiftEnterWithoutKittyKeepsEscCR() {
+        // No kitty flags active → the legacy ESC+CR convention stands,
+        // so non-kitty TUIs and the existing contract are unaffected.
+        let seq = InputEventEncoder.ansiEscapeForSpecialKey(
+            keyCode: 0x24, modifiers: .shift, kittyFlags: 0)
+        XCTAssertEqual(seq, "\u{1B}\r")
+    }
 }
