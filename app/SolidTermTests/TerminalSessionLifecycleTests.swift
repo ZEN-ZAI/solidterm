@@ -39,7 +39,7 @@ final class TerminalSessionLifecycleTests: XCTestCase {
     // MARK: - Construction
 
     func testNewReturnsHandleWithCapturedGeometry() {
-        let session = TerminalSession.new(sampleConfig(rows: 40, cols: 120))
+        let session = TerminalSession.new(sampleConfig(rows: 40, cols: 120))!
         XCTAssertEqual(session.rows(), 40)
         XCTAssertEqual(session.cols(), 120)
     }
@@ -60,7 +60,7 @@ final class TerminalSessionLifecycleTests: XCTestCase {
         // surface it; on a normal build, this test simply proves the
         // handle is constructible at scale.
         for _ in 0..<256 {
-            let session = TerminalSession.new(sampleConfig())
+            let session = TerminalSession.new(sampleConfig())!
             XCTAssertEqual(session.rows(), 24)
             XCTAssertEqual(session.cols(), 80)
             // Implicit drop at iteration end.
@@ -73,13 +73,13 @@ final class TerminalSessionLifecycleTests: XCTestCase {
         // out of scope. Re-binding to a new `let` after `_ = session`
         // is enough for ARC to release the prior instance.
         do {
-            let session = TerminalSession.new(sampleConfig(rows: 30, cols: 90))
+            let session = TerminalSession.new(sampleConfig(rows: 30, cols: 90))!
             XCTAssertEqual(session.rows(), 30)
         }
         // Outer scope can still construct fresh handles after the inner
         // scope's handle was dropped — proves no shared global state
         // pinned the prior handle alive.
-        let next = TerminalSession.new(sampleConfig(rows: 50, cols: 100))
+        let next = TerminalSession.new(sampleConfig(rows: 50, cols: 100))!
         XCTAssertEqual(next.rows(), 50)
         XCTAssertEqual(next.cols(), 100)
     }
@@ -87,8 +87,8 @@ final class TerminalSessionLifecycleTests: XCTestCase {
     // MARK: - Distinct handles are independent
 
     func testTwoHandlesCarryIndependentConfigs() {
-        let small = TerminalSession.new(sampleConfig(rows: 24, cols: 80))
-        let large = TerminalSession.new(sampleConfig(rows: 60, cols: 200))
+        let small = TerminalSession.new(sampleConfig(rows: 24, cols: 80))!
+        let large = TerminalSession.new(sampleConfig(rows: 60, cols: 200))!
         XCTAssertEqual(small.rows(), 24)
         XCTAssertEqual(small.cols(), 80)
         XCTAssertEqual(large.rows(), 60)
@@ -104,7 +104,7 @@ final class TerminalSessionLifecycleTests: XCTestCase {
     /// `bridge.rs`." Per memory `feedback_ffi_clean_rebuild.md`,
     /// FFI shape changes require `xcodebuild clean test`.
     func testScrollAPIIsExposed() {
-        let session = TerminalSession.new(sampleConfig())
+        let session = TerminalSession.new(sampleConfig())!
         // No assertion on the operation itself — this is purely a
         // compile-time canary that the swift-bridge generated wrapper
         // carries the new methods. The behavioural round-trips are
@@ -121,7 +121,7 @@ final class TerminalSessionLifecycleTests: XCTestCase {
     /// driven (DECSET 1049 / 47 / 1047), so calling the scroll API
     /// can never flip it.
     func testIsAltScreenIsFalseOnFreshSessionAndStableAcrossScrolls() {
-        let session = TerminalSession.new(sampleConfig())
+        let session = TerminalSession.new(sampleConfig())!
         XCTAssertFalse(session.is_alt_screen())
         session.scroll_lines(10)
         session.scroll_lines(-10)
@@ -135,7 +135,7 @@ final class TerminalSessionLifecycleTests: XCTestCase {
     /// assert no panic / crash across many calls — the FFI surface
     /// must tolerate "scroll on an empty buffer" without instability.
     func testScrollOnEmptyScrollbackIsStableAcrossManyCalls() {
-        let session = TerminalSession.new(sampleConfig())
+        let session = TerminalSession.new(sampleConfig())!
         for _ in 0..<256 {
             session.scroll_lines(Int32.max)
             session.scroll_lines(Int32.min)

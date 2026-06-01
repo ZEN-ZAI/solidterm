@@ -359,6 +359,8 @@ final class SelectionInputTests: XCTestCase {
             cwd: "/tmp".intoRustString(),
             env: envVec,
             scrollback_lines: 0)
-        return TerminalSession.new(config)
+        // Force-unwrap: a /bin/cat spawn must succeed in the test env;
+        // nil here is a real failure worth crashing the test on.
+        return TerminalSession.new(config)!
     }
 }
