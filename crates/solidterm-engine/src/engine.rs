@@ -272,6 +272,16 @@ pub struct TerminalEngine {
     /// mutability lets us re-emit without forcing every consumer onto
     /// `&mut self`.
     held_events: Mutex<VecDeque<EngineEvent>>,
+
+    /// Absolute anchor point of the in-progress mouse selection, cached
+    /// at [`Self::start_selection`]. alacritty's `Selection` keeps the
+    /// anchor in a private `region` field with no getter, so we mirror
+    /// it here. [`Self::update_selection`] needs it to pick the anchor
+    /// *and* drag-end cell sides by drag direction — a right-to-left (or
+    /// upward) drag has to flip both sides so the cell under the cursor
+    /// and the anchor cell both stay inside the range (see that method).
+    /// `None` whenever no selection is active.
+    selection_anchor: Option<Point>,
 }
 
 // Manual Debug: omits internal fields deliberately — see the struct
@@ -429,6 +439,7 @@ impl TerminalEngine {
             pty_responses_rx,
             last_alt_screen: false,
             held_events: Mutex::new(VecDeque::new()),
+            selection_anchor: None,
         })
     }
 
@@ -1101,10 +1112,11 @@ impl TerminalEngine {
 
     /// Start a new selection at the given viewport-relative cell.
     ///
-    /// Replaces any prior selection. The anchor side is `Side::Left`
-    /// (mouse-down at the left edge of the cell) — mid-cell anchoring
-    /// is mouse-precision-pixel territory and overkill for terminal
-    /// cell-snap selection.
+    /// Replaces any prior selection. The anchor cell is cached in
+    /// [`Self::selection_anchor`] so [`Self::update_selection`] can pick
+    /// drag-direction-aware cell sides; the side passed here only matters
+    /// for the anchor-only state (a `Simple` selection with no drag is
+    /// empty regardless), so `Side::Left` is fine until the first update.
     ///
     /// `row` is clamped to `[0, screen_lines)` and `col` to `[0,
     /// columns)`. Out-of-range inputs become a 0-cell selection at the
@@ -1118,6 +1130,7 @@ impl TerminalEngine {
             SelectionMode::Word => SelectionType::Semantic,
             SelectionMode::Line => SelectionType::Lines,
         };
+        self.selection_anchor = Some(point);
         self.term.selection = Some(Selection::new(ty, point, Side::Left));
     }
 
@@ -1128,19 +1141,44 @@ impl TerminalEngine {
     /// the boundary on each `to_range`, so dragging past additional
     /// words / lines keeps expanding outward — matches iTerm2 / Terminal
     /// behaviour. For `Simple` the range is updated cell-precise.
+    ///
+    /// **Drag-direction-aware sides.** alacritty's `range_simple` drops
+    /// the boundary cell on the side flagged "away from the selection
+    /// body" (`start` cell when its side is `Right`, `end` cell when its
+    /// side is `Left`). With fixed sides (anchor `Left`, drag-end
+    /// `Right`) a left-to-right drag includes both ends, but a
+    /// right-to-left drag — where `to_range` swaps the ordered endpoints
+    /// — inverts them, dropping *both* the cell under the cursor and the
+    /// anchor cell. That's the "can't select the first character / must
+    /// overshoot" bug. We fix it by choosing sides from the drag
+    /// direction so the leftmost (in reading order) endpoint is always
+    /// `Left` and the rightmost always `Right`, keeping both cells in:
+    /// dragging at/after the anchor → anchor `Left`, end `Right`;
+    /// dragging before it → anchor `Right`, end `Left`. The anchor side
+    /// lives in the private `region`, so we rebuild the selection through
+    /// the public API rather than mutate it in place.
     pub fn update_selection(&mut self, row: u16, col: u16) {
         // Compute the point first so the immutable `&self.term` read
         // inside `viewport_point` doesn't overlap the subsequent
         // `&mut self.term.selection` borrow on the assignment.
         let point = self.viewport_point(row, col);
-        let Some(selection) = self.term.selection.as_mut() else {
+        let Some(anchor) = self.selection_anchor else {
             return;
         };
-        // Right-side anchor on update mirrors alacritty's own click-
-        // drag handling — the active edge of the selection rides on
-        // the right of the dragged cell so a leftward drag still
-        // covers the cell under the cursor.
-        selection.update(point, Side::Right);
+        let Some(ty) = self.term.selection.as_ref().map(|s| s.ty) else {
+            return;
+        };
+        // Point ordering is (line, then column): `point < anchor` means
+        // the cursor is before the anchor in reading order (left on the
+        // same row, or any earlier row).
+        let (anchor_side, end_side) = if point < anchor {
+            (Side::Right, Side::Left)
+        } else {
+            (Side::Left, Side::Right)
+        };
+        let mut selection = Selection::new(ty, anchor, anchor_side);
+        selection.update(point, end_side);
+        self.term.selection = Some(selection);
     }
 
     /// Clear any active selection. Idempotent.
@@ -1151,6 +1189,7 @@ impl TerminalEngine {
     /// frame paints without the selection tint.
     pub fn clear_selection(&mut self) {
         self.term.selection = None;
+        self.selection_anchor = None;
     }
 
     /// Snapshot the current selection's viewport-space span, if any.
@@ -4155,6 +4194,47 @@ mod tests {
         assert_eq!(span.end_row, 7);
         assert_eq!(span.end_col, 30);
         assert!(!span.is_block);
+    }
+
+    #[test]
+    fn simple_selection_right_to_left_includes_both_ends() {
+        // Regression: a right-to-left drag must keep BOTH the anchor cell
+        // and the cell under the cursor. Anchor on 'o' (col 4) of "hello",
+        // drag left to 'h' (col 0). Before the side-by-direction fix this
+        // dropped both ends and yielded cols 1..3 ("ell") — the user's
+        // "can't select the first character" report.
+        let mut engine = TerminalEngine::new(cat_config()).expect("/bin/cat spawn ok");
+        drive_text(&mut engine, b"hello world\n", 'h');
+        engine.start_selection(SelectionMode::Simple, 0, 4);
+        engine.update_selection(0, 0);
+        let span = engine.selection_span().expect("reverse drag has a span");
+        assert_eq!((span.start_row, span.start_col), (0, 0), "leftmost cell kept");
+        assert_eq!((span.end_row, span.end_col), (0, 4), "anchor cell kept");
+        assert_eq!(engine.selection_text().as_deref(), Some("hello"));
+    }
+
+    #[test]
+    fn simple_selection_direction_flip_tracks_both_ends() {
+        // Anchor mid-line, drag left (reverse) then back right (forward).
+        // Each update re-derives the sides, so the range follows the
+        // cursor in both directions and never sticks excluding an endpoint.
+        let mut engine = TerminalEngine::new(cat_config()).expect("/bin/cat spawn ok");
+        drive_text(&mut engine, b"hello world\n", 'h');
+        engine.start_selection(SelectionMode::Simple, 0, 6); // anchor 'w'
+        engine.update_selection(0, 2); // drag left into "hello"
+        let left = engine.selection_span().expect("leftward span");
+        assert_eq!(
+            (left.start_col, left.end_col),
+            (2, 6),
+            "leftward drag spans cursor..=anchor inclusive"
+        );
+        engine.update_selection(0, 10); // drag back right to 'd'
+        let right = engine.selection_span().expect("rightward span");
+        assert_eq!(
+            (right.start_col, right.end_col),
+            (6, 10),
+            "rightward drag spans anchor..=cursor inclusive"
+        );
     }
 
     // ─── 4.6 selection_text — copy path ──────────────────────────────────
