@@ -1200,13 +1200,19 @@ impl TerminalEngine {
     /// - The selection scrolled entirely off the top of the viewport
     ///   (alacritty's `to_range` returns `None` when `end.line <
     ///   topmost_line`).
+    /// - The selection scrolled entirely past the bottom of the viewport
+    ///   (every selected row maps below the last visible row). alacritty
+    ///   only nils the off-the-top case; this symmetric guard is on us,
+    ///   so a selection parked in not-yet-revealed scrollback below the
+    ///   fold leaves no tint behind.
     ///
     /// Coordinates are **viewport-relative**: row 0 is the top of the
-    /// visible viewport at the current `display_offset`. Rows that
-    /// remain in scrollback above the viewport are clamped to row 0;
-    /// rows below the viewport bottom are clamped to `screen_lines - 1`
-    /// (alacritty's `grid_clamp(Boundary::Grid)` already does this for
-    /// the upper bound; the lower-bound clamp is defensive).
+    /// visible viewport at the current `display_offset`. A *partially*
+    /// visible selection is clamped to the viewport: rows still in
+    /// scrollback above the top snap to row 0, rows past the bottom snap
+    /// to `screen_lines - 1`. (A *fully* off-screen selection returns
+    /// `None` per the bullet above — without that, both endpoints would
+    /// clamp to the same edge row and paint a bogus one-row highlight.)
     ///
     /// `start_row` ≤ `end_row`. When `start_row == end_row`, `start_col
     /// ≤ end_col`. Both columns are inclusive — the renderer is
@@ -1241,6 +1247,19 @@ impl TerminalEngine {
         // `Term::new`; the cast back is unreachable as a truncation.
         #[allow(clippy::cast_possible_truncation)]
         let max_row = self.term.screen_lines().saturating_sub(1) as u16;
+
+        // Bail when the whole selection sits outside the viewport so a
+        // scrolled-away selection paints nothing (rather than collapsing
+        // both clamped endpoints onto one edge row). `range.start` is the
+        // topmost row, `range.end` the bottommost. Fully below the bottom:
+        // even the top endpoint maps past `max_row`. Fully above the top:
+        // even the bottom endpoint maps above row 0 (alacritty's `to_range`
+        // usually nils this already; kept as a symmetric guard).
+        let top_vp = range.start.line.0.saturating_add(display_offset);
+        let bottom_vp = range.end.line.0.saturating_add(display_offset);
+        if top_vp > i32::from(max_row) || bottom_vp < 0 {
+            return None;
+        }
 
         // Convert absolute line → viewport-relative (positive down).
         // alacritty's `point_to_viewport` returns None for points below
@@ -4234,6 +4253,64 @@ mod tests {
             (right.start_col, right.end_col),
             (6, 10),
             "rightward drag spans anchor..=cursor inclusive"
+        );
+    }
+
+    #[test]
+    fn selection_span_tracks_scrollback_offset() {
+        // Regression: a wheel scroll must re-project the selection into
+        // the new viewport. Select rows 10..=12 at the live tail
+        // (display_offset 0), scroll back 5 lines — the same content must
+        // now report rows 15..=17, not stay pinned at 10..=12. This is the
+        // engine contract the Swift mirror re-sync relies on.
+        let mut engine = TerminalEngine::new(cat_config()).expect("/bin/cat spawn ok");
+        // 40 echoed lines into a 24-row grid → enough history to scroll
+        // back 5 without hitting the top.
+        let mut payload = Vec::new();
+        for i in 0..40 {
+            payload.extend_from_slice(format!("line{i:02}\n").as_bytes());
+        }
+        drive_text(&mut engine, &payload, 'l');
+
+        engine.start_selection(SelectionMode::Simple, 10, 3);
+        engine.update_selection(12, 7);
+        let before = engine.selection_span().expect("in-view span");
+        assert_eq!((before.start_row, before.end_row), (10, 12));
+
+        engine.scroll_lines(5);
+        let after = engine.selection_span().expect("span tracks the scroll");
+        assert_eq!(
+            (after.start_row, after.end_row),
+            (15, 17),
+            "selection rows must shift down by the scrollback offset"
+        );
+        // Columns are content-anchored — vertical scroll leaves them be.
+        assert_eq!((after.start_col, after.end_col), (3, 7));
+    }
+
+    #[test]
+    fn selection_span_none_when_scrolled_past_bottom() {
+        // Regression: a selection scrolled entirely below the fold reports
+        // no span (renderer paints no stray tint), rather than collapsing
+        // both clamped endpoints onto the bottom edge row.
+        let mut engine = TerminalEngine::new(cat_config()).expect("/bin/cat spawn ok");
+        // 80 echoed lines → ~56 rows of history, comfortably more than the
+        // 24-row viewport, so a top-of-viewport selection can be pushed
+        // fully past the bottom edge.
+        let mut payload = Vec::new();
+        for i in 0..80 {
+            payload.extend_from_slice(format!("row{i:02}\n").as_bytes());
+        }
+        drive_text(&mut engine, &payload, 'r');
+
+        engine.start_selection(SelectionMode::Simple, 0, 0);
+        engine.update_selection(2, 5);
+        assert!(engine.selection_span().is_some(), "in-view before scroll");
+
+        engine.scroll_lines(10_000); // clamps to history_size
+        assert!(
+            engine.selection_span().is_none(),
+            "fully-below-viewport selection must report None"
         );
     }
 

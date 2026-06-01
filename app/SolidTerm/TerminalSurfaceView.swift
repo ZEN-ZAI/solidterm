@@ -1527,6 +1527,35 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         // user's accumulated swipe length; saturating cast is safe.
         let clamped = Int32(clamping: lines)
         session.scroll_lines(clamped)
+
+        // Selection follows content, not the screen. `pendingSelection`
+        // caches viewport-relative rows captured at the previous display
+        // offset; the scroll just moved the content under them, so without
+        // a re-projection the highlight stays pinned to the old screen rows
+        // (it "doesn't follow the scroll"). The engine's `Term::selection`
+        // survives a wheel scroll — no grid write — so its freshly-projected
+        // span is the source of truth: re-read it and refresh the mirror.
+        // An empty span means the selection scrolled out of view; collapse
+        // the mirror to a non-drawing zero-width anchor so the tint hides
+        // while off-screen, yet stays live for the next scroll-back to
+        // re-populate (re-reading on each tick restores it once it re-enters
+        // the viewport).
+        if let pending = pendingSelection {
+            let span = session.selection_span()
+            if span.count == 5 {
+                pendingSelection = PendingSelection(
+                    start: (row: UInt16(span[0]), col: UInt16(span[1])),
+                    end: (row: UInt16(span[2]), col: UInt16(span[3])),
+                    mode: pending.mode)
+            } else {
+                pendingSelection = PendingSelection(
+                    start: (row: 0, col: 0),
+                    end: (row: 0, col: 0),
+                    mode: Self.SELECTION_MODE_SIMPLE)
+            }
+            needsDisplay = true
+            renderer.markNeedsRedraw()
+        }
     }
 
     // MARK: NSTextInputClient — load-bearing methods
