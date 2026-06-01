@@ -4314,6 +4314,60 @@ mod tests {
         );
     }
 
+    /// Soft-wrap copy contract (autowrap): a single logical line longer
+    /// than the grid width autowraps across visual rows with `WRAPLINE`
+    /// set at each wrap point. Copying the whole thing must yield the
+    /// original line with NO embedded newline — the user pastes back the
+    /// logical line, not the visually-wrapped rows. alacritty's
+    /// `selection_to_string` is wrap-aware; this pins that we rely on it
+    /// (and never reconstruct text row-by-row, which would re-insert the
+    /// wrap breaks).
+    #[test]
+    fn selection_text_rejoins_autowrapped_line() {
+        let mut engine = TerminalEngine::new(cat_config()).expect("/bin/cat spawn ok");
+        // 100 chars into an 80-col grid → row 0 holds 80 (WRAPLINE), row 1
+        // holds 20.
+        let mut payload = vec![b'A'; 100];
+        payload.push(b'\n');
+        drive_text(&mut engine, &payload, 'A');
+
+        engine.start_selection(SelectionMode::Simple, 0, 0);
+        engine.update_selection(1, 19);
+        let text = engine.selection_text().expect("wrapped selection has text");
+        assert_eq!(text, "A".repeat(100), "autowrapped line copies as one line");
+        assert!(!text.contains('\n'), "no wrap-point newline in copied text");
+    }
+
+    /// Soft-wrap copy contract (reflow): two logical lines laid down wide
+    /// (each on its own row, hard newline) then reflowed narrower so each
+    /// spans two visual rows — four visual rows total. Copying all four
+    /// must yield exactly the two original logical lines (one newline at
+    /// the genuine line break, none at the reflow wrap points). This is
+    /// the "window too small → 2 lines become 4" case from the bug report.
+    #[test]
+    fn selection_text_rejoins_reflowed_lines() {
+        let mut engine = TerminalEngine::new(cat_config()).expect("/bin/cat spawn ok");
+        let mut payload = vec![b'A'; 60];
+        payload.push(b'\n');
+        payload.extend(std::iter::repeat(b'B').take(60));
+        payload.push(b'\n');
+        drive_text(&mut engine, &payload, 'A');
+
+        // Shrink 80 → 40 cols: alacritty reflows each 60-char line into
+        // 40 + 20, flagging WRAPLINE at the fold.
+        engine.resize(24, 40).expect("shrink to 40 cols");
+
+        engine.start_selection(SelectionMode::Simple, 0, 0);
+        engine.update_selection(3, 19);
+        let text = engine.selection_text().expect("reflowed selection has text");
+        assert_eq!(
+            text,
+            format!("{}\n{}", "A".repeat(60), "B".repeat(60)),
+            "reflowed soft-wrap copies as the two original logical lines"
+        );
+        assert_eq!(text.matches('\n').count(), 1, "only the hard break survives");
+    }
+
     // ─── 4.6 selection_text — copy path ──────────────────────────────────
 
     /// Fresh engine, no selection: `selection_text` returns `None` so the
