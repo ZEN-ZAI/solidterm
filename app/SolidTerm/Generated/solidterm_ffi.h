@@ -61,6 +61,7 @@ uint32_t __swift_bridge__$TerminalSession$child_pid(void* self);
 void* __swift_bridge__$TerminalSession$row_text(void* self, uint16_t row);
 void* __swift_bridge__$TerminalSession$cell_before_cursor(void* self);
 struct __swift_bridge__$HyperlinkHit __swift_bridge__$TerminalSession$hyperlink_at(void* self, uint16_t row, uint16_t col);
+void* __swift_bridge__$TerminalSession$drain_clipboard_store(void* self);
 bool __swift_bridge__$TerminalSession$resize(void* self, uint16_t rows, uint16_t cols);
 struct __swift_bridge__$SessionConfig __swift_bridge__$echo_session_config(struct __swift_bridge__$SessionConfig c);
 struct __swift_bridge__$InputEvent __swift_bridge__$echo_input_event(struct __swift_bridge__$InputEvent e);

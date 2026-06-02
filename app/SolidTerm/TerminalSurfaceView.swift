@@ -1339,9 +1339,20 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
             // (matches iTerm2 / Ghostty / Alacritty behaviour). We
             // also strip the start marker for symmetry; without it
             // the leftover end marker has nothing to close anyway.
-            let scrubbed = text
-                .replacingOccurrences(of: "\u{1B}[200~", with: "")
-                .replacingOccurrences(of: "\u{1B}[201~", with: "")
+            // Loop until stable: a single pass is bypassable — a crafted
+            // clipboard like `\e[20` + `\e[201~` + `1~` re-splices into a
+            // fresh `\e[201~` across the removal boundary, escaping the
+            // jail. Each pass strips ≥1 marker so the string strictly
+            // shrinks; rescan until none remain, closing the re-splice
+            // without over-stripping legitimate ESC bytes.
+            var scrubbed = text
+            while scrubbed.contains("\u{1B}[200~")
+                || scrubbed.contains("\u{1B}[201~")
+            {
+                scrubbed = scrubbed
+                    .replacingOccurrences(of: "\u{1B}[200~", with: "")
+                    .replacingOccurrences(of: "\u{1B}[201~", with: "")
+            }
             return "\u{1B}[200~" + scrubbed + "\u{1B}[201~"
         }
         return text

@@ -619,7 +619,16 @@ impl TerminalEngine {
         // a tracing breadcrumb instead — `ChildExited` will surface
         // through `drain_events` on the next poll anyway.
         while let Ok(reply) = self.pty_responses_rx.try_recv() {
-            if let Err(err) = self.pty.writer().write_all(reply.as_bytes()) {
+            // Route through `feed_input`'s EAGAIN/`WouldBlock` backoff
+            // loop, NOT a bare `write_all`. The master is `O_NONBLOCK`;
+            // a plain `write_all` returns `Err` on a transient
+            // `WouldBlock`, and because `try_recv` has already dequeued
+            // `reply`, that capability answer (e.g. the DA1 sentinel a
+            // child blocks on at startup) would be lost forever. The
+            // backoff retries until the tiny reply is fully written, so a
+            // transient buffer-full no longer drops it; only a real error
+            // (child exited → EIO/BrokenPipe) breaks the drain.
+            if let Err(err) = self.feed_input(reply.as_bytes()) {
                 tracing::debug!(
                     error = %err,
                     bytes = reply.len(),

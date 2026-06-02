@@ -456,6 +456,10 @@ extension TerminalSessionRefMut {
         __swift_bridge__$TerminalSession$drain_bell(ptr)
     }
 
+    public func drain_clipboard_store() -> RustString {
+        RustString(ptr: __swift_bridge__$TerminalSession$drain_clipboard_store(ptr))
+    }
+
     public func resize(_ rows: UInt16, _ cols: UInt16) -> Bool {
         __swift_bridge__$TerminalSession$resize(ptr, rows, cols)
     }

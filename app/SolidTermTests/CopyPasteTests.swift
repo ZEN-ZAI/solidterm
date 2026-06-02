@@ -201,6 +201,24 @@ final class CopyPasteTests: XCTestCase {
             "embedded end marker must be stripped from the body")
     }
 
+    /// Re-splice bypass: a single-pass strip lets `\e[20` + `\e[201~` +
+    /// `1~` re-form a fresh `\e[201~` across the removal boundary,
+    /// escaping the paste jail. The loop-until-stable scrub must leave NO
+    /// end marker in the body.
+    func testFormatPastePayloadDefeatsRespliceBypass() {
+        let malicious = "echo safe\u{1B}[20\u{1B}[201~1~\rrm -rf ~\r"
+        let wrapped = TerminalSurfaceView.formatPastePayload(
+            malicious, bracketedPasteEnabled: true)
+        XCTAssertTrue(wrapped.hasPrefix("\u{1B}[200~"))
+        XCTAssertTrue(wrapped.hasSuffix("\u{1B}[201~"))
+        XCTAssertFalse(
+            wrapped.dropLast(6).contains("\u{1B}[201~"),
+            "re-spliced end marker must not survive the scrub")
+        XCTAssertEqual(
+            wrapped.components(separatedBy: "\u{1B}[201~").count, 2,
+            "exactly one end marker (the trailing wrap) may remain")
+    }
+
     /// Embedded START markers get stripped too — a defensive
     /// symmetry. Without it the user-visible "paste" would still
     /// end correctly, but the running app sees nested 200~ pairs.

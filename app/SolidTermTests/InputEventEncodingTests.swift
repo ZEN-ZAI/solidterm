@@ -295,14 +295,47 @@ final class InputEventEncodingTests: XCTestCase {
             "\u{1B}[A")
     }
 
-    func testModifiedCursorKeyKeepsLegacyCSIUnderAppCursor() {
-        // A held modifier keeps the legacy CSI path even under app-cursor
-        // (xterm uses CSI-with-param for modified cursor keys; shift+arrow
-        // is intercepted upstream for selection).
-        XCTAssertEqual(
+    func testModifiedCursorKeysEmitCSI1ModParam() {
+        // Modified cursor / Home / End carry the modifier in CSI 1;<mod>
+        // form (xterm "PC-Style Function Keys"; same under kitty). The
+        // modifier param is 1 + (shift1|alt2|ctrl4): Ctrl=5, Shift=2,
+        // Alt=3. App-cursor must NOT collapse a modified key to SS3.
+        XCTAssertEqual(  // Ctrl+Up
             InputEventEncoder.ansiEscapeForSpecialKey(
                 keyCode: 0x7E, modifiers: .control, appCursor: true),
-            "\u{1B}[A")
+            "\u{1B}[1;5A")
+        XCTAssertEqual(  // Shift+Left
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x7B, modifiers: .shift),
+            "\u{1B}[1;2D")
+        XCTAssertEqual(  // Alt(Option)+Right
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x7C, modifiers: .option),
+            "\u{1B}[1;3C")
+        XCTAssertEqual(  // Ctrl+End
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x77, modifiers: .control),
+            "\u{1B}[1;5F")
+    }
+
+    // MARK: - Escape under the Kitty protocol
+
+    func testEscapeEmitsCSI27uUnderKitty() {
+        XCTAssertEqual(
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x35, modifiers: [], kittyFlags: 0x01),
+            "\u{1B}[27u")
+        XCTAssertEqual(  // Shift+Esc → param 2
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x35, modifiers: .shift, kittyFlags: 0x01),
+            "\u{1B}[27;2u")
+    }
+
+    func testEscapeStaysBareWithoutKitty() {
+        // No kitty → nil here; caller falls back to event.characters (\x1b).
+        XCTAssertNil(
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x35, modifiers: [], kittyFlags: 0))
     }
 
     func testPageKeysStayCSIUnderAppCursor() {

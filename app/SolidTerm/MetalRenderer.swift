@@ -1114,6 +1114,20 @@ final class MetalRenderer {
             bellFlashStartTime = CACurrentMediaTime()
         }
 
+        // OSC 52 clipboard write: when the child (e.g. Claude Code copying
+        // an in-TUI selection) requests `\e]52;c;<base64>`, the engine
+        // decodes it and latches the text here; push it to the system
+        // pasteboard. Write direction only — alacritty denies OSC 52
+        // read-back by default, so this can't exfiltrate the clipboard.
+        if let session {
+            let osc52 = session.drain_clipboard_store().toString()
+            if !osc52.isEmpty {
+                let pb = NSPasteboard.general
+                pb.clearContents()
+                pb.setString(osc52, forType: .string)
+            }
+        }
+
         // Unconditional cursor refresh — matches alacritty's "cursor
         // read on every render tick" approach. `applyFrameDelta` also
         // refreshes `lastCursor`, but only along the
@@ -1202,6 +1216,18 @@ final class MetalRenderer {
             }
             pendingCellWrites.removeAll(keepingCapacity: true)
             applyCompositionStateIfNeeded(pipeline: pipeline, atlas: atlas)
+        } else if let session {
+            // No render pipeline (grid init failed in windowChanged, or
+            // not yet built): still pump the engine each tick so PTY
+            // output is parsed and capability-query replies (DA1/DA2,
+            // DSR cursor position, kitty CSI?u) get written back to the
+            // child. poll_output — the sole drain of the reply queue —
+            // is otherwise reached ONLY through the pipeline-gated frame
+            // path above, so without this a TUI that blocks on its
+            // startup DA round-trip (Claude Code does) would hang forever
+            // behind a blank window. The frame delta is discarded; there
+            // is nothing to draw, but take_frame_delta runs poll_output.
+            _ = session.take_frame_delta()
         }
 
         let cursorChanged = !Self.cursorEqual(lastCursor, lastEncodedCursor)

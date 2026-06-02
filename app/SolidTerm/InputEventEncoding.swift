@@ -199,6 +199,16 @@ enum InputEventEncoder {
         {
             return ESC + "[13;\(m)u"
         }
+        // Escape under the Kitty protocol (DISAMBIGUATE): report as
+        // `\e[27u` (or `\e[27;<mod>u` when modified) — the canonical
+        // disambiguation the flag exists for, so the app tells a real
+        // Esc from the lead byte of an escape sequence without a timing
+        // heuristic. Non-kitty Esc stays a bare `\x1b` (falls through to
+        // event.characters in the caller).
+        if kittyFlags != 0, keyCode == 0x35 {  // Escape
+            if let m = kittyModifierParam(mods) { return ESC + "[27;\(m)u" }
+            return ESC + "[27u"
+        }
         // Non-kitty fallback for Shift+Return → ESC+CR. Plain Return /
         // Enter both send `\r` (0x0D) — byte-identical with or without
         // Shift — so without the kitty protocol a TUI can't distinguish
@@ -237,6 +247,28 @@ enum InputEventEncoder {
             case 0x77: return ESC + "OF"  // End
             default: break
             }
+        }
+        // Modified cursor / Home / End → CSI 1 ; <mod> <final> (xterm
+        // "PC-Style Function Keys"; identical form under kitty
+        // DISAMBIGUATE). Without this the modifier was silently dropped —
+        // Ctrl/Alt/Shift+Arrow and Ctrl+Home/End arrived byte-identical to
+        // a plain arrow, so word-motion and shift-extend died in
+        // full-screen editors (Claude Code's prompt, vim, …) on the
+        // alt-screen (where shift+arrow isn't intercepted for selection).
+        // `kittyModifierParam` returns `1 + bitmask`, which IS the xterm
+        // modifier parameter, so one branch is correct for both modes.
+        if let m = kittyModifierParam(mods) {
+            let letter: String?
+            switch keyCode {
+            case 0x7E: letter = "A"  // ↑
+            case 0x7D: letter = "B"  // ↓
+            case 0x7C: letter = "C"  // →
+            case 0x7B: letter = "D"  // ←
+            case 0x73: letter = "H"  // Home
+            case 0x77: letter = "F"  // End
+            default: letter = nil
+            }
+            if let l = letter { return ESC + "[1;\(m)\(l)" }
         }
         switch keyCode {
         case 0x7E: return ESC + "[A"  // ↑

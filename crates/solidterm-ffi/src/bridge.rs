@@ -298,6 +298,10 @@ mod ffi {
         fn row_text(self: &TerminalSession, row: u16) -> String;
         fn cell_before_cursor(self: &TerminalSession) -> Vec<u8>;
         fn hyperlink_at(self: &TerminalSession, row: u16, col: u16) -> HyperlinkHit;
+        // OSC 52 `c` clipboard write requested by the child (e.g. Claude
+        // Code copying an in-TUI selection). Empty string = nothing this
+        // drain. The host writes a non-empty result to NSPasteboard.
+        fn drain_clipboard_store(self: &mut TerminalSession) -> String;
 
         fn resize(self: &mut TerminalSession, rows: u16, cols: u16) -> bool;
     }
@@ -322,6 +326,13 @@ pub struct TerminalSession {
     /// rapid-fire `\a\a\a` collapses to one visible flash, matching
     /// what iTerm2 / Terminal.app do.
     pending_bell: bool,
+    /// Latched text from the most recent OSC 52 `c` (clipboard) write the
+    /// child requested; drained by `drain_clipboard_store()` and pushed to
+    /// `NSPasteboard` by the renderer. Only `Clipboard`-kind stores latch
+    /// here — `Selection` (X11 PRIMARY) has no macOS equivalent and is
+    /// ignored. Read-back (OSC 52 query) stays denied by alacritty's
+    /// default `Osc52::OnlyCopy`, so only the safe write direction lands.
+    pending_clipboard: Option<String>,
     last_search_error: Option<String>,
 }
 
@@ -356,6 +367,7 @@ impl TerminalSession {
             pending_title: None,
             pending_cwd: None,
             pending_bell: false,
+            pending_clipboard: None,
             last_search_error: None,
         })
     }
@@ -371,6 +383,15 @@ impl TerminalSession {
                 }
                 solidterm_engine::events::EngineEvent::Bell => {
                     self.pending_bell = true;
+                }
+                // OSC 52 `c` clipboard write from the child → latch the
+                // decoded text for the renderer to push to NSPasteboard.
+                // Ignore `Selection` kind (no macOS PRIMARY selection).
+                solidterm_engine::events::EngineEvent::ClipboardStore {
+                    kind: solidterm_engine::events::ClipboardKind::Clipboard,
+                    text,
+                } => {
+                    self.pending_clipboard = Some(text);
                 }
                 _ => {}
             }
@@ -555,6 +576,15 @@ impl TerminalSession {
         let bell = self.pending_bell;
         self.pending_bell = false;
         bell
+    }
+
+    /// Drain the latest OSC 52 clipboard-write text, if any. Empty string
+    /// when the child hasn't requested a clipboard write since the last
+    /// drain. The Swift renderer calls this once per frame and pushes a
+    /// non-empty result onto `NSPasteboard.general`.
+    pub fn drain_clipboard_store(&mut self) -> String {
+        self.drain_pending_events();
+        self.pending_clipboard.take().unwrap_or_default()
     }
 
     /// Shell child PID. Used by the Swift host to query the child's
