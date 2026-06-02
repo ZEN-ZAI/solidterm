@@ -63,6 +63,7 @@ void* __swift_bridge__$TerminalSession$cell_before_cursor(void* self);
 struct __swift_bridge__$HyperlinkHit __swift_bridge__$TerminalSession$hyperlink_at(void* self, uint16_t row, uint16_t col);
 void* __swift_bridge__$TerminalSession$drain_clipboard_store(void* self);
 bool __swift_bridge__$TerminalSession$resize(void* self, uint16_t rows, uint16_t cols);
+void __swift_bridge__$TerminalSession$set_theme_colors(void* self, uint32_t fg, uint32_t bg, uint32_t cursor);
 struct __swift_bridge__$SessionConfig __swift_bridge__$echo_session_config(struct __swift_bridge__$SessionConfig c);
 struct __swift_bridge__$InputEvent __swift_bridge__$echo_input_event(struct __swift_bridge__$InputEvent e);
 struct __swift_bridge__$FrameDelta __swift_bridge__$echo_frame_delta(struct __swift_bridge__$FrameDelta f);

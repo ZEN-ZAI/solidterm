@@ -304,6 +304,10 @@ mod ffi {
         fn drain_clipboard_store(self: &mut TerminalSession) -> String;
 
         fn resize(self: &mut TerminalSession, rows: u16, cols: u16) -> bool;
+        // Push the renderer's live fg/bg/cursor (sRGB 0x00RRGGBB) so OSC
+        // 10/11/12 color queries answer with the actual theme, not a
+        // hardcoded palette. Called when the resolved theme changes.
+        fn set_theme_colors(self: &mut TerminalSession, fg: u32, bg: u32, cursor: u32);
     }
 
     extern "Rust" {
@@ -585,6 +589,12 @@ impl TerminalSession {
     pub fn drain_clipboard_store(&mut self) -> String {
         self.drain_pending_events();
         self.pending_clipboard.take().unwrap_or_default()
+    }
+
+    /// Update the fg/bg/cursor used for OSC 10/11/12 color-query replies
+    /// (sRGB `0x00RRGGBB`). Forwarded to the engine's shared theme slot.
+    pub fn set_theme_colors(&mut self, fg: u32, bg: u32, cursor: u32) {
+        self.inner.set_theme_colors(fg, bg, cursor);
     }
 
     /// Shell child PID. Used by the Swift host to query the child's

@@ -44,6 +44,7 @@ pub use alacritty_terminal::vte::ansi::KeyboardModes as KittyKeyboardFlags;
 use crossbeam_channel::{unbounded, Receiver};
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use parking_lot::Mutex;
 
@@ -51,7 +52,7 @@ use crate::cells::CellView;
 use crate::config::{EngineConfig, EngineConfigError};
 use crate::cursor::{CursorReadback, CursorShape};
 use crate::damage::DirtyRows;
-use crate::events::{EngineEvent, EventProxy};
+use crate::events::{EngineEvent, EventProxy, ThemeColors};
 use crate::osc::OscPerform;
 use crate::pty::PtyReader;
 
@@ -282,6 +283,13 @@ pub struct TerminalEngine {
     /// and the anchor cell both stay inside the range (see that method).
     /// `None` whenever no selection is active.
     selection_anchor: Option<Point>,
+
+    /// Live fg/bg/cursor for OSC 10/11/12 color-query replies, shared
+    /// with the `EventProxy` inside `term`. Updated by the Swift renderer
+    /// via [`Self::set_theme_colors`] so a child querying the background
+    /// (e.g. Claude Code's `auto` light/dark detection, or vim/delta)
+    /// gets the terminal's actual theme, not a hardcoded palette.
+    theme_colors: Arc<ThemeColors>,
 }
 
 // Manual Debug: omits internal fields deliberately — see the struct
@@ -368,7 +376,15 @@ impl TerminalEngine {
         // reply). Both pre-format the reply bytes; the unbounded
         // channel and the single consumer in `poll_output` keep
         // serialisation order identical to dispatch order.
-        let event_proxy = EventProxy::new(events_tx.clone(), pty_responses_tx.clone());
+        // Shared theme-color slot: one clone lives in `EventProxy` (moved
+        // into `term`) to answer OSC color queries, the other on the
+        // engine so `set_theme_colors` can update it after construction.
+        let theme_colors = Arc::new(ThemeColors::new_default());
+        let event_proxy = EventProxy::with_theme_colors(
+            events_tx.clone(),
+            pty_responses_tx.clone(),
+            Arc::clone(&theme_colors),
+        );
 
         let term = Term::new(alacritty_config, &dimensions, event_proxy);
 
@@ -440,7 +456,20 @@ impl TerminalEngine {
             last_alt_screen: false,
             held_events: Mutex::new(VecDeque::new()),
             selection_anchor: None,
+            theme_colors,
         })
+    }
+
+    /// Update the fg/bg/cursor used to answer OSC 10/11/12 color queries
+    /// so they reflect the renderer's live theme instead of a hardcoded
+    /// palette. Colors are packed sRGB `0x00RRGGBB` (alpha ignored). The
+    /// Swift host calls this whenever the resolved theme changes; a child
+    /// that subsequently queries (e.g. Claude Code's `auto` light/dark
+    /// detection, vim's `background` probe) gets the correct answer.
+    /// `&self` — the slot is atomically updated and shared with the
+    /// `EventProxy`, so no `&mut` is needed.
+    pub fn set_theme_colors(&self, fg: u32, bg: u32, cursor: u32) {
+        self.theme_colors.set(fg, bg, cursor);
     }
 
     /// Visible viewport row count (alacritty's `screen_lines`). Used by

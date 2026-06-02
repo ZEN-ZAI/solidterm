@@ -543,7 +543,40 @@ final class MetalRenderer {
             try? gridPipeline?.setGrid(
                 self.cells, atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
         }
+        // Keep the engine's OSC 10/11/12 reply colors in lockstep with the
+        // rendered theme: a child querying fg/bg/cursor (Claude Code's
+        // `auto` light/dark detection, vim/delta `background` probes) must
+        // see the real theme, not a hardcoded palette. The renderer works
+        // in linear space; the OSC reply wants sRGB, so convert.
+        if let session {
+            let fgLinear: SIMD4<Float>
+            let bgLinear: SIMD4<Float>
+            if let file = ThemeFileStore.shared.current {
+                fgLinear = file.foreground
+                bgLinear = file.background
+            } else {
+                let mode = ThemeManager.shared.resolved
+                fgLinear = Theme.Color.textPrimaryLinear(for: mode)
+                bgLinear = Theme.Color.bgBaseLinear(for: mode)
+            }
+            session.set_theme_colors(
+                Self.srgbU32(fromLinear: fgLinear),
+                Self.srgbU32(fromLinear: bgLinear),
+                Self.srgbU32(fromLinear: resolvedCursor))
+        }
         pendingRedraw = true
+    }
+
+    /// Pack a linear-space color into sRGB `0x00RRGGBB` for the engine's
+    /// OSC 10/11/12 color-query replies (xterm/kitty report sRGB). Inverse
+    /// of the sRGB→linear decode the theme loader applies on parse.
+    private static func srgbU32(fromLinear c: SIMD4<Float>) -> UInt32 {
+        func enc(_ v: Float) -> UInt32 {
+            let x = Double(max(0, min(1, v)))
+            let s = x <= 0.003_130_8 ? x * 12.92 : 1.055 * pow(x, 1.0 / 2.4) - 0.055
+            return UInt32((s * 255).rounded())
+        }
+        return (enc(c.x) << 16) | (enc(c.y) << 8) | enc(c.z)
     }
 
     func attach(layer: CAMetalLayer) {

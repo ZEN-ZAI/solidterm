@@ -463,6 +463,10 @@ extension TerminalSessionRefMut {
     public func resize(_ rows: UInt16, _ cols: UInt16) -> Bool {
         __swift_bridge__$TerminalSession$resize(ptr, rows, cols)
     }
+
+    public func set_theme_colors(_ fg: UInt32, _ bg: UInt32, _ cursor: UInt32) {
+        __swift_bridge__$TerminalSession$set_theme_colors(ptr, fg, bg, cursor)
+    }
 }
 public class TerminalSessionRef {
     var ptr: UnsafeMutableRawPointer

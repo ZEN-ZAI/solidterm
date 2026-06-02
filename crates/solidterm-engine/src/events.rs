@@ -51,6 +51,8 @@ use alacritty_terminal::event::{Event as AlacrittyEvent, EventListener};
 use alacritty_terminal::term::ClipboardType;
 use alacritty_terminal::vte::ansi::{NamedColor, Rgb};
 use crossbeam_channel::Sender;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 
 /// Hardcoded Zenzai Dark foreground (`#d6d6dd`, per
 /// `spec/theme-appearance.md`). Used as the reply payload for OSC 10
@@ -91,6 +93,11 @@ pub(crate) const ZENZAI_DARK_CURSOR: Rgb = Rgb {
 /// xterm extension at 16..256, or unknown high-index queries) return
 /// `None` — we silently drop the query rather than reply with a wrong
 /// color. M5's `ThemeManager` will widen this to the full palette.
+///
+/// Superseded for live replies by [`ThemeColors::color_for_index`] (which
+/// reads the renderer-pushed theme); retained as the source of the
+/// default-slot values and exercised by the color-default tests.
+#[allow(dead_code)]
 pub(crate) fn theme_color_for_index(index: usize) -> Option<Rgb> {
     if index == NamedColor::Foreground as usize {
         Some(ZENZAI_DARK_FOREGROUND)
@@ -100,6 +107,66 @@ pub(crate) fn theme_color_for_index(index: usize) -> Option<Rgb> {
         Some(ZENZAI_DARK_CURSOR)
     } else {
         None
+    }
+}
+
+#[inline]
+fn pack_rgb(c: Rgb) -> u32 {
+    (u32::from(c.r) << 16) | (u32::from(c.g) << 8) | u32::from(c.b)
+}
+
+#[inline]
+fn unpack_rgb(v: u32) -> Rgb {
+    Rgb {
+        r: ((v >> 16) & 0xff) as u8,
+        g: ((v >> 8) & 0xff) as u8,
+        b: (v & 0xff) as u8,
+    }
+}
+
+/// Live fg/bg/cursor used to answer OSC 10/11/12 color queries with the
+/// terminal's *actual* rendered theme rather than a hardcoded palette.
+/// The Swift renderer pushes the resolved (sRGB) colors via
+/// [`crate::TerminalEngine::set_theme_colors`] whenever the theme
+/// changes; the [`EventProxy`] (moved into `Term`) reads them when a
+/// child queries. Each color is packed sRGB `0x00RRGGBB`. Defaults to
+/// the Zenzai Dark constants so a query before the host pushes a theme
+/// still gets a sane (and previously-shipped) answer. `Arc`-shared so the
+/// engine and the proxy see the same atomics; lock-free.
+pub(crate) struct ThemeColors {
+    fg: AtomicU32,
+    bg: AtomicU32,
+    cursor: AtomicU32,
+}
+
+impl ThemeColors {
+    pub(crate) fn new_default() -> Self {
+        Self {
+            fg: AtomicU32::new(pack_rgb(ZENZAI_DARK_FOREGROUND)),
+            bg: AtomicU32::new(pack_rgb(ZENZAI_DARK_BACKGROUND)),
+            cursor: AtomicU32::new(pack_rgb(ZENZAI_DARK_CURSOR)),
+        }
+    }
+
+    /// Update the live colors (sRGB `0x00RRGGBB`, alpha ignored).
+    pub(crate) fn set(&self, fg: u32, bg: u32, cursor: u32) {
+        self.fg.store(fg & 0x00ff_ffff, Ordering::Relaxed);
+        self.bg.store(bg & 0x00ff_ffff, Ordering::Relaxed);
+        self.cursor.store(cursor & 0x00ff_ffff, Ordering::Relaxed);
+    }
+
+    /// Resolve an OSC-10/11/12 index (256=fg, 257=bg, 258=cursor) to the
+    /// live `Rgb`, or `None` for indices we don't reply for.
+    fn color_for_index(&self, index: usize) -> Option<Rgb> {
+        if index == NamedColor::Foreground as usize {
+            Some(unpack_rgb(self.fg.load(Ordering::Relaxed)))
+        } else if index == NamedColor::Background as usize {
+            Some(unpack_rgb(self.bg.load(Ordering::Relaxed)))
+        } else if index == NamedColor::Cursor as usize {
+            Some(unpack_rgb(self.cursor.load(Ordering::Relaxed)))
+        } else {
+            None
+        }
     }
 }
 
@@ -233,13 +300,28 @@ impl From<ClipboardType> for ClipboardKind {
 pub(crate) struct EventProxy {
     sender: Sender<EngineEvent>,
     pty_responses: Sender<String>,
+    theme_colors: Arc<ThemeColors>,
 }
 
 impl EventProxy {
+    /// Default constructor — seeds a private default theme slot. Used by
+    /// tests that don't drive theming; OSC color replies fall back to the
+    /// Zenzai Dark constants.
     pub(crate) fn new(sender: Sender<EngineEvent>, pty_responses: Sender<String>) -> Self {
+        Self::with_theme_colors(sender, pty_responses, Arc::new(ThemeColors::new_default()))
+    }
+
+    /// Engine constructor — shares the engine's [`ThemeColors`] so the
+    /// renderer's `set_theme_colors` updates are visible in OSC replies.
+    pub(crate) fn with_theme_colors(
+        sender: Sender<EngineEvent>,
+        pty_responses: Sender<String>,
+        theme_colors: Arc<ThemeColors>,
+    ) -> Self {
         Self {
             sender,
             pty_responses,
+            theme_colors,
         }
     }
 }
@@ -279,7 +361,7 @@ impl EventListener for EventProxy {
             // is worse than not replying. M5's `ThemeManager` will
             // widen the lookup to the full 256-color + named palette.
             AlacrittyEvent::ColorRequest(index, formatter) => {
-                if let Some(color) = theme_color_for_index(index) {
+                if let Some(color) = self.theme_colors.color_for_index(index) {
                     let reply = formatter(color);
                     if self.pty_responses.send(reply).is_err() {
                         tracing::warn!(
@@ -347,9 +429,10 @@ impl EventListener for EventProxy {
 #[cfg(test)]
 mod tests {
     use super::{
-        theme_color_for_index, ClipboardKind, EngineEvent, EventProxy, ZENZAI_DARK_BACKGROUND,
-        ZENZAI_DARK_CURSOR, ZENZAI_DARK_FOREGROUND,
+        theme_color_for_index, ClipboardKind, EngineEvent, EventProxy, ThemeColors,
+        ZENZAI_DARK_BACKGROUND, ZENZAI_DARK_CURSOR, ZENZAI_DARK_FOREGROUND,
     };
+    use std::sync::Arc;
     use alacritty_terminal::event::{Event as AlacrittyEvent, EventListener};
     use alacritty_terminal::term::ClipboardType;
     use alacritty_terminal::vte::ansi::NamedColor;
@@ -524,6 +607,33 @@ mod tests {
         assert_eq!(
             pty_rx.try_recv().ok(),
             Some("\x1b]10;rgb:d6d6/d6d6/dddd\x1b\\".to_string()),
+        );
+    }
+
+    /// `set_theme_colors` makes the OSC reply reflect the live theme, not
+    /// the hardcoded Zenzai Dark default. Set bg=#445566 and confirm the
+    /// OSC 11 reply carries it (`rgb:4444/5555/6666`).
+    #[test]
+    fn proxy_color_request_reflects_set_theme_colors() {
+        let (events_tx, _events_rx) = unbounded::<EngineEvent>();
+        let (pty_tx, pty_rx) = unbounded::<String>();
+        let theme = Arc::new(ThemeColors::new_default());
+        theme.set(0x11_22_33, 0x44_55_66, 0x77_88_99); // fg, bg, cursor (sRGB)
+        let proxy = EventProxy::with_theme_colors(events_tx, pty_tx, Arc::clone(&theme));
+        let formatter = Arc::new(|color: alacritty_terminal::vte::ansi::Rgb| {
+            format!(
+                "\x1b]11;rgb:{0:02x}{0:02x}/{1:02x}{1:02x}/{2:02x}{2:02x}\x1b\\",
+                color.r, color.g, color.b
+            )
+        });
+        proxy.send_event(AlacrittyEvent::ColorRequest(
+            NamedColor::Background as usize,
+            formatter,
+        ));
+        assert_eq!(
+            pty_rx.try_recv().ok(),
+            Some("\x1b]11;rgb:4444/5555/6666\x1b\\".to_string()),
+            "OSC 11 reply must reflect the set background (#445566)",
         );
     }
 
