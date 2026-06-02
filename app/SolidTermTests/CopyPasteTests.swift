@@ -376,6 +376,63 @@ final class CopyPasteTests: XCTestCase {
             "plain Enter stays a bare \\r even under kitty")
     }
 
+    /// End-to-end DECCKM: a TUI sets `CSI ?1 h`, the engine flips
+    /// `APP_CURSOR`, the FFI surfaces it via `app_cursor_active()`, and
+    /// the live encoder — fed that flag exactly as `keyDown` does — emits
+    /// SS3 (`\eOA`) for the Up arrow instead of the normal CSI (`\e[A`).
+    func testArrowEmitsSS3AfterAppCursorEnabledEndToEnd() throws {
+        let session = Self.makeCatSession()
+
+        // Precondition: normal cursor keys → CSI.
+        XCTAssertFalse(session.app_cursor_active())
+        XCTAssertEqual(
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x7E, modifiers: [],
+                appCursor: session.app_cursor_active()),
+            "\u{1B}[A")
+
+        // Enable DECCKM via cat-loopback.
+        let on = InputEventEncoder.makeKeyInputEvent(
+            characters: "\u{1B}[?1h\n", keycode: 0, modifiers: [])
+        session.send_input(on)
+        let deadline = Date().addingTimeInterval(5.0)
+        while Date() < deadline && !session.app_cursor_active() {
+            _ = session.take_frame_delta()
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        XCTAssertTrue(
+            session.app_cursor_active(),
+            "precondition: CSI ?1 h must set application-cursor mode")
+
+        XCTAssertEqual(
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x7E, modifiers: [],
+                appCursor: session.app_cursor_active()),
+            "\u{1B}OA",
+            "Up arrow under app-cursor must be SS3 \\eOA")
+    }
+
+    /// Focus-event reporting plumbing: `CSI ?1004 h` flips the engine
+    /// mode and the FFI surfaces it via `focus_events_enabled()` — the
+    /// exact gate `sendFocusEvent` consults before writing `\e[I`/`\e[O`
+    /// on window key changes.
+    func testFocusEventsFlagExposedAfterDecset1004EndToEnd() throws {
+        let session = Self.makeCatSession()
+        XCTAssertFalse(session.focus_events_enabled())
+
+        let on = InputEventEncoder.makeKeyInputEvent(
+            characters: "\u{1B}[?1004h\n", keycode: 0, modifiers: [])
+        session.send_input(on)
+        let deadline = Date().addingTimeInterval(5.0)
+        while Date() < deadline && !session.focus_events_enabled() {
+            _ = session.take_frame_delta()
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        XCTAssertTrue(
+            session.focus_events_enabled(),
+            "DECSET 1004 must enable focus-event reporting")
+    }
+
     /// ⌘⇧V "Paste (Plain)" never wraps the payload, even when the
     /// running program has enabled DECSET 2004. Pin the formatter call
     /// with `bracketedPasteEnabled: false` matches the live selector's

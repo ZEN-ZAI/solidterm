@@ -108,6 +108,14 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     /// a keystroke).
     private var lastInputSourceID: String?
 
+    /// Observers for the host window's key-status changes, used to drive
+    /// focus-event reporting (DECSET 1004): a TUI that enabled it expects
+    /// `\e[I` when the terminal gains focus and `\e[O` when it loses it
+    /// (vim `FocusGained`/`FocusLost`, tmux focus events, neovim
+    /// autoread). Re-bound to the current window in `viewDidMoveToWindow`
+    /// and torn down in `deinit`. Empty when the view has no window.
+    private var windowFocusObservers: [NSObjectProtocol] = []
+
     /// Test-friendly read accessor. Returns nil when no composition is
     /// active. Called from the renderer each frame to paint preedit
     /// cells; tuple shape minimizes coupling so future composition
@@ -206,6 +214,10 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         autoScrollTimer = nil
         pendingResizeTimer?.cancel()
         pendingResizeTimer = nil
+        for obs in windowFocusObservers {
+            NotificationCenter.default.removeObserver(obs)
+        }
+        windowFocusObservers.removeAll()
     }
 
     var metalLayer: CAMetalLayer { layer as! CAMetalLayer }
@@ -507,12 +519,15 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
 
         if !insertTextFiredThisKeyDown && !hasMarkedText() {
             if let session = renderer.session {
-                // Pass the live Kitty keyboard flags so the encoder can
-                // CSI-u-encode modified Enter (Shift+Enter → \e[13;2u)
-                // when a TUI (e.g. Claude Code) has pushed kitty mode.
+                // Pass the live Kitty keyboard flags + DECCKM state so the
+                // encoder can CSI-u-encode modified Enter (Shift+Enter →
+                // \e[13;2u) under kitty mode, and emit SS3 cursor keys
+                // (\eOA…) when a full-screen TUI has set app-cursor mode.
                 session.send_input(
                     InputEventEncoder.encode(
-                        event, kittyFlags: session.kitty_keyboard_flags()))
+                        event,
+                        kittyFlags: session.kitty_keyboard_flags(),
+                        appCursor: session.app_cursor_active()))
             }
         }
         renderer.recordKeystroke(eventTimestamp: event.timestamp)
@@ -1833,6 +1848,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         renderer.windowChanged(window: window)
+        rebindWindowFocusObservers()
         updateDrawableSize()
         // 4.8 follow-up: any `setFrameSize` calls that ran during view
         // construction (initial-attach, autosaved-frame restore) hit
@@ -1843,6 +1859,45 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         // atlas, drive a one-shot propagation so the engine + grid
         // pipeline match the actual view size before the first frame.
         propagateGridSizeToRenderer(viewSize: bounds.size)
+    }
+
+    /// (Re)attach key-status observers to the current window so focus-
+    /// event reporting tracks the right window after the view moves
+    /// (tab tear-off, window close/reopen). Tears down the prior set
+    /// first so we never double-fire or leak an observer on a dead
+    /// window.
+    private func rebindWindowFocusObservers() {
+        for obs in windowFocusObservers {
+            NotificationCenter.default.removeObserver(obs)
+        }
+        windowFocusObservers.removeAll()
+        guard let window else { return }
+        let nc = NotificationCenter.default
+        windowFocusObservers.append(
+            nc.addObserver(
+                forName: NSWindow.didBecomeKeyNotification,
+                object: window, queue: .main
+            ) { [weak self] _ in self?.sendFocusEvent(focused: true) })
+        windowFocusObservers.append(
+            nc.addObserver(
+                forName: NSWindow.didResignKeyNotification,
+                object: window, queue: .main
+            ) { [weak self] _ in self?.sendFocusEvent(focused: false) })
+    }
+
+    /// Emit a focus in/out report to the PTY when the running program
+    /// has enabled DECSET 1004. `\e[I` = focus gained, `\e[O` = focus
+    /// lost (xterm convention). No-op when the mode is off, so programs
+    /// that never asked for focus events see nothing. Routed through the
+    /// same `send_input` byte path as keystrokes; does not snap the
+    /// scrollback (out-of-band signal, not user typing).
+    private func sendFocusEvent(focused: Bool) {
+        guard let session = renderer.session, session.focus_events_enabled()
+        else { return }
+        let seq = focused ? "\u{1B}[I" : "\u{1B}[O"
+        session.send_input(
+            InputEventEncoder.makeKeyInputEvent(
+                characters: seq, keycode: 0, modifiers: []))
     }
 
     override func setFrameSize(_ newSize: NSSize) {

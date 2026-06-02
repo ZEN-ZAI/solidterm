@@ -282,6 +282,13 @@ mod ffi {
         // Swift's key encoder reads this to CSI-u-encode modified Enter
         // (Shift+Enter → \e[13;2u) when a TUI has pushed kitty mode.
         fn kitty_keyboard_flags(self: &TerminalSession) -> u8;
+        // DECCKM: when true (CSI ?1 h), the host encodes cursor keys as
+        // SS3 (\eOA…) instead of CSI (\e[A…) so full-screen TUIs see the
+        // bytes they expect.
+        fn app_cursor_active(self: &TerminalSession) -> bool;
+        // Focus-event reporting (DECSET 1004): when true, the host writes
+        // \e[I on focus gain / \e[O on focus loss.
+        fn focus_events_enabled(self: &TerminalSession) -> bool;
 
         fn drain_latest_title(self: &mut TerminalSession) -> String;
         fn drain_latest_cwd(self: &mut TerminalSession) -> String;
@@ -513,6 +520,21 @@ impl TerminalSession {
     #[must_use]
     pub fn kitty_keyboard_flags(&self) -> u8 {
         self.inner.kitty_keyboard_flags().bits()
+    }
+
+    /// DECCKM (application-cursor-keys) active. Swift reads this each
+    /// keystroke to emit SS3 cursor keys (`\eOA`…) when a full-screen
+    /// TUI has set `CSI ?1 h`, falling back to CSI (`\e[A`…) otherwise.
+    #[must_use]
+    pub fn app_cursor_active(&self) -> bool {
+        self.inner.app_cursor_active()
+    }
+
+    /// Focus-event reporting (DECSET 1004) active. Swift writes `\e[I`
+    /// on window focus gain and `\e[O` on focus loss when this is set.
+    #[must_use]
+    pub fn focus_events_enabled(&self) -> bool {
+        self.inner.focus_events_enabled()
     }
 
     pub fn drain_latest_title(&mut self) -> String {

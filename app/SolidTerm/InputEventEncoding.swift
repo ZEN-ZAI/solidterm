@@ -86,7 +86,9 @@ enum InputEventEncoder {
     /// to `makeKeyInputEvent(...)` so the lower-level overload is the
     /// unit-testable seam. Always emits `kind = .key` and `action = .press`
     /// — keyDown only this PR.
-    static func encode(_ event: NSEvent, kittyFlags: UInt8 = 0) -> InputEvent {
+    static func encode(
+        _ event: NSEvent, kittyFlags: UInt8 = 0, appCursor: Bool = false
+    ) -> InputEvent {
         // NSEvent.characters: the *text* the user typed (modifier-aware,
         // dead-key/IME-resolved on commit). For modifier-only events
         // (e.g. just ⌘) it returns nil or empty; the encoder treats
@@ -107,7 +109,7 @@ enum InputEventEncoder {
         // exposing `mode().contains(APP_CURSOR)` to Swift.
         if let escSeq = ansiEscapeForSpecialKey(
             keyCode: event.keyCode, modifiers: event.modifierFlags,
-            kittyFlags: kittyFlags)
+            kittyFlags: kittyFlags, appCursor: appCursor)
         {
             return makeKeyInputEvent(
                 characters: escSeq,
@@ -128,7 +130,7 @@ enum InputEventEncoder {
     /// XCTest — see encoder header comment).
     static func ansiEscapeForSpecialKey(
         keyCode: UInt16, modifiers: NSEvent.ModifierFlags,
-        kittyFlags: UInt8 = 0
+        kittyFlags: UInt8 = 0, appCursor: Bool = false
     ) -> String? {
         let ESC = "\u{1B}"
         let mods = modifiers.intersection(.deviceIndependentFlagsMask)
@@ -165,6 +167,26 @@ enum InputEventEncoder {
         // input source and isn't terminal-compatible.
         if shift && keyCode == 0x30 {  // Tab
             return ESC + "[Z"
+        }
+        // DECCKM (application-cursor-keys, CSI ?1 h): full-screen TUIs
+        // (vim, less, htop, fzf) expect the cursor keys as SS3 (`\eOA`…)
+        // rather than the normal CSI (`\e[A`…). Only the six cursor keys
+        // switch — Page Up/Down and Forward-Delete stay CSI. Restricted
+        // to the unmodified case: a held modifier keeps the legacy CSI
+        // path (xterm uses CSI-with-param for modified cursor keys, and
+        // shift+arrow is intercepted upstream for selection anyway).
+        let hasMod = mods.contains(.shift) || mods.contains(.control)
+            || mods.contains(.option) || mods.contains(.command)
+        if appCursor && !hasMod {
+            switch keyCode {
+            case 0x7E: return ESC + "OA"  // ↑
+            case 0x7D: return ESC + "OB"  // ↓
+            case 0x7C: return ESC + "OC"  // →
+            case 0x7B: return ESC + "OD"  // ←
+            case 0x73: return ESC + "OH"  // Home
+            case 0x77: return ESC + "OF"  // End
+            default: break
+            }
         }
         switch keyCode {
         case 0x7E: return ESC + "[A"  // ↑

@@ -822,6 +822,23 @@ impl TerminalEngine {
             .contains(alacritty_terminal::term::TermMode::FOCUS_IN_OUT)
     }
 
+    /// Returns `true` when DECCKM (application-cursor-keys mode) is
+    /// active — set by `CSI ?1 h`, cleared by `CSI ?1 l`. Full-screen
+    /// TUIs (vim, less, htop, fzf) flip this so the host encodes the
+    /// arrow / Home / End keys as SS3 (`\eOA`…) instead of the normal
+    /// CSI form (`\e[A`…). The host reads this on each keystroke; the
+    /// engine only surfaces the bit, mirroring `bracketed_paste_enabled`
+    /// / `focus_events_enabled`.
+    ///
+    /// `&self` is non-mutating; safe to interleave with the cell /
+    /// damage / input accessors.
+    #[must_use]
+    pub fn app_cursor_active(&self) -> bool {
+        self.term
+            .mode()
+            .contains(alacritty_terminal::term::TermMode::APP_CURSOR)
+    }
+
     /// Mouse-reporting mode bits packed into a single u8 for the
     /// Swift host. The host checks these on every mouseDown / mouseUp
     /// / mouseDragged / scrollWheel and, when any bit is set,
@@ -3184,6 +3201,70 @@ mod tests {
         assert!(
             !engine.focus_events_enabled(),
             "expected focus-events disabled within 5s after DECRST 1004"
+        );
+    }
+
+    #[test]
+    fn app_cursor_disabled_by_default() {
+        let engine = TerminalEngine::new(cat_config()).expect("/bin/cat spawn should succeed");
+        assert!(
+            !engine.app_cursor_active(),
+            "fresh engine must report normal (non-application) cursor keys"
+        );
+    }
+
+    /// `CSI ?1 h` (DECCKM set) flips `TermMode::APP_CURSOR`; the host
+    /// reads this to emit SS3 cursor keys. Cat-loopback + poll, same
+    /// pattern as the focus-events / bracketed-paste mode tests.
+    #[test]
+    fn app_cursor_active_after_decckm_set() {
+        let mut engine = TerminalEngine::new(cat_config()).expect("/bin/cat spawn should succeed");
+        engine
+            .feed_input(b"\x1b[?1h\n")
+            .expect("feed_input should write DECCKM set");
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline && !engine.app_cursor_active() {
+            let _ = engine.poll_output().expect("poll_output is infallible today");
+            if !engine.app_cursor_active() {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+        assert!(
+            engine.app_cursor_active(),
+            "expected APP_CURSOR within 5s after CSI ?1 h"
+        );
+    }
+
+    /// `CSI ?1 l` (DECCKM reset) clears `TermMode::APP_CURSOR` again.
+    #[test]
+    fn app_cursor_inactive_after_decckm_reset() {
+        let mut engine = TerminalEngine::new(cat_config()).expect("/bin/cat spawn should succeed");
+        engine
+            .feed_input(b"\x1b[?1h\n")
+            .expect("feed_input should write DECCKM set");
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline && !engine.app_cursor_active() {
+            let _ = engine.poll_output().expect("poll_output is infallible today");
+            if !engine.app_cursor_active() {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+        assert!(engine.app_cursor_active(), "precondition: APP_CURSOR set");
+
+        engine
+            .feed_input(b"\x1b[?1l\n")
+            .expect("feed_input should write DECCKM reset");
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline && engine.app_cursor_active() {
+            let _ = engine.poll_output().expect("poll_output is infallible today");
+            if engine.app_cursor_active() {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+        assert!(
+            !engine.app_cursor_active(),
+            "expected APP_CURSOR cleared within 5s after CSI ?1 l"
         );
     }
 

@@ -52,6 +52,8 @@ void* __swift_bridge__$TerminalSession$selection_text(void* self);
 bool __swift_bridge__$TerminalSession$bracketed_paste_enabled(void* self);
 uint8_t __swift_bridge__$TerminalSession$mouse_mode_bits(void* self);
 uint8_t __swift_bridge__$TerminalSession$kitty_keyboard_flags(void* self);
+bool __swift_bridge__$TerminalSession$app_cursor_active(void* self);
+bool __swift_bridge__$TerminalSession$focus_events_enabled(void* self);
 void* __swift_bridge__$TerminalSession$drain_latest_title(void* self);
 void* __swift_bridge__$TerminalSession$drain_latest_cwd(void* self);
 bool __swift_bridge__$TerminalSession$drain_bell(void* self);

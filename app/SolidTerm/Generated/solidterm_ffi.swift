@@ -508,6 +508,14 @@ extension TerminalSessionRef {
         __swift_bridge__$TerminalSession$kitty_keyboard_flags(ptr)
     }
 
+    public func app_cursor_active() -> Bool {
+        __swift_bridge__$TerminalSession$app_cursor_active(ptr)
+    }
+
+    public func focus_events_enabled() -> Bool {
+        __swift_bridge__$TerminalSession$focus_events_enabled(ptr)
+    }
+
     public func child_pid() -> UInt32 {
         __swift_bridge__$TerminalSession$child_pid(ptr)
     }

@@ -266,4 +266,55 @@ final class InputEventEncodingTests: XCTestCase {
             keyCode: 0x24, modifiers: .shift, kittyFlags: 0)
         XCTAssertEqual(seq, "\u{1B}\r")
     }
+
+    // MARK: - DECCKM: application-cursor-keys → SS3
+
+    func testCursorKeysEmitSS3UnderAppCursor() {
+        // DECCKM on: the six cursor keys switch from CSI to SS3.
+        let cases: [(UInt16, String)] = [
+            (0x7E, "\u{1B}OA"),  // ↑
+            (0x7D, "\u{1B}OB"),  // ↓
+            (0x7C, "\u{1B}OC"),  // →
+            (0x7B, "\u{1B}OD"),  // ←
+            (0x73, "\u{1B}OH"),  // Home
+            (0x77, "\u{1B}OF"),  // End
+        ]
+        for (key, want) in cases {
+            XCTAssertEqual(
+                InputEventEncoder.ansiEscapeForSpecialKey(
+                    keyCode: key, modifiers: [], appCursor: true),
+                want, "keyCode \(key) under app-cursor")
+        }
+    }
+
+    func testCursorKeysStayCSIWithoutAppCursor() {
+        // DECCKM off (default) → the normal CSI form is unchanged.
+        XCTAssertEqual(
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x7E, modifiers: [], appCursor: false),
+            "\u{1B}[A")
+    }
+
+    func testModifiedCursorKeyKeepsLegacyCSIUnderAppCursor() {
+        // A held modifier keeps the legacy CSI path even under app-cursor
+        // (xterm uses CSI-with-param for modified cursor keys; shift+arrow
+        // is intercepted upstream for selection).
+        XCTAssertEqual(
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x7E, modifiers: .control, appCursor: true),
+            "\u{1B}[A")
+    }
+
+    func testPageKeysStayCSIUnderAppCursor() {
+        // Page Up/Down and Forward-Delete aren't cursor keys — DECCKM
+        // leaves them on CSI.
+        XCTAssertEqual(
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x74, modifiers: [], appCursor: true),
+            "\u{1B}[5~")
+        XCTAssertEqual(
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x79, modifiers: [], appCursor: true),
+            "\u{1B}[6~")
+    }
 }
