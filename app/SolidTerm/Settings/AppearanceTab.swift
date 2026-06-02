@@ -48,6 +48,10 @@ struct AppearanceTab: View {
     /// 1_000…1_000_000 enforced by the stepper; the engine rejects
     /// anything above MAX_SCROLLBACK_LINES at session construction.
     @AppStorage(ScrollbackSettings.userDefaultsKey) private var scrollbackLines: Int = 0
+    /// Option-as-Meta: send ESC+<key> for readline/emacs/zsh Meta
+    /// bindings instead of composing accented characters. Default off so
+    /// é/∑/… composition is unchanged unless the user opts in.
+    @AppStorage(TerminalInputSettings.optionAsMetaKey) private var optionAsMeta: Bool = false
 
     @ObservedObject private var themeManager = ThemeManager.shared
     @ObservedObject private var fontSettings = FontSettings.shared
@@ -60,10 +64,27 @@ struct AppearanceTab: View {
             commandMarkersSection
             filePathSection
             scrollbackSection
+            keyboardSection
             resetSection
         }
         .formStyle(.grouped)
         .frame(minWidth: 560, minHeight: 420)
+    }
+
+    // MARK: Keyboard
+
+    private var keyboardSection: some View {
+        Section {
+            Toggle("Use Option as Meta key", isOn: $optionAsMeta)
+        } header: {
+            Text("Keyboard")
+        } footer: {
+            Text(
+                "When on, Option+key sends an ESC-prefixed sequence "
+                    + "(e.g. Option+B → ESC B) for readline, emacs, and zsh "
+                    + "Meta bindings. When off, Option composes accented "
+                    + "characters normally (é, ∑, …).")
+        }
     }
 
     // MARK: Q2 — Scrollback

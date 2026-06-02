@@ -87,7 +87,8 @@ enum InputEventEncoder {
     /// unit-testable seam. Always emits `kind = .key` and `action = .press`
     /// — keyDown only this PR.
     static func encode(
-        _ event: NSEvent, kittyFlags: UInt8 = 0, appCursor: Bool = false
+        _ event: NSEvent, kittyFlags: UInt8 = 0, appCursor: Bool = false,
+        optionAsMeta: Bool = false
     ) -> InputEvent {
         // NSEvent.characters: the *text* the user typed (modifier-aware,
         // dead-key/IME-resolved on commit). For modifier-only events
@@ -116,10 +117,59 @@ enum InputEventEncoder {
                 keycode: event.keyCode,
                 modifiers: event.modifierFlags)
         }
+        // Option-as-meta: a printable Option+key emits ESC + the base
+        // (un-composed) char rather than the macOS-composed glyph. Runs
+        // AFTER the special-key check so arrows / fn keys keep their ANSI
+        // sequences (and `metaCharacters` also rejects the function-key
+        // private-use range as defense-in-depth). The caller (keyDown)
+        // must have bypassed the IME so we never see the composed glyph.
+        if let meta = metaCharacters(
+            base: event.charactersIgnoringModifiers,
+            modifiers: event.modifierFlags,
+            optionAsMeta: optionAsMeta)
+        {
+            return makeKeyInputEvent(
+                characters: meta,
+                keycode: event.keyCode,
+                modifiers: event.modifierFlags)
+        }
         return makeKeyInputEvent(
             characters: chars,
             keycode: event.keyCode,
             modifiers: event.modifierFlags)
+    }
+
+    /// Option-as-meta byte decision, factored out as a pure function over
+    /// `(base, modifiers, optionAsMeta)` so it's unit-testable without the
+    /// headless-fragile `NSEvent` factory (see file header). `base` is
+    /// `NSEvent.charactersIgnoringModifiers` — the layout char the key
+    /// would type *without* Option, so Shift+Option+b → "B" → `ESC B`
+    /// (readline M-B), matching what readline / emacs / zsh expect.
+    ///
+    /// Returns `ESC + base` only when: the preference is on, Option is
+    /// held, Control/Command are NOT (those carry their own terminal
+    /// semantics), and `base`'s first scalar is a printable, non-DEL
+    /// character outside the `0xF700…0xF8FF` AppKit function-key
+    /// private-use range (arrows, F-keys, Home/End/PageUp report codes
+    /// there and must keep their CSI/SS3 sequences). `nil` otherwise —
+    /// the caller falls back to the normal (composed) character.
+    static func metaCharacters(
+        base: String?,
+        modifiers: NSEvent.ModifierFlags,
+        optionAsMeta: Bool
+    ) -> String? {
+        guard optionAsMeta else { return nil }
+        let mods = modifiers.intersection(.deviceIndependentFlagsMask)
+        guard mods.contains(.option),
+            !mods.contains(.control),
+            !mods.contains(.command),
+            let base,
+            let scalar = base.unicodeScalars.first,
+            scalar.value >= 0x20,
+            scalar.value != 0x7F,
+            !(0xF700...0xF8FF).contains(scalar.value)
+        else { return nil }
+        return "\u{1B}" + base
     }
 
     /// Translate special keycodes to the ANSI escape sequence the PTY

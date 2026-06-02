@@ -513,6 +513,34 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
             }
         }
 
+        // Option-as-meta: when the preference is on and Option is held on
+        // a printable key, bypass the IME entirely (it would otherwise
+        // compose é/∑/… via insertText) and direct-send ESC+<base char>
+        // so readline / emacs / zsh Meta bindings (M-b, M-f, M-d) work.
+        // `metaCharacters` returns nil for non-Option / Control+Option /
+        // Command+Option / special-key (arrow, fn, Delete) events, so
+        // those fall through to the normal IME + encode path below. Skip
+        // while composing (`hasMarkedText`) so we never interrupt an
+        // in-flight Thai/CJK preedit. Sits after the scroll-snap block so
+        // Option+key still snaps a scrolled-back viewport, matching typing.
+        if TerminalInputSettings.optionAsMeta,
+            !hasMarkedText(),
+            let session = renderer.session,
+            InputEventEncoder.metaCharacters(
+                base: event.charactersIgnoringModifiers,
+                modifiers: event.modifierFlags,
+                optionAsMeta: true) != nil
+        {
+            session.send_input(
+                InputEventEncoder.encode(
+                    event,
+                    kittyFlags: session.kitty_keyboard_flags(),
+                    appCursor: session.app_cursor_active(),
+                    optionAsMeta: true))
+            renderer.recordKeystroke(eventTimestamp: event.timestamp)
+            return
+        }
+
         // Discard handleEvent's return value — see method-level comment.
         // NSTextInputContext semantics make it unreliable for the gate.
         _ = inputContext?.handleEvent(event)
@@ -2086,6 +2114,35 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
             hoveredPath = nil
             NSCursor.pointingHand.set()
             return
+        }
+
+        // No OSC 8 here — fall back to detecting a plain URL or an
+        // existing file path in the row's text, gated on the user's
+        // "Detect file paths under the cursor" toggle (default on; the
+        // key is unset until first changed, so treat nil as true). URLs
+        // land in `hoveredHyperlink` (opened via NSWorkspace on ⌘-click),
+        // file paths in `hoveredPath` (opened in the configured editor) —
+        // the same fields the OSC 8 branch and `mouseDown` already use.
+        let detectionEnabled =
+            UserDefaults.standard.object(forKey: AppearanceTab.Keys.detectionEnabled) as? Bool ?? true
+        if detectionEnabled {
+            let rowText = session.row_text(row).toString()
+            if let link = PlainLinkDetector.shared.detect(
+                in: rowText, hoveredCol: Int(col), terminalCols: renderer.viewportCols)
+            {
+                renderer.linkHover = MetalRenderer.LinkHover(
+                    row: Int(row), startCol: link.startCol, span: link.span)
+                switch link.kind {
+                case .url(let url):
+                    hoveredHyperlink = url
+                    hoveredPath = nil
+                case .filePath(let url):
+                    hoveredPath = url
+                    hoveredHyperlink = nil
+                }
+                NSCursor.pointingHand.set()
+                return
+            }
         }
         clearFileClickHover()
     }

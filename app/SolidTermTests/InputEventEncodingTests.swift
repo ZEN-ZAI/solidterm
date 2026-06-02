@@ -317,4 +317,66 @@ final class InputEventEncodingTests: XCTestCase {
                 keyCode: 0x79, modifiers: [], appCursor: true),
             "\u{1B}[6~")
     }
+
+    // MARK: - Option-as-Meta (ESC-prefix)
+
+    func testMetaCharactersEscPrefixesBaseChar() {
+        // Option+b with the pref on → ESC b (readline M-b).
+        XCTAssertEqual(
+            InputEventEncoder.metaCharacters(
+                base: "b", modifiers: .option, optionAsMeta: true),
+            "\u{1B}b")
+    }
+
+    func testMetaCharactersUsesShiftedBase() {
+        // charactersIgnoringModifiers already resolves Shift → "B";
+        // M-B (backward-word) is valid, so Shift+Option+b → ESC B.
+        XCTAssertEqual(
+            InputEventEncoder.metaCharacters(
+                base: "B", modifiers: [.option, .shift], optionAsMeta: true),
+            "\u{1B}B")
+    }
+
+    func testMetaCharactersNilWhenPrefOff() {
+        XCTAssertNil(
+            InputEventEncoder.metaCharacters(
+                base: "b", modifiers: .option, optionAsMeta: false))
+    }
+
+    func testMetaCharactersNilWithoutOption() {
+        XCTAssertNil(
+            InputEventEncoder.metaCharacters(
+                base: "b", modifiers: [], optionAsMeta: true))
+    }
+
+    func testMetaCharactersNilWhenControlOrCommandHeld() {
+        // Control+Option / Command+Option carry their own semantics —
+        // not meta.
+        XCTAssertNil(
+            InputEventEncoder.metaCharacters(
+                base: "b", modifiers: [.option, .control], optionAsMeta: true))
+        XCTAssertNil(
+            InputEventEncoder.metaCharacters(
+                base: "b", modifiers: [.option, .command], optionAsMeta: true))
+    }
+
+    func testMetaCharactersNilForFunctionKeyPrivateUse() {
+        // Arrows / fn keys report NSEvent private-use codepoints
+        // (0xF700+); they must keep CSI/SS3, never become ESC+<pua char>.
+        let up = String(UnicodeScalar(0xF700)!)  // NSUpArrowFunctionKey
+        XCTAssertNil(
+            InputEventEncoder.metaCharacters(
+                base: up, modifiers: .option, optionAsMeta: true))
+    }
+
+    func testMetaCharactersNilForDeleteAndControlChars() {
+        XCTAssertNil(
+            InputEventEncoder.metaCharacters(
+                base: String(UnicodeScalar(0x7F)!),  // DEL
+                modifiers: .option, optionAsMeta: true))
+        XCTAssertNil(
+            InputEventEncoder.metaCharacters(
+                base: String(UnicodeScalar(0x01)!),  // Ctrl-A control char
+                modifiers: .option, optionAsMeta: true))
+    }
 }
