@@ -597,6 +597,46 @@ final class CopyPasteTests: XCTestCase {
         XCTAssertEqual(after.get(index: 3), 4)
     }
 
+    /// Regression: the Copy menu item (and thus the ⌘C key equivalent)
+    /// must validate as ENABLED off the Swift mirror after the engine
+    /// drops its own selection on a TUI repaint. Before the fix,
+    /// `validateMenuItem` checked only `session.selection_span()`, so a
+    /// live TUI (Claude Code) disabled Copy even with a visible highlight
+    /// — ⌘C then fell through to keyDown and typed a literal "c". The
+    /// previous test pins `copy(_:)` itself; this pins the validation
+    /// gate that decides whether ⌘C ever reaches `copy(_:)`.
+    func testCopyMenuItemEnabledFromMirrorAfterEngineClear() throws {
+        let surface = Self.makeSurface()
+        let session = try XCTUnwrap(surface.rendererForTesting.session)
+
+        surface.setPendingSelectionForTesting(
+            startRow: 0, startCol: 0, endRow: 0, endCol: 4)
+        session.clear_selection()
+        XCTAssertEqual(
+            session.selection_span().len(), 0,
+            "precondition: engine selection dropped (TUI-repaint scenario)")
+
+        let copyItem = NSMenuItem(
+            title: "Copy",
+            action: #selector(TerminalSurfaceView.copy(_:)),
+            keyEquivalent: "c")
+        XCTAssertTrue(
+            surface.validateMenuItem(copyItem),
+            "Copy must stay enabled via the mirror so ⌘C copies instead "
+                + "of leaking a literal \"c\" into a live TUI")
+    }
+
+    /// With neither a mirror nor an engine selection, Copy is disabled —
+    /// so ⌘C is a no-op rather than enabling an empty copy.
+    func testCopyMenuItemDisabledWithNoSelection() {
+        let surface = Self.makeSurface()
+        let copyItem = NSMenuItem(
+            title: "Copy",
+            action: #selector(TerminalSurfaceView.copy(_:)),
+            keyEquivalent: "c")
+        XCTAssertFalse(surface.validateMenuItem(copyItem))
+    }
+
     /// Renderer-overlay source-of-truth: when the Swift mirror is set,
     /// `swiftSelectionSpan` returns the 5-element wire-format Vec the
     /// renderer reads in preference to the engine's `selection_span`.

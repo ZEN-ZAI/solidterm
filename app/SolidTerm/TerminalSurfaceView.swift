@@ -546,7 +546,17 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         _ = inputContext?.handleEvent(event)
 
         if !insertTextFiredThisKeyDown && !hasMarkedText() {
-            if let session = renderer.session {
+            if let session = renderer.session,
+                // Command-modified keys are macOS app shortcuts (Copy /
+                // Paste / Find / Select All / …), never terminal input.
+                // If one isn't consumed upstream (e.g. Copy validated as
+                // disabled because the engine selection was cleared by a
+                // TUI repaint), it falls through to here — forwarding it
+                // would leak the bare letter (Cmd+C → "c"). Control /
+                // Option / Shift still reach the PTY (Ctrl-C = SIGINT,
+                // Option-as-Meta, …); only Command is withheld.
+                !event.modifierFlags.contains(.command)
+            {
                 // Pass the live Kitty keyboard flags + DECCKM state so the
                 // encoder can CSI-u-encode modified Enter (Shift+Enter →
                 // \e[13;2u) under kitty mode, and emit SS3 cursor keys
@@ -1501,6 +1511,16 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         let action = menuItem.action
         if action == #selector(copy(_:)) {
+            // Prefer the Swift selection mirror. alacritty clears its own
+            // `Term::selection` on any grid write intersecting the
+            // selection rows, so under a live TUI (which repaints
+            // constantly) the engine span empties almost immediately even
+            // while the highlight is still on screen. `copy(_:)`
+            // re-establishes from the mirror, so the menu item must agree —
+            // otherwise Cmd+C is validated as disabled, the key equivalent
+            // doesn't fire, and the keystroke falls through to `keyDown`,
+            // leaking a literal "c" into the TUI.
+            if swiftSelectionSpan != nil { return true }
             // Empty wire-format Vec means no active selection.
             return (renderer.session?.selection_span().len() ?? 0) > 0
         }
