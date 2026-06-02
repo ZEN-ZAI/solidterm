@@ -52,6 +52,9 @@ struct AppearanceTab: View {
     /// bindings instead of composing accented characters. Default off so
     /// é/∑/… composition is unchanged unless the user opts in.
     @AppStorage(TerminalInputSettings.optionAsMetaKey) private var optionAsMeta: Bool = false
+    /// Reopen windows/tabs on relaunch via NSWindowRestoration. Default
+    /// on (unset reads as ON, matching RestoreSettings.enabled).
+    @AppStorage(RestoreSettings.enabledKey) private var restoreWindows: Bool = true
 
     @ObservedObject private var themeManager = ThemeManager.shared
     @ObservedObject private var fontSettings = FontSettings.shared
@@ -65,6 +68,7 @@ struct AppearanceTab: View {
             filePathSection
             scrollbackSection
             keyboardSection
+            restorationSection
             resetSection
         }
         .formStyle(.grouped)
@@ -84,6 +88,22 @@ struct AppearanceTab: View {
                     + "(e.g. Option+B → ESC B) for readline, emacs, and zsh "
                     + "Meta bindings. When off, Option composes accented "
                     + "characters normally (é, ∑, …).")
+        }
+    }
+
+    // MARK: Window restoration
+
+    private var restorationSection: some View {
+        Section {
+            Toggle("Reopen windows and tabs on relaunch", isOn: $restoreWindows)
+        } header: {
+            Text("Window restoration")
+        } footer: {
+            Text(
+                "When on, SolidTerm reopens your previous windows and tabs "
+                    + "on launch, each shell starting in its last working "
+                    + "directory. Running programs and scrollback are not "
+                    + "restored.")
         }
     }
 

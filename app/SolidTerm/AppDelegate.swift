@@ -17,12 +17,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // so tabs remain accessible — but the user opt-in is now the
         // ONLY path that produces a tab.
         NSWindow.allowsAutomaticWindowTabbing = false
-        openNewWindow()
-        NSApp.activate(ignoringOtherApps: true)
+        // Keep windows on Cmd-Q so NSWindowRestoration reopens the
+        // previous terminals on relaunch regardless of the system "Close
+        // windows when quitting an app" preference. AppKit reads this from
+        // the defaults domain; `register` provides it as a fallback so an
+        // explicit user override still wins. (The Info.plist key isn't a
+        // recognized GENERATE_INFOPLIST_FILE passthrough, so we set it
+        // here instead of in project.yml.)
+        UserDefaults.standard.register(defaults: ["NSQuitAlwaysKeepsWindows": true])
+        // Defer the "open a window" decision one runloop turn. AppKit's
+        // window restoration invokes TerminalWindowRestorer.restoreWindow
+        // around launch, and those controllers register synchronously via
+        // adoptRestoredController. Deferring lets us count restored windows
+        // first and open a fresh one ONLY when nothing was restored —
+        // otherwise every launch would get a spurious extra empty window.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if self.windowControllers.isEmpty {
+                self.openNewWindow()
+            }
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    /// macOS 12+ requires apps to opt into secure state restoration. Our
+    /// restorable state is NSString-only (cwd / title), so it is
+    /// secure-coding-safe.
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+        true
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    /// Dock-icon click / reopen with no visible windows → open one.
+    func applicationShouldHandleReopen(
+        _ sender: NSApplication, hasVisibleWindows flag: Bool
+    ) -> Bool {
+        if !flag, windowControllers.isEmpty {
+            openNewWindow()
+        }
+        return true
+    }
+
+    /// Register a controller created by window restoration so it shares
+    /// the same ownership + `windowWillClose` pruning as ⌘N / ⌘T windows.
+    /// Idempotent. Does NOT `showWindow` — AppKit orders the restored
+    /// window itself once we return it from the restorer.
+    func adoptRestoredController(_ controller: TerminalWindowController) {
+        if !windowControllers.contains(where: { $0 === controller }) {
+            windowControllers.append(controller)
+        }
+        controller.window?.delegate = self
     }
 
     @objc func openNewWindow() {

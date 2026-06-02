@@ -253,6 +253,11 @@ final class MetalRenderer {
     /// re-walking the responder chain. `weak` — the window outlives
     /// the renderer in practice (the controller owns both), but
     /// avoiding a retain cycle is cheap insurance.
+    /// Posted (object = host `NSWindow`) when this renderer's pane cwd
+    /// changes, so `TerminalWindowController` can `invalidateRestorableState`
+    /// and re-capture the working directory for window restoration.
+    static let cwdDidChange = Notification.Name("com.zenzai.SolidTerm.cwdDidChange")
+
     private weak var hostWindow: NSWindow?
 
     /// Cell height in points (logical pixels divided by backing scale).
@@ -1137,6 +1142,12 @@ final class MetalRenderer {
         // dispatch + a String allocation).
         let titleChanged = applyLatestTitleIfAny()
         let cwdChanged = applyLatestCwdIfAny()
+        // Window restoration: a cwd change (OSC 7 or the proc fallback,
+        // including the first one after spawn) invalidates the window's
+        // saved state so a relaunch respawns the shell in the new dir.
+        if cwdChanged, let window = hostWindow {
+            NotificationCenter.default.post(name: Self.cwdDidChange, object: window)
+        }
 
         // I1 bell flash: poll the engine for any bell events that
         // landed since the last tick. Latched in the FFI's

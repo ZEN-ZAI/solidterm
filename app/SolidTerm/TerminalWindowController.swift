@@ -26,7 +26,7 @@ final class TerminalWindowController: NSWindowController, NSMenuItemValidation {
 
     private let wrapper: WindowContentWrapper
 
-    convenience init(initialCwd: String? = nil) {
+    convenience init(initialCwd: String? = nil, restoredTitle: String? = nil) {
         let contentRect = NSRect(
             origin: .zero,
             size: TerminalSurfaceView.gridContentSize(cols: 80, rows: 24))
@@ -57,12 +57,23 @@ final class TerminalWindowController: NSWindowController, NSMenuItemValidation {
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: true)
-        window.title = "SolidTerm"
+        window.title = restoredTitle ?? "SolidTerm"
         window.tabbingMode = .preferred
         window.isReleasedWhenClosed = false
         window.contentView = wrapper
         window.center()
-        window.setFrameAutosaveName("SolidTermMainWindow")
+        // Window restoration: a stable per-window identifier + the shared
+        // restorationClass let AppKit persist this window's frame and tab
+        // membership and re-create it on relaunch (see
+        // WindowRestoration.swift). The shared tabbingIdentifier lets
+        // AppKit re-group windows that were tabs. We deliberately do NOT
+        // setFrameAutosaveName — a single name shared across every window
+        // makes them clobber one frame slot; restoration owns per-window
+        // frames via the identifier.
+        window.identifier = NSUserInterfaceItemIdentifier(
+            "SolidTermTerminal-\(UUID().uuidString)")
+        window.restorationClass = TerminalWindowRestorer.self
+        window.tabbingIdentifier = "SolidTermTerminalTabs"
 
         self.init(
             window: window,
@@ -87,6 +98,49 @@ final class TerminalWindowController: NSWindowController, NSMenuItemValidation {
         self.wrapper = wrapper
         super.init(window: window)
         observeThemeReload()
+        observeCwdChange()
+    }
+
+    /// Window-restoration state. The encoded cwd is captured live via
+    /// `currentCwd()`; `invalidateRestorableState()` is called whenever
+    /// the pane's cwd changes (observed below) so a relaunch respawns in
+    /// the right directory even after a `cd` just before quit/crash.
+    private var cwdChangeObserver: NSObjectProtocol?
+
+    private func observeCwdChange() {
+        cwdChangeObserver = NotificationCenter.default.addObserver(
+            forName: MetalRenderer.cwdDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let self, let window = self.window else { return }
+            // Only react to OUR window's cwd change (object = host window).
+            if (note.object as? NSWindow) === window {
+                window.invalidateRestorableState()
+            }
+        }
+    }
+
+    /// Encode the per-window restorable state: the session's working
+    /// directory (so the restored shell spawns there) + a program-set
+    /// title override. AppKit drives this on quit / periodic save.
+    override func encodeRestorableState(with coder: NSCoder) {
+        super.encodeRestorableState(with: coder)
+        if let cwd = (leadPane.view as? TerminalSurfaceView)?
+            .rendererForTesting.currentCwd(), !cwd.isEmpty
+        {
+            coder.encode(cwd as NSString, forKey: RestoreCoderKeys.cwd)
+        }
+        if let w = window, w.title != "SolidTerm", !w.title.isEmpty {
+            coder.encode(w.title as NSString, forKey: RestoreCoderKeys.titleOverride)
+        }
+    }
+
+    override func restoreState(with coder: NSCoder) {
+        // cwd/title are consumed by TerminalWindowRestorer at window-
+        // creation time; nothing further to restore here. Call super for
+        // any AppKit-managed state.
+        super.restoreState(with: coder)
     }
 
     /// Q3 theme hot-reload toast. Listens for `ThemeFileStore.didChange`
@@ -122,6 +176,15 @@ final class TerminalWindowController: NSWindowController, NSMenuItemValidation {
             label = "Theme: built-in (\(ThemeManager.shared.mode.label))"
         }
         ToastOverlay.shared.show(label, in: window)
+    }
+
+    deinit {
+        if let obs = themeReloadObserver {
+            NotificationCenter.default.removeObserver(obs)
+        }
+        if let obs = cwdChangeObserver {
+            NotificationCenter.default.removeObserver(obs)
+        }
     }
 
     @available(*, unavailable)
