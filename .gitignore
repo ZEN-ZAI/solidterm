@@ -50,3 +50,6 @@ dist/
 
 # Per-teammate worktrees
 .claude/worktrees/
+
+# Playwright MCP scratch (web-driver sandbox; not part of this native app)
+.playwright-mcp/
