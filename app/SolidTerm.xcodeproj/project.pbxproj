@@ -26,6 +26,7 @@
 		389AF065C1B367665973D490 /* FontSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEEDEF47704D4FDA33D6A922 /* FontSettings.swift */; };
 		3FB8A5225E908F81EF2EB6AE /* ThemeTOMLLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C172052716A0A95D3EB3E8A /* ThemeTOMLLoader.swift */; };
 		4B01A0409DCD45E246A21082 /* Themes in Resources */ = {isa = PBXBuildFile; fileRef = 78CBA8FC329051C52C53A906 /* Themes */; };
+		4B8ED2968C249A5E3B29693E /* TerminalSwitcherController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A680DC57DAF2CB49637100B /* TerminalSwitcherController.swift */; };
 		526614FCE376E3E9B1591DE6 /* InputEventEncodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F024D3776FDCB0DEDC721C97 /* InputEventEncodingTests.swift */; };
 		54E53821412DFFC88B48AADD /* solidterm_ffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = E458B4BAB595DF416A87C42D /* solidterm_ffi.swift */; };
 		55B2D56AA318784C08C3CC0C /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 5FF041F6CAF681FC01B8F979 /* Shaders.metal */; };
@@ -54,6 +55,7 @@
 		80239A890B8BC5AC09AB39EB /* FontSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 095EDDA702FC6AC41EF43744 /* FontSettingsTests.swift */; };
 		82E302E1EE1040F473A6E8E8 /* TerminalSurfaceViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA8E89A20C59B13A6302D77 /* TerminalSurfaceViewTests.swift */; };
 		8D1983513D39151550E8FC4F /* FrameDeltaDecoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 922172A9E9573D058C7E632E /* FrameDeltaDecoding.swift */; };
+		8D4A0474020587F249D7ABA1 /* TerminalSwitcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A513745B1EB109DA61D42D /* TerminalSwitcherTests.swift */; };
 		8E101E017F2158A41220D190 /* OverlayPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F543A2506A75348153C361B4 /* OverlayPipelineTests.swift */; };
 		8E6188B5C09E0A3AB9C236C1 /* PaneViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358F0428163C9D26BD46DD74 /* PaneViewController.swift */; };
 		8F5FB8B34A4CB08590F0F6EA /* SearchPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A86146A304300689E08C46A5 /* SearchPanelView.swift */; };
@@ -67,6 +69,7 @@
 		B56BDE998055F2BE1B27EE1F /* CopyPasteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC2D9B931F329D2396842F51 /* CopyPasteTests.swift */; };
 		B6E9AE61C5B4C857D75B87F9 /* ThemeModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 457E17220393B266698D1779 /* ThemeModeTests.swift */; };
 		B7D1C79CA79D840FA095D2E3 /* GridPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A025AE864143B49B3525FB78 /* GridPipeline.swift */; };
+		B9503D2A34480D4786807AC5 /* TerminalSwitcherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E97C53D1DDD6ABFBD6428A /* TerminalSwitcherView.swift */; };
 		C0DEBD028E4D5251E65610B2 /* SearchMatchDecoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4264D169B3B28ED50F218C1C /* SearchMatchDecoding.swift */; };
 		C3B1623B31DE1CAE63CAF483 /* WindowRestoration.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6935E99F77F33F2A86C6226 /* WindowRestoration.swift */; };
 		CF316640119CDA3ED76ECD8C /* WindowChromeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D58AAFDA47AEB2FF44AEDB3 /* WindowChromeTests.swift */; };
@@ -109,6 +112,7 @@
 		0FBA59483CBF79E90D753DA6 /* FFIRoundTripTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFIRoundTripTests.swift; sourceTree = "<group>"; };
 		11F779319E010C38FE96F9C0 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		17F80BE14C89277D4C8613F7 /* TerminalWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalWindowController.swift; sourceTree = "<group>"; };
+		1A680DC57DAF2CB49637100B /* TerminalSwitcherController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSwitcherController.swift; sourceTree = "<group>"; };
 		1E21F21BF613B7255A284B2E /* TerminalSurfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSurfaceView.swift; sourceTree = "<group>"; };
 		20FB2D7C48C2493FE6513F00 /* GridPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridPipelineTests.swift; sourceTree = "<group>"; };
 		22115104B622284C62B2A116 /* SolidTermTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SolidTermTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -133,6 +137,8 @@
 		47204B623B520FC856F2165D /* MouseReportingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MouseReportingTests.swift; sourceTree = "<group>"; };
 		4DE2F87B2E6955D67755FDCC /* SwiftBridgeCore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SwiftBridgeCore.h; sourceTree = "<group>"; };
 		50509C430330E34EA76D7F88 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		51A513745B1EB109DA61D42D /* TerminalSwitcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSwitcherTests.swift; sourceTree = "<group>"; };
+		52E97C53D1DDD6ABFBD6428A /* TerminalSwitcherView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSwitcherView.swift; sourceTree = "<group>"; };
 		5441F501436CA50DD315F00D /* SearchPanelE2ETests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchPanelE2ETests.swift; sourceTree = "<group>"; };
 		55C6DE6FF2F555C1362C68E8 /* SolidTerm-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "SolidTerm-Bridging-Header.h"; sourceTree = "<group>"; };
 		5868BBFE8DAD69E3F57DE0F9 /* CellPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CellPipeline.swift; sourceTree = "<group>"; };
@@ -270,6 +276,7 @@
 				E3D9BB476E5E7C5CC5D47E5F /* TabsE2ETests.swift */,
 				466A1A62AFC333A4BB980AC7 /* TerminalSessionLifecycleTests.swift */,
 				FFA8E89A20C59B13A6302D77 /* TerminalSurfaceViewTests.swift */,
+				51A513745B1EB109DA61D42D /* TerminalSwitcherTests.swift */,
 				B4737C57E0719A5C0C48C257 /* ThaiBackspaceTests.swift */,
 				457E17220393B266698D1779 /* ThemeModeTests.swift */,
 				2E060FD9B450126FEAD7CA51 /* ThemeSwitchE2ETests.swift */,
@@ -315,6 +322,8 @@
 				305A624CBCB434FA3DF1D616 /* SolidTermApp.swift */,
 				66A058424FB624B3EA4E7F7B /* TerminalInputSettings.swift */,
 				1E21F21BF613B7255A284B2E /* TerminalSurfaceView.swift */,
+				1A680DC57DAF2CB49637100B /* TerminalSwitcherController.swift */,
+				52E97C53D1DDD6ABFBD6428A /* TerminalSwitcherView.swift */,
 				17F80BE14C89277D4C8613F7 /* TerminalWindowController.swift */,
 				11F779319E010C38FE96F9C0 /* Theme.swift */,
 				9C172052716A0A95D3EB3E8A /* ThemeTOMLLoader.swift */,
@@ -502,6 +511,8 @@
 				9D6A991FF2089CF7F036F23A /* SwiftBridgeCore.swift in Sources */,
 				1F9ADAA4F102B5468A5C498A /* TerminalInputSettings.swift in Sources */,
 				F721F5F5B4295F5A5979ED82 /* TerminalSurfaceView.swift in Sources */,
+				4B8ED2968C249A5E3B29693E /* TerminalSwitcherController.swift in Sources */,
+				B9503D2A34480D4786807AC5 /* TerminalSwitcherView.swift in Sources */,
 				36E52D18F5F1FA35788777F1 /* TerminalWindowController.swift in Sources */,
 				FB16DAEBF1DDB107327A39CC /* Theme.swift in Sources */,
 				3FB8A5225E908F81EF2EB6AE /* ThemeTOMLLoader.swift in Sources */,
@@ -543,6 +554,7 @@
 				59C96350A922FF9FB746AB30 /* TabsE2ETests.swift in Sources */,
 				F9BE37A92BAB6CC60D26C622 /* TerminalSessionLifecycleTests.swift in Sources */,
 				82E302E1EE1040F473A6E8E8 /* TerminalSurfaceViewTests.swift in Sources */,
+				8D4A0474020587F249D7ABA1 /* TerminalSwitcherTests.swift in Sources */,
 				D6904C6AE2AD20026FFC255F /* ThaiBackspaceTests.swift in Sources */,
 				B6E9AE61C5B4C857D75B87F9 /* ThemeModeTests.swift in Sources */,
 				7B204C382B5DF775A1CCBA62 /* ThemeSwitchE2ETests.swift in Sources */,

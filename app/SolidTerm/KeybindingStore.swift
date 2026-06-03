@@ -150,6 +150,10 @@ public final class KeybindingStore: ObservableObject {
         .selectTab8: "cmd+8",
         .selectTab9: "cmd+9",
         .openFindBar: "cmd+f",
+        // ⌘⇧O — fuzzy terminal switcher. Free key (the VS Code
+        // "go to symbol" convention for a fuzzy picker); no collision
+        // with the ⌘N/T/W/F or ⌘1-9 / ⌘⇧[ ⌘⇧] tab bindings.
+        .switchTerminal: "cmd+shift+o",
         // Rarely invoked — bound to an obscure chord rather than a
         // muscle-memory hotkey.
         .installShellIntegration: "ctrl+alt+i",

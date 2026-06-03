@@ -208,6 +208,25 @@ final class TerminalWindowController: NSWindowController, NSMenuItemValidation {
         return true
     }
 
+    /// (title, cwd) snapshot for a terminal-switcher row. Title is the
+    /// live window title (OSC 2 set-title, or cwd basename); cwd is the
+    /// lead pane's current working directory (OSC 7, with a proc_pidinfo
+    /// fallback). Read synchronously on the main thread — both are kept
+    /// fresh by the renderer's display-link loop.
+    var switcherSnapshot: (title: String, cwd: String) {
+        let title = window?.title ?? "SolidTerm"
+        let cwd =
+            (leadPane.view as? TerminalSurfaceView)?
+            .rendererForTesting.currentCwd() ?? ""
+        return (title, cwd)
+    }
+
+    /// ⌘⇧O — present the app-global fuzzy terminal switcher, anchored on
+    /// this window. The switcher itself is a singleton spanning all windows.
+    @objc public func toggleTerminalSwitcher(_ sender: Any?) {
+        TerminalSwitcherController.shared.toggle(anchor: window)
+    }
+
     @objc public func toggleFindBar(_ sender: Any?) {
         let controller = ensureSearchPanelController()
         let surface = leadPane.view as? TerminalSurfaceView
@@ -260,6 +279,8 @@ final class TerminalWindowController: NSWindowController, NSMenuItemValidation {
             }
         case .openFindBar:
             toggleFindBar(nil)
+        case .switchTerminal:
+            toggleTerminalSwitcher(nil)
         case .installShellIntegration:
             ShellIntegrationInstaller.install()
         }

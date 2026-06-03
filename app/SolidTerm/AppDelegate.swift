@@ -7,6 +7,11 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowControllers: [TerminalWindowController] = []
 
+    /// Every live terminal window controller — one per window AND per
+    /// native tab (each tab is its own controller). The terminal switcher
+    /// (⌘⇧O) reads this to enumerate every open terminal as a flat list.
+    var allWindowControllers: [TerminalWindowController] { windowControllers }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppMenu.install()
         // ⌘N must always create a standalone window. AppKit's automatic

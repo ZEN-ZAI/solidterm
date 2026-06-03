@@ -248,6 +248,15 @@ enum AppMenu {
                 binding: binding)
         }
         menu.addItem(.separator())
+        // ⌘⇧O — fuzzy switcher across every open terminal (all windows +
+        // tabs). Window-local selector; the controller it reaches is an
+        // app-global singleton.
+        addItem(
+            in: menu, title: "Switch Terminal…",
+            action: #selector(
+                TerminalWindowController.toggleTerminalSwitcher(_:)),
+            binding: .switchTerminal)
+        menu.addItem(.separator())
         menu.addItem(
             withTitle: "Bring All to Front",
             action: #selector(NSApplication.arrangeInFront(_:)),

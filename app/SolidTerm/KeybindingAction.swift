@@ -35,6 +35,7 @@ public enum KeybindingAction: String, CaseIterable, Hashable {
     case selectTab8
     case selectTab9
     case openFindBar
+    case switchTerminal
     case installShellIntegration
 
     /// User-facing label rendered in menus and the keybindings tab.
@@ -60,6 +61,7 @@ public enum KeybindingAction: String, CaseIterable, Hashable {
         case .selectTab8: return "Select Tab 8"
         case .selectTab9: return "Select Tab 9"
         case .openFindBar: return "Find…"
+        case .switchTerminal: return "Switch Terminal…"
         case .installShellIntegration: return "Install Shell Integration…"
         }
     }
@@ -88,6 +90,7 @@ public enum KeybindingAction: String, CaseIterable, Hashable {
         case .selectTab8: return "⌘8"
         case .selectTab9: return "⌘9"
         case .openFindBar: return "⌘F"
+        case .switchTerminal: return "⌘⇧O"
         case .installShellIntegration: return ""
         }
     }
@@ -114,6 +117,11 @@ public enum KeybindingAction: String, CaseIterable, Hashable {
         case .selectTab8: return ["tab", "8", "select"]
         case .selectTab9: return ["tab", "9", "select"]
         case .openFindBar: return ["find", "search", "scrollback", "grep"]
+        case .switchTerminal:
+            return [
+                "switch", "terminal", "window", "tab", "jump", "go",
+                "picker", "palette", "fuzzy",
+            ]
         case .installShellIntegration:
             return [
                 "shell", "integration", "install", "osc 133", "zsh", "bash",
@@ -156,7 +164,7 @@ public enum KeybindingAction: String, CaseIterable, Hashable {
     public var category: Category {
         switch self {
         case .openSettings: return .app
-        case .newWindow, .closeWindow: return .window
+        case .newWindow, .closeWindow, .switchTerminal: return .window
         case .newTab, .closeTab, .prevTab, .nextTab,
              .selectTab1, .selectTab2, .selectTab3,
              .selectTab4, .selectTab5, .selectTab6,
