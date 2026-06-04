@@ -307,6 +307,25 @@ impl OscPerform {
             );
         }
     }
+
+    /// `CSI > Ps q` — XTVERSION terminal-identification request. Reply is
+    /// the DCS form `DCS > | <name> <version> ST` (`\x1bP>|…\x1b\\`).
+    /// alacritty 0.26 does not implement XTVERSION (no `Handler` method;
+    /// vte's default is a no-op), so the sibling parser answers it — modern
+    /// terminals (Ghostty, kitty, WezTerm, xterm) all reply, and TUIs use
+    /// the reply to identify the terminal and unlock capabilities (notably
+    /// Claude Code, which withholds its truecolor input gradient from
+    /// terminals that don't answer this probe — env `TERM_PROGRAM` /
+    /// `COLORTERM` alone don't satisfy it).
+    ///
+    /// Reports `SolidTerm <version>`. The Ps parameter (0) is ignored; we
+    /// always answer.
+    fn handle_xtversion_query(&self) {
+        let reply = format!("\x1bP>|SolidTerm {}\x1b\\", env!("CARGO_PKG_VERSION"));
+        if self.pty_responses.send(reply).is_err() {
+            tracing::warn!("OscPerform: pty_responses channel closed; dropping XTVERSION reply");
+        }
+    }
 }
 
 impl vte::Perform for OscPerform {
@@ -370,6 +389,15 @@ impl vte::Perform for OscPerform {
         _ignore: bool,
         action: char,
     ) {
+        // `CSI > Ps q` — XTVERSION terminal-identification request.
+        // alacritty 0.26 leaves it unhandled (no XTVERSION support), so we
+        // answer it in the sibling parser, same rationale as
+        // modifyOtherKeys below.
+        if action == 'q' && intermediates == b">" {
+            self.handle_xtversion_query();
+            return;
+        }
+
         // Two relevant forms only:
         //   `CSI > 4 ; level m`  → set    (intermediates = b">")
         //   `CSI ? 4 m`           → query  (intermediates = b"?")
@@ -522,6 +550,26 @@ mod tests {
         let mut parser = vte::Parser::new();
         vte::Parser::advance(&mut parser, &mut perform, bytes);
         perform.modify_other_keys_level()
+    }
+
+    /// `CSI > 0 q` (XTVERSION) replies with the DCS `>| <name> <ver> ST`
+    /// form, defaulting the name to "SolidTerm".
+    #[test]
+    fn xtversion_query_replies_with_terminal_name() {
+        let (_events, replies) = drive_with_pty(b"\x1b[>0q");
+        assert_eq!(replies.len(), 1, "exactly one XTVERSION reply");
+        let r = &replies[0];
+        assert!(r.starts_with("\x1bP>|SolidTerm "), "DCS>| <name> prefix, got {r:?}");
+        assert!(r.ends_with("\x1b\\"), "ST-terminated, got {r:?}");
+    }
+
+    /// `CSI > q` with the Ps parameter omitted is still XTVERSION — we
+    /// answer regardless of Ps.
+    #[test]
+    fn xtversion_query_without_param_also_replies() {
+        let (_events, replies) = drive_with_pty(b"\x1b[>q");
+        assert_eq!(replies.len(), 1);
+        assert!(replies[0].starts_with("\x1bP>|SolidTerm "));
     }
 
     /// OSC 133 ; A — emits `PromptStart`. ST-terminated form

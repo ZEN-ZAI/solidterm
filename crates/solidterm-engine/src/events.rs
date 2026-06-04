@@ -393,6 +393,19 @@ impl EventListener for EventProxy {
             // borrow. Decoupling via the channel lets the writer
             // claim the borrow exclusively in `poll_output`.
             AlacrittyEvent::PtyWrite(reply) => {
+                // alacritty's `Term` answers primary DA (`CSI c`) with the
+                // bare VT102 attributes `\x1b[?6c`, which advertises NO
+                // color. Capability-probing apps can downgrade a terminal
+                // that identifies as a featureless VT102. Rewrite it to
+                // `\x1b[?62;22c` — VT220 conformance (62) + ANSI color (22)
+                // — which honestly describes SolidTerm: it IS a 24-bit
+                // color terminal. Every other PtyWrite (e.g. the XTWINOPS
+                // `\x1b[8;rows;cols t` size reply) passes through verbatim.
+                let reply = if reply == "\x1b[?6c" {
+                    String::from("\x1b[?62;22c")
+                } else {
+                    reply
+                };
                 if self.pty_responses.send(reply).is_err() {
                     tracing::warn!(
                         "EventProxy: pty_responses channel closed; dropping PtyWrite reply"
@@ -518,6 +531,25 @@ mod tests {
             Some("\x1b[8;24;80t".to_string()),
             "PtyWrite payload must land on pty_responses verbatim",
         );
+    }
+
+    #[test]
+    fn proxy_rewrites_bare_da1_to_advertise_color() {
+        // alacritty answers DA1 with the bare VT102 `\x1b[?6c` (no color).
+        // EventProxy rewrites it to `\x1b[?62;22c` (VT220 + ANSI color) so
+        // probing apps don't treat SolidTerm as a featureless mono terminal.
+        let (proxy, _events_rx, pty_rx) = proxy_for_event_tests();
+        proxy.send_event(AlacrittyEvent::PtyWrite("\x1b[?6c".to_string()));
+        assert_eq!(pty_rx.try_recv().ok(), Some("\x1b[?62;22c".to_string()));
+    }
+
+    #[test]
+    fn proxy_passes_through_non_da1_pty_writes_unchanged() {
+        // Only the exact bare-DA1 string is rewritten; every other reply
+        // (e.g. the XTWINOPS size report) is forwarded verbatim.
+        let (proxy, _events_rx, pty_rx) = proxy_for_event_tests();
+        proxy.send_event(AlacrittyEvent::PtyWrite("\x1b[8;24;80t".to_string()));
+        assert_eq!(pty_rx.try_recv().ok(), Some("\x1b[8;24;80t".to_string()));
     }
 
     #[test]
