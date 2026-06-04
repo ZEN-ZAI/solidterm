@@ -442,6 +442,7 @@
 /* Begin PBXShellScriptBuildPhase section */
 		3CC13277CFE8CA25942F343D /* Build Rust core */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);

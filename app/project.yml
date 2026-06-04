@@ -135,7 +135,14 @@ targets:
           - $(SRCROOT)/SolidTerm/Generated/SwiftBridgeCore.h
           - $(SRCROOT)/SolidTerm/Generated/solidterm_ffi.swift
           - $(SRCROOT)/SolidTerm/Generated/solidterm_ffi.h
-        basedOnDependencyAnalysis: true
+        # Always run. inputFiles listed only the solidterm-ffi crate, so a
+        # change in solidterm-engine / solidterm-config did NOT invalidate
+        # the script and Xcode bound against a STALE libsolidterm_ffi.a
+        # (engine-only edits — DA1/XTVERSION, OSC routing — silently never
+        # shipped). Enumerating every workspace source is fragile; instead
+        # always invoke build-rust.sh and let cargo's own incremental
+        # dependency tracking decide (a no-op rebuild is ~1-2s).
+        basedOnDependencyAnalysis: false
     dependencies:
       - framework: libsolidterm_ffi.a
         embed: false
