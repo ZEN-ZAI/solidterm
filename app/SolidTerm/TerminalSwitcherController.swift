@@ -107,12 +107,30 @@ final class TerminalSwitcherController: NSObject {
                 p?.alphaValue = 1
                 self.isDismissing = false
                 self.model.entries = []  // release window references
+                self.restoreFocusToTerminal()
             })
         } else {
             p.orderOut(nil)
             p.alphaValue = 1
             isDismissing = false
             model.entries = []
+            restoreFocusToTerminal()
+        }
+    }
+
+    /// Re-key the anchor window after the panel orders out. A
+    /// `.nonactivatingPanel` does not reliably hand key status back to the
+    /// window it floated over, leaving the app with no key window and a
+    /// dead keyboard (⌘F, ⌘V, typing) — the same defect fixed on
+    /// `SearchPanelController.restoreFocusToTerminal`. Guarded so an
+    /// app-switch dismissal doesn't yank focus back. `activate(_:)`
+    /// re-keys its chosen window right after its `dismiss(animated:false)`
+    /// returns, so this call is harmlessly overridden in that path.
+    private func restoreFocusToTerminal() {
+        guard NSApp.isActive, let anchor else { return }
+        let key = NSApp.keyWindow
+        if key == nil || key === panel {
+            anchor.makeKey()
         }
     }
 

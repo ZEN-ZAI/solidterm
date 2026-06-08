@@ -121,6 +121,58 @@ final class SearchPanelE2ETests: XCTestCase {
         RunLoop.current.run(until: Date().addingTimeInterval(0.2))
     }
 
+    /// Regression: ⌘F worked once, then the keyboard went dead — every
+    /// shortcut (⌘F, ⌘V) and plain typing stopped responding — because
+    /// the `.nonactivatingPanel` grabbed key on present but did NOT hand
+    /// it back to the terminal window on dismiss, leaving the app with no
+    /// key window. The fix re-keys the anchor in `dismiss`.
+    ///
+    /// Live key-window status needs a real window server, which the
+    /// headless test host doesn't always provide; the existing key tests
+    /// hedge with `|| canBecomeKey` for the same reason. So this test
+    /// `XCTSkip`s whenever it can't actually establish the precondition
+    /// (anchor key → panel steals it), and only asserts the restore on a
+    /// host where the scenario genuinely reproduces.
+    func testDismissReturnsKeyToAnchorWindow() throws {
+        let anchor = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.titled, .closable],
+            backing: .buffered, defer: false)
+        anchor.makeKeyAndOrderFront(nil)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        try XCTSkipUnless(
+            anchor.isKeyWindow,
+            "test host doesn't grant live key-window status — can't set up the repro")
+        defer { anchor.orderOut(nil) }
+
+        let controller = SearchPanelController()
+        controller.attach(to: anchor)
+
+        controller.toggle()  // present — panel grabs key from the anchor
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        guard let panel = controller.panelForTest else {
+            return XCTFail("panel not constructed")
+        }
+        try XCTSkipUnless(
+            panel.isKeyWindow,
+            "panel didn't take key on this host — scenario not reproduced")
+        XCTAssertFalse(
+            anchor.isKeyWindow,
+            "precondition: the panel holds key while the find bar is up")
+
+        controller.toggle()  // dismiss
+        // Past the fade-out + its completion handler (motion-fast ~100 ms).
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+
+        XCTAssertFalse(controller.isVisible)
+        XCTAssertFalse(
+            panel.isKeyWindow,
+            "the hidden panel must not retain key after dismiss")
+        XCTAssertTrue(
+            anchor.isKeyWindow,
+            "key must return to the terminal window so ⌘F / ⌘V / typing work again")
+    }
+
     func testCounterTextFormat() {
         let model = SearchPanelModel()
         XCTAssertEqual(model.counterText, "")

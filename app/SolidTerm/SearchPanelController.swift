@@ -170,11 +170,40 @@ public final class SearchPanelController: NSObject {
                 p?.orderOut(nil)
                 p?.alphaValue = 1
                 self.isDismissing = false
+                self.restoreFocusToTerminal()
             })
         } else {
             p.orderOut(nil)
             p.alphaValue = 1
             isDismissing = false
+            restoreFocusToTerminal()
+        }
+    }
+
+    /// Hand key status + first responder back to the terminal window the
+    /// panel floated over. A `.nonactivatingPanel` grabs key on present
+    /// (`canBecomeKey == true`) but, on `orderOut`, AppKit does NOT
+    /// reliably restore key to the window underneath — it can leave the
+    /// app with NO key window, which silently kills every keyboard path
+    /// (⌘F, ⌘V, plain typing) until another window is clicked. That's the
+    /// "find works once then the keyboard is dead" defect. Re-key the
+    /// anchor explicitly.
+    ///
+    /// Guarded so an app-switch dismissal — the user clicks another app,
+    /// the panel resigns key, `windowDidResignKey` fires `dismiss` — does
+    /// NOT yank focus back into our app: only reclaim when our app is
+    /// still active and nothing other than the (now-hidden) panel holds
+    /// key. The terminal window keeps its own first responder across a
+    /// key loss, so `makeFirstResponder` is belt-and-suspenders for the
+    /// rare case it was cleared.
+    private func restoreFocusToTerminal() {
+        guard NSApp.isActive, let anchor else { return }
+        let key = NSApp.keyWindow
+        if key == nil || key === panel {
+            anchor.makeKey()
+        }
+        if let surface, anchor.firstResponder !== surface {
+            anchor.makeFirstResponder(surface)
         }
     }
 
