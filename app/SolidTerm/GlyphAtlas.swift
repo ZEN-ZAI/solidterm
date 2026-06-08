@@ -587,6 +587,58 @@ final class GlyphAtlas {
         return hash
     }
 
+    /// Uniform downscale factor (≤ 1) so a shaped `CTLine`'s ink fits a
+    /// `boxWidthPt × boxHeightPt` cell box when drawn at baseline
+    /// `descent` (point space, pen origin x=0). Mirrors `fitScale` for
+    /// the single-glyph paths but measures via `CTLineGetImageBounds`
+    /// because a CTLine's per-run fonts can't be resized individually.
+    ///
+    /// `CTLineGetImageBounds` returns the ink rect relative to the line
+    /// origin (pen at the baseline), so once the line is drawn at
+    /// `textPosition = (0, descent)` the absolute ink Y spans
+    /// `[descent + minY, descent + maxY]` and X spans `[minX, maxX]`.
+    /// The box is `[0, boxWidthPt] × [0, boxHeightPt]`. Scaling about the
+    /// origin keeps the left edge pinned at x=0 (ADR-19). Returns 1.0
+    /// when the line already fits.
+    private static func clusterFitScale(
+        line: CTLine,
+        ctx: CGContext,
+        descent: CGFloat,
+        boxWidthPt: CGFloat,
+        boxHeightPt: CGFloat
+    ) -> CGFloat {
+        let ink = CTLineGetImageBounds(line, ctx)
+        guard !ink.isNull, ink.width > 0 || ink.height > 0 else {
+            return 1.0
+        }
+        var scale: CGFloat = 1.0
+        // Horizontal: ink right edge past the box. (minX is ~0 for
+        // left-aligned terminal clusters; a negative minX would be folded
+        // in by the width check below.)
+        let inkRight = max(ink.maxX, ink.maxX - min(ink.minX, 0))
+        if inkRight > boxWidthPt, inkRight > 0 {
+            scale = min(scale, boxWidthPt / inkRight)
+        }
+        // Vertical: ink top above the box ceiling (descent + maxY) and
+        // ink bottom below the floor (descent + minY < 0). The pivot is
+        // the origin, so both ends scale toward it proportionally.
+        let inkTop = descent + ink.maxY
+        if inkTop > boxHeightPt, inkTop > 0 {
+            scale = min(scale, boxHeightPt / inkTop)
+        }
+        let inkBottom = descent + ink.minY
+        if inkBottom < 0, descent > 0 {
+            // Need (descent + minY) * s >= 0 isn't achievable by scaling
+            // about the origin when minY < -descent; instead bound the
+            // total vertical extent to the box so nothing clips.
+            let inkHeight = inkTop - inkBottom
+            if inkHeight > boxHeightPt, inkHeight > 0 {
+                scale = min(scale, boxHeightPt / inkHeight)
+            }
+        }
+        return scale
+    }
+
     /// Grayscale cluster path. Color emoji clusters go through
     /// `rasterizeColorCluster` instead — caller (`entry(forCluster:)`)
     /// dispatches based on `clusterCoveringFont` color-font check.
@@ -604,6 +656,8 @@ final class GlyphAtlas {
         let heightPx = Int(cellSizePx.y)
         var bitmap = [UInt8](repeating: 0, count: widthPx * heightPx)
 
+        let boxWidthPt = CGFloat(widthPx) / contentsScale
+        let boxHeightPt = CGFloat(heightPx) / contentsScale
         let success: Bool = bitmap.withUnsafeMutableBytes { ptr -> Bool in
             guard let base = ptr.baseAddress,
                 let ctx = CGContext(
@@ -628,6 +682,17 @@ final class GlyphAtlas {
                 string: cluster, attributes: attrs)
             let line = CTLineCreateWithAttributedString(attrString)
             let descent = CTFontGetDescent(coveringFont)
+            // Fit-to-box for clusters: a CTLine's per-run fonts can't be
+            // resized individually, so measure the rendered ink and
+            // scale the whole line uniformly about the origin (left edge
+            // pinned at x=0 per ADR-19) so tall/wide fallback clusters
+            // don't clip. baseline=descent is in the same point space, so
+            // it scales with the line. A cluster already inside the box
+            // gets scale==1.0 → unchanged.
+            let fit = Self.clusterFitScale(
+                line: line, ctx: ctx, descent: descent,
+                boxWidthPt: boxWidthPt, boxHeightPt: boxHeightPt)
+            if fit < 1.0 { ctx.scaleBy(x: fit, y: fit) }
             ctx.textPosition = CGPoint(x: 0, y: descent)
             CTLineDraw(line, ctx)
             return true
@@ -658,6 +723,8 @@ final class GlyphAtlas {
         let bytesPerRow = widthPx * 4
         var bytes = [UInt8](repeating: 0, count: bytesPerRow * heightPx)
 
+        let boxWidthPt = CGFloat(widthPx) / contentsScale
+        let boxHeightPt = CGFloat(heightPx) / contentsScale
         let drew: Bool = bytes.withUnsafeMutableBytes { ptr -> Bool in
             guard let base = ptr.baseAddress,
                 let ctx = CGContext(
@@ -679,6 +746,13 @@ final class GlyphAtlas {
                 string: cluster, attributes: attrs)
             let line = CTLineCreateWithAttributedString(attrString)
             let descent = CTFontGetDescent(coveringFont)
+            // Fit-to-box for color clusters (flag pairs, ZWJ-spill emoji)
+            // — same uniform-scale-about-origin approach as the gray
+            // cluster path; left edge pinned at x=0 (ADR-19).
+            let fit = Self.clusterFitScale(
+                line: line, ctx: ctx, descent: descent,
+                boxWidthPt: boxWidthPt, boxHeightPt: boxHeightPt)
+            if fit < 1.0 { ctx.scaleBy(x: fit, y: fit) }
             ctx.textPosition = CGPoint(x: 0, y: descent)
             CTLineDraw(line, ctx)
             return true
@@ -701,6 +775,19 @@ final class GlyphAtlas {
     /// cluster atlas entry caches the rasterized result so each unique
     /// cluster pays it exactly once.
     private func clusterCoveringFont(for cluster: String) -> CTFont {
+        // A LONE emoji-presentation-default scalar (⚡ U+26A1 — EAW=Wide,
+        // so the engine reports width 2 and it arrives here as a 1-scalar
+        // "cluster") must resolve to the color face, not via
+        // CTFontCreateForStringWithLanguage which returns the monospace
+        // primary font because it already covers the codepoint. The
+        // `count == 1` guard is load-bearing: a multi-scalar `⚡︎` (VS15
+        // text request) or `⚠️` (VS16 emoji request) keeps the standard
+        // covering-font resolution, so both variation-selector overrides
+        // stay correct.
+        let scalars = Array(cluster.unicodeScalars)
+        if scalars.count == 1, Self.prefersColorPresentation(scalars[0]) {
+            return emojiPresentationFont
+        }
         let cf = cluster as CFString
         let length = CFStringGetLength(cf)
         guard length > 0 else { return self.font }
@@ -775,6 +862,37 @@ final class GlyphAtlas {
         let raster = try rasterizeCluster(
             cluster: cluster, coveringFont: coveringFont)
         return (raster.bitmap, raster.widthPx, raster.heightPx)
+    }
+
+    /// Test-only: rasterize a single glyph for `scalar` resolved through
+    /// the normal fallback cascade and return the raw grayscale bitmap
+    /// (no atlas upload, no caching). Lets the fit-to-box regression
+    /// test sample pixel coverage at the right/top edge to assert a
+    /// wide/tall fallback glyph is shrunk to fit instead of clipped.
+    func _testRasterizeGlyphBitmap(
+        _ scalar: Unicode.Scalar
+    ) throws -> (bitmap: [UInt8], widthPx: Int, heightPx: Int) {
+        let (glyphId, resolvedFont) = try resolveGlyph(for: scalar)
+        let raster = try rasterize(glyphId: glyphId, font: resolvedFont)
+        return (raster.bitmap, raster.widthPx, raster.heightPx)
+    }
+
+    /// Test-only: bounding-rect (in points) of `scalar`'s resolved glyph
+    /// in its fallback font, before any fit-to-box scaling. Lets the
+    /// regression test confirm the glyph genuinely overflows the cell
+    /// box (so the fit path is actually exercised, not a no-op).
+    func _testGlyphBBoxAndCellPt(
+        _ scalar: Unicode.Scalar
+    ) throws -> (bbox: CGRect, cellWidthPt: CGFloat, cellHeightPt: CGFloat) {
+        let (glyphId, resolvedFont) = try resolveGlyph(for: scalar)
+        var localGlyph = glyphId
+        var bbox = CGRect.zero
+        CTFontGetBoundingRectsForGlyphs(
+            resolvedFont, .horizontal, &localGlyph, &bbox, 1)
+        return (
+            bbox,
+            CGFloat(cellSizePx.x) / contentsScale,
+            CGFloat(cellSizePx.y) / contentsScale)
     }
 
     /// Test-only: synthetic insert that wires a fake `AtlasEntry` into
@@ -857,6 +975,31 @@ final class GlyphAtlas {
         return name.lowercased().contains("applecoloremoji")
     }
 
+    /// True iff the scalar's DEFAULT Unicode presentation is emoji
+    /// (Emoji_Presentation=Yes — ⚡ U+26A1, ❗ U+2757, 👍). Such scalars
+    /// must render in COLOR even when the monospace primary font happens
+    /// to carry a monochrome glyph for them (Menlo covers ⚡, so the per-
+    /// scalar cascade would otherwise keep ⚡ gray). Backed by the OS
+    /// Unicode data — reliable on macOS 14: true for ⚡/❗/👍, false for
+    /// the text-default ⚠ U+26A0 / ℹ U+2139 / ™, and false for ASCII
+    /// digits and '#' (Emoji=Yes but Emoji_Presentation=No). Exactly the
+    /// Emoji_Presentation property, so no hand-rolled table is needed.
+    static func prefersColorPresentation(_ scalar: Unicode.Scalar) -> Bool {
+        scalar.properties.isEmojiPresentation
+    }
+
+    /// Apple Color Emoji face at the atlas's point size. Lazily created
+    /// once — the renderer rebuilds the whole atlas on any font-size
+    /// change, so `self.font` (and thus this size) is fixed for the
+    /// atlas's lifetime. Used to FORCE color for emoji-presentation-
+    /// default scalars: `CTFontCreateForStringWithLanguage` is useless
+    /// for these because it returns the primary font precisely BECAUSE
+    /// that font already covers the codepoint, so the color face must be
+    /// requested by name.
+    private lazy var emojiPresentationFont: CTFont =
+        CTFontCreateWithName(
+            "AppleColorEmoji" as CFString, CTFontGetSize(self.font), nil)
+
     static func hash(font: CTFont) -> UInt64 {
         let name = CTFontCopyPostScriptName(font) as String
         let size = CTFontGetSize(font)
@@ -896,6 +1039,27 @@ final class GlyphAtlas {
     private func resolveGlyph(
         for scalar: Unicode.Scalar
     ) throws -> (CGGlyph, CTFont) {
+        // Emoji-presentation-default scalars (⚡ U+26A1, etc.) must render
+        // in color even when the monospace primary font covers them with
+        // a monochrome glyph. Resolve them against the Apple Color Emoji
+        // face directly — bypassing both the primary-font fast path below
+        // and the per-256-block resolver cache (which a text-default
+        // neighbor in the same block, e.g. ⚠ U+26A0 in block 0x26, could
+        // have poisoned with a non-emoji font). Astral emoji scalars skip
+        // this — they already resolve to AppleColorEmoji via the cascade
+        // because the primary font lacks them — so the guard keeps the
+        // BMP-only `CTFontGetGlyphsForCharacters` contract. If the color
+        // face somehow lacks the glyph, fall through to the normal paths.
+        if Self.prefersColorPresentation(scalar), scalar.value <= 0xFFFF {
+            var ch = UniChar(scalar.value)
+            var glyph: CGGlyph = 0
+            if CTFontGetGlyphsForCharacters(
+                emojiPresentationFont, &ch, &glyph, 1), glyph != 0
+            {
+                return (glyph, emojiPresentationFont)
+            }
+        }
+
         // BMP fast path — try the primary font first. Astrals fall
         // through unconditionally (their UTF-16 representation needs
         // a surrogate pair, which `CTFontGetGlyphsForCharacters` won't
@@ -975,27 +1139,85 @@ final class GlyphAtlas {
         let bearingPx: SIMD2<Int32>
     }
 
+    /// Uniform downscale factor (≤ 1, aspect-preserving) so a CoreText
+    /// glyph bounding box `bbox` (in points, pen origin at x=0 on the
+    /// baseline) fits entirely inside a target box `boxWidthPt` wide,
+    /// with `cellAscentPt` of headroom above the baseline and
+    /// `cellDescentPt` below. Returns 1.0 when the glyph already fits
+    /// (so the common ASCII/CJK path stays bit-identical — no atlas
+    /// snapshot or metric drift), and never upscales.
+    ///
+    /// Covers BOTH axes plus overflow in either direction: the ink spans
+    /// `[bbox.minX, bbox.maxX]` horizontally (left-side bearing may be
+    /// negative) and `[bbox.minY, bbox.maxY]` vertically (descenders sit
+    /// below the baseline at y<0, ascenders above at y>maxY). Each
+    /// potential overflow contributes a candidate scale; the smallest
+    /// wins.
+    ///
+    /// Powerline / Nerd-Font cell-bleed glyphs (separators *designed* to
+    /// touch the cell edge) are unaffected: ink that exactly reaches the
+    /// box edge yields ratio == 1.0, so the min stays 1.0 and no scaling
+    /// occurs. Only glyphs that genuinely exceed the box shrink.
+    static func fitScale(
+        bbox: CGRect,
+        boxWidthPt: CGFloat,
+        cellAscentPt: CGFloat,
+        cellDescentPt: CGFloat
+    ) -> CGFloat {
+        var scale: CGFloat = 1.0
+        // Horizontal: right overflow past the box edge.
+        if bbox.maxX > boxWidthPt, bbox.maxX > 0 {
+            scale = min(scale, boxWidthPt / bbox.maxX)
+        }
+        // Left-side bearing pushes ink left of the pen; bound the total
+        // ink width so nothing clips at x<0.
+        if bbox.minX < 0 {
+            let inkWidth = bbox.maxX - bbox.minX
+            if inkWidth > boxWidthPt, inkWidth > 0 {
+                scale = min(scale, boxWidthPt / inkWidth)
+            }
+        }
+        // Vertical: ascender above the cell ascent (the original Thai
+        // SARA AM constraint), descender below the cell descent.
+        if bbox.maxY > cellAscentPt, bbox.maxY > 0 {
+            scale = min(scale, cellAscentPt / bbox.maxY)
+        }
+        if bbox.minY < -cellDescentPt, bbox.minY < 0 {
+            scale = min(scale, cellDescentPt / -bbox.minY)
+        }
+        return scale
+    }
+
     private func rasterize(
         glyphId: CGGlyph, font: CTFont
     ) throws -> RasterizedGlyph {
         let widthPx = Int(cellSizePx.x)
         let heightPx = Int(cellSizePx.y)
 
-        // Thai-and-friends fix: when the resolved fallback font draws
-        // a glyph that extends above the primary cell's ascent (e.g.
-        // SARA AM ำ's NIKHAHIT circle, MAI HAN-AKAT + tone stacks,
-        // tall CJK), the cell-sized rasterization bitmap clips the
-        // top — user-visible as "missing circle on ำ" or chopped tone
-        // marks. Scale the fallback font down to fit. Glyph IDs are
-        // stable across same-face size changes so the existing glyph
-        // ID still resolves in the scaled copy.
+        // Fit-to-box: when the resolved fallback font draws a glyph that
+        // overflows the cell — above the ascent (e.g. SARA AM ำ's
+        // NIKHAHIT circle, MAI HAN-AKAT + tone stacks, tall CJK), below
+        // the descent, or past the left/right edge (wide fallback
+        // symbols, color-glyph-shaped Dingbats resolved into the gray
+        // path) — the cell-sized bitmap clips it. Scale the font down
+        // uniformly so the ink fits. Glyph IDs are stable across
+        // same-face size changes so the existing glyph ID still resolves
+        // in the scaled copy. A glyph that already fits gets scale==1.0
+        // and is left untouched (the common ASCII/CJK path is
+        // bit-identical).
         let cellAscentPt = CTFontGetAscent(self.font)
+        let cellDescentPt = CTFontGetDescent(self.font)
+        let boxWidthPt = CGFloat(cellSizePx.x) / contentsScale
         var renderFont = font
         var bbox = CGRect.zero
         var localGlyph = glyphId
         CTFontGetBoundingRectsForGlyphs(font, .horizontal, &localGlyph, &bbox, 1)
-        if bbox.maxY > cellAscentPt {
-            let scale = cellAscentPt / bbox.maxY
+        let scale = Self.fitScale(
+            bbox: bbox,
+            boxWidthPt: boxWidthPt,
+            cellAscentPt: cellAscentPt,
+            cellDescentPt: cellDescentPt)
+        if scale < 1.0 {
             let newSize = CTFontGetSize(font) * scale
             renderFont = CTFontCreateCopyWithAttributes(font, newSize, nil, nil) ?? font
         }
@@ -1334,6 +1556,33 @@ final class GlyphAtlas {
         let bytesPerRow = widthPx * 4
         var bytes = [UInt8](repeating: 0, count: bytesPerRow * heightPx)
 
+        // Fit-to-box (same contract as the gray `rasterize` path). A
+        // single-scalar color emoji the engine reports as width-1 can
+        // still carry a glyph wider or taller than one cell (most Apple
+        // Color Emoji are square-ish but a few resolve slightly past the
+        // monospace cell). Without this, the sbix bitmap clips at the
+        // right/top edge. Scale the AppleColorEmoji font copy down so the
+        // glyph fits one cell; a glyph that already fits gets scale==1.0
+        // and renders unchanged.
+        let cellAscentPt = CTFontGetAscent(self.font)
+        let cellDescentPt = CTFontGetDescent(self.font)
+        let boxWidthPt = CGFloat(cellSizePx.x) / contentsScale
+        var renderFont = font
+        var bbox = CGRect.zero
+        var measureGlyph = glyphId
+        CTFontGetBoundingRectsForGlyphs(
+            font, .horizontal, &measureGlyph, &bbox, 1)
+        let scale = Self.fitScale(
+            bbox: bbox,
+            boxWidthPt: boxWidthPt,
+            cellAscentPt: cellAscentPt,
+            cellDescentPt: cellDescentPt)
+        if scale < 1.0 {
+            let newSize = CTFontGetSize(font) * scale
+            renderFont =
+                CTFontCreateCopyWithAttributes(font, newSize, nil, nil) ?? font
+        }
+
         let drew: Bool = bytes.withUnsafeMutableBytes { ptr -> Bool in
             guard let base = ptr.baseAddress,
                 let ctx = CGContext(
@@ -1348,10 +1597,10 @@ final class GlyphAtlas {
             ctx.setShouldAntialias(true)
             ctx.setAllowsAntialiasing(true)
             ctx.scaleBy(x: contentsScale, y: contentsScale)
-            let descent = CTFontGetDescent(font)
+            let descent = CTFontGetDescent(renderFont)
             var pos = CGPoint(x: 0, y: descent)
             var localGlyph = glyphId
-            CTFontDrawGlyphs(font, &localGlyph, &pos, 1, ctx)
+            CTFontDrawGlyphs(renderFont, &localGlyph, &pos, 1, ctx)
             return true
         }
         guard drew else { throw AtlasError.rasterizationFailed }
@@ -1359,7 +1608,7 @@ final class GlyphAtlas {
         var rectGlyph = glyphId
         var rect = CGRect.zero
         CTFontGetBoundingRectsForGlyphs(
-            font, .horizontal, &rectGlyph, &rect, 1)
+            renderFont, .horizontal, &rectGlyph, &rect, 1)
         let bearingX = Int32(round(rect.minX * contentsScale))
         let bearingY = Int32(round(rect.minY * contentsScale))
 

@@ -179,6 +179,88 @@ final class GlyphAtlasTests: XCTestCase {
         XCTAssertGreaterThan(entry.sizePx.y, 0)
     }
 
+    // MARK: - Emoji-presentation color routing (FIX-1)
+
+    /// ⚡ U+26A1 is Emoji_Presentation=Yes but Menlo carries a monochrome
+    /// glyph for it; without the presentation override it renders gray.
+    /// The single-scalar path must force the Apple Color Emoji face →
+    /// color atlas.
+    func testEmojiPresentationScalarRoutesToColorAtlas() throws {
+        XCTAssertEqual(atlas.colorEntryCount, 0)
+        let entry = try atlas.entry(
+            for: Unicode.Scalar(0x26A1)!, commandQueue: queue)
+        XCTAssertEqual(
+            entry.atlasIndex, 1,
+            "⚡ (Emoji_Presentation=Yes) must land in the color atlas")
+        XCTAssertEqual(atlas.colorEntryCount, 1)
+        XCTAssertEqual(atlas.entryCount, 0, "gray atlas untouched")
+    }
+
+    /// ⚡ is EAW=Wide, so the engine reports width 2 and `makeSlot` routes
+    /// it through `entry(forCluster:)` — the path it ACTUALLY takes.
+    /// The lone-scalar covering-font override must keep it color.
+    func testEmojiPresentationClusterRoutesToColorAtlas() throws {
+        let entry = try atlas.entry(
+            forCluster: "\u{26A1}", cellSpan: 2, commandQueue: queue)
+        XCTAssertEqual(
+            entry.atlasIndex, 1,
+            "⚡ via the width-2 cluster path must land in the color atlas")
+        XCTAssertEqual(atlas.colorEntryCount, 1)
+    }
+
+    /// Asserts resolution (not just routing): ⚡ resolves to an Apple
+    /// Color Emoji face, not Menlo.
+    func testEmojiPresentationResolvesToColorFont() throws {
+        let (_, font) = try atlas._testResolveGlyph(for: Unicode.Scalar(0x26A1)!)
+        let name = (CTFontCopyPostScriptName(font) as String).lowercased()
+        XCTAssertTrue(
+            name.contains("applecoloremoji"),
+            "⚡ must resolve to AppleColorEmoji, got \(name)")
+    }
+
+    /// Text-default symbols (™ U+2122, ★ U+2605) are Emoji_Presentation=No
+    /// and must STAY in the gray atlas — the override must not over-reach.
+    func testTextDefaultSymbolsStayGray() throws {
+        let tm = try atlas.entry(for: Unicode.Scalar(0x2122)!, commandQueue: queue)
+        let star = try atlas.entry(for: Unicode.Scalar(0x2605)!, commandQueue: queue)
+        XCTAssertEqual(tm.atlasIndex, 0, "™ must stay gray (text-default)")
+        XCTAssertEqual(star.atlasIndex, 0, "★ must stay gray (text-default)")
+    }
+
+    /// ASCII '#' and '5' are Emoji=Yes but Emoji_Presentation=No (they
+    /// only become emoji inside a keycap sequence) — must stay gray.
+    func testAsciiEmojiCapableStaysGray() throws {
+        let hash = try atlas.entry(for: Unicode.Scalar("#"), commandQueue: queue)
+        let five = try atlas.entry(for: Unicode.Scalar("5"), commandQueue: queue)
+        XCTAssertEqual(hash.atlasIndex, 0)
+        XCTAssertEqual(five.atlasIndex, 0)
+    }
+
+    /// VS15 (U+FE0E) is an explicit TEXT request: ⚡︎ must stay gray. The
+    /// `count == 1` guard in clusterCoveringFont keeps the multi-scalar
+    /// sequence on the standard covering-font path, preserving the
+    /// override.
+    func testVS15ForcesTextPresentation() throws {
+        let entry = try atlas.entry(
+            forCluster: "\u{26A1}\u{FE0E}", cellSpan: 2, commandQueue: queue)
+        XCTAssertEqual(
+            entry.atlasIndex, 0,
+            "⚡ + VS15 (text selector) must stay in the gray atlas")
+    }
+
+    /// Regression: VS16 text-default emoji (⚠️ U+26A0, ℹ️ U+2139) already
+    /// resolve to AppleColorEmoji via their covering font — the FIX-1
+    /// override must not disturb that (they are multi-scalar, so the
+    /// lone-scalar branch never fires).
+    func testVS16TextDefaultEmojiStayColor() throws {
+        let warn = try atlas.entry(
+            forCluster: "\u{26A0}\u{FE0F}", cellSpan: 2, commandQueue: queue)
+        let info = try atlas.entry(
+            forCluster: "\u{2139}\u{FE0F}", cellSpan: 2, commandQueue: queue)
+        XCTAssertEqual(warn.atlasIndex, 1, "⚠️ must stay color")
+        XCTAssertEqual(info.atlasIndex, 1, "ℹ️ must stay color")
+    }
+
     /// A-emoji-5: Thai 3-mark clusters (consonant + upper vowel +
     /// tone) stay in the GRAY atlas — they're not color-font emoji.
     /// Regression pin for the dispatcher: emoji-vs-Thai routing
@@ -743,5 +825,134 @@ final class GlyphAtlasTests: XCTestCase {
         XCTAssertEqual(entry.cellSpan, 2)
         XCTAssertEqual(entry.sizePx.x, atlas.cellSizePx.x * 2)
         XCTAssertEqual(entry.sizePx.y, atlas.cellSizePx.y)
+    }
+
+    // MARK: - Fit-to-box (glyph clipping regression)
+
+    /// `fitScale` is a pure function: a glyph already inside the box must
+    /// return exactly 1.0 (no scaling → common ASCII/CJK path stays
+    /// bit-identical), and a glyph overflowing any edge must return a
+    /// factor < 1 that brings the offending extent back inside the box.
+    func testFitScalePureMath() {
+        let box: CGFloat = 10
+        let ascent: CGFloat = 12
+        let descent: CGFloat = 4
+
+        // Fits on every axis → no scaling.
+        XCTAssertEqual(
+            GlyphAtlas.fitScale(
+                bbox: CGRect(x: 1, y: 1, width: 8, height: 9),
+                boxWidthPt: box, cellAscentPt: ascent, cellDescentPt: descent),
+            1.0, accuracy: 1e-9)
+
+        // Right overflow: maxX = 20 > box 10 → 0.5.
+        XCTAssertEqual(
+            GlyphAtlas.fitScale(
+                bbox: CGRect(x: 0, y: 0, width: 20, height: 1),
+                boxWidthPt: box, cellAscentPt: ascent, cellDescentPt: descent),
+            0.5, accuracy: 1e-9)
+
+        // Top overflow: maxY = 24 > ascent 12 → 0.5.
+        XCTAssertEqual(
+            GlyphAtlas.fitScale(
+                bbox: CGRect(x: 0, y: 0, width: 1, height: 24),
+                boxWidthPt: box, cellAscentPt: ascent, cellDescentPt: descent),
+            0.5, accuracy: 1e-9)
+
+        // Bottom overflow: minY = -8 < -descent 4 → 0.5.
+        XCTAssertEqual(
+            GlyphAtlas.fitScale(
+                bbox: CGRect(x: 0, y: -8, width: 1, height: 4),
+                boxWidthPt: box, cellAscentPt: ascent, cellDescentPt: descent),
+            0.5, accuracy: 1e-9)
+
+        // Never upscales: a tiny glyph stays at 1.0, not enlarged.
+        XCTAssertEqual(
+            GlyphAtlas.fitScale(
+                bbox: CGRect(x: 0, y: 0, width: 1, height: 1),
+                boxWidthPt: box, cellAscentPt: ascent, cellDescentPt: descent),
+            1.0, accuracy: 1e-9)
+    }
+
+    /// Integration: a single-scalar glyph whose natural ink overflows
+    /// one cell must be shrunk to fit, NOT clipped at the cell edge.
+    ///
+    /// We pick a scalar whose resolved fallback glyph genuinely exceeds
+    /// the cell box on the running OS (confirmed via the bbox hook); if
+    /// none overflows in this CT version we skip rather than assert a
+    /// false negative. The contract: after fit-to-box the rasterized
+    /// bitmap's outermost row/column must carry essentially no ink — the
+    /// glyph was scaled inward, so its extreme edge no longer paints the
+    /// boundary pixels that a clipped (over-box) draw would have
+    /// saturated.
+    func testWideGlyphShrinksToFitNotClipped() throws {
+        // Candidate scalars that commonly resolve to wide/tall fallback
+        // glyphs exceeding a Menlo cell: misc-symbols, dingbats, CJK
+        // compatibility ideographs. Use the first that actually overflows
+        // so the assertion exercises the fit path.
+        let candidates: [Unicode.Scalar] = [
+            Unicode.Scalar(0x2702)!,  // ✂ BLACK SCISSORS
+            Unicode.Scalar(0x2728)!,  // ✨ SPARKLES (often color → skip)
+            Unicode.Scalar(0x27A1)!,  // ➡ RIGHTWARDS ARROW
+            Unicode.Scalar(0x2B50)!,  // ⭐ WHITE MEDIUM STAR
+            Unicode.Scalar(0x3013)!,  // 〓 GETA MARK
+            Unicode.Scalar(0xFFFD)!,  // � REPLACEMENT CHARACTER
+        ]
+
+        var chosen: Unicode.Scalar?
+        for s in candidates {
+            let (bbox, cellW, cellH) = try atlas._testGlyphBBoxAndCellPt(s)
+            let overflowsX = bbox.maxX > cellW || bbox.minX < 0
+            let overflowsY =
+                bbox.maxY > CTFontGetAscent(atlas.font)
+                || bbox.minY < -CTFontGetDescent(atlas.font)
+            _ = cellH
+            if overflowsX || overflowsY {
+                chosen = s
+                break
+            }
+        }
+        guard let scalar = chosen else {
+            throw XCTSkip(
+                "no candidate glyph overflows the cell on this CT version")
+        }
+
+        let (bitmap, widthPx, heightPx) = try atlas._testRasterizeGlyphBitmap(
+            scalar)
+        XCTAssertEqual(bitmap.count, widthPx * heightPx)
+
+        // Sum ink in the outermost ring (last column + last row). After a
+        // correct shrink-to-fit the glyph no longer paints the boundary;
+        // a clipped (unscaled, over-box) draw would saturate it.
+        func columnInk(_ col: Int) -> Int {
+            var t = 0
+            for row in 0..<heightPx { t += Int(bitmap[row * widthPx + col]) }
+            return t
+        }
+        func rowInk(_ row: Int) -> Int {
+            var t = 0
+            let base = row * widthPx
+            for col in 0..<widthPx { t += Int(bitmap[base + col]) }
+            return t
+        }
+
+        let lastCol = columnInk(widthPx - 1)
+        let lastRow = rowInk(0)  // row 0 = visual top (top-down layout)
+        // The whole-cell ink must be non-trivial (the glyph did render),
+        // but the boundary ring must be near-empty (it was fit inward).
+        // Allow a small antialiasing budget proportional to the edge
+        // length rather than a hard zero.
+        let totalInk = bitmap.reduce(0) { $0 + Int($1) }
+        XCTAssertGreaterThan(
+            totalInk, 0, "glyph \(scalar) must actually rasterize")
+        let edgeBudget = 8 * max(widthPx, heightPx)  // ~8/255 avg per px
+        XCTAssertLessThan(
+            lastCol, edgeBudget,
+            "right edge column must be near-empty after fit-to-box "
+                + "(got \(lastCol)) — glyph \(scalar) appears clipped")
+        XCTAssertLessThan(
+            lastRow, edgeBudget,
+            "top edge row must be near-empty after fit-to-box "
+                + "(got \(lastRow)) — glyph \(scalar) appears clipped")
     }
 }
