@@ -2131,10 +2131,11 @@ mod tests {
             let expected_col = i as u16;
             assert_eq!(cell.col, expected_col);
             assert_eq!(
-                cell.grapheme, *b" \0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
+                cell.grapheme[0], b' ',
                 "cell ({}, {}) should be a blank space",
                 cell.row, cell.col
             );
+            assert_eq!(&cell.grapheme[1..], &[0u8; 31]);
             assert_eq!(cell.width, 1);
             assert_eq!(cell.attrs, 0);
         }
@@ -2194,7 +2195,7 @@ mod tests {
         );
         assert_eq!(
             &wide.grapheme[3..],
-            &[0u8; 13],
+            &[0u8; 29],
             "remaining bytes null-padded"
         );
 
@@ -2247,7 +2248,7 @@ mod tests {
             assert_eq!(cells[i].grapheme[0], *want);
             assert_eq!(
                 &cells[i].grapheme[1..],
-                &[0u8; 15],
+                &[0u8; 31],
                 "ASCII grapheme is 1 byte, rest null-padded"
             );
         }
@@ -2401,7 +2402,7 @@ mod tests {
         );
         assert_eq!(
             &cluster.grapheme[6..],
-            &[0u8; 10],
+            &[0u8; 26],
             "remaining bytes null-padded"
         );
 
@@ -2433,7 +2434,7 @@ mod tests {
         assert_eq!(cells[0].col, 0);
         assert_eq!(cells[0].width, 2, "🎉 is EAW=W, width 2");
         assert_eq!(&cells[0].grapheme[..4], &[0xf0, 0x9f, 0x8e, 0x89]);
-        assert_eq!(&cells[0].grapheme[4..], &[0u8; 12]);
+        assert_eq!(&cells[0].grapheme[4..], &[0u8; 28]);
 
         // Next CellView is at col 2 (col 1 is the continuation).
         assert_eq!(cells[1].col, 2);
@@ -2506,7 +2507,7 @@ mod tests {
         assert_eq!(cells[2].width, 2, "👧 is wide");
         assert_eq!(&cells[2].grapheme[..4], &[0xf0, 0x9f, 0x91, 0xa7]);
         // No trailing zerowidth for the last emoji.
-        assert_eq!(&cells[2].grapheme[4..], &[0u8; 12]);
+        assert_eq!(&cells[2].grapheme[4..], &[0u8; 28]);
 
         // First trailing blank is at col 6 (cols 1, 3, 5 are skipped
         // continuation cells).

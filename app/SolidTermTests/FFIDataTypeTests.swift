@@ -68,7 +68,7 @@ final class FFIDataTypeTests: XCTestCase {
     // MARK: - FrameDelta
 
     func testFrameDeltaRoundTripWithCellsPayload() throws {
-        // `cells: Vec<u8>` carries CellDeltaWire records (32 bytes each)
+        // `cells: Vec<u8>` carries CellDeltaWire records (48 bytes each)
         // with the layout from spec/ffi-boundary.md, encoded by
         // FrameDeltaDecoding.encodeCells / decoded by .decodeCells.
         let cells: [CellDeltaSwift] = [
@@ -137,8 +137,35 @@ final class FFIDataTypeTests: XCTestCase {
         XCTAssertEqual(decoded[0].width, 2)
     }
 
+    /// FIX-3: a 28-byte subdivision tag-flag grapheme (🏴 + tag letters +
+    /// CANCEL TAG) must survive the wire round-trip whole. The old
+    /// 16-byte grapheme field truncated it, rendering a bare 🏴.
+    func testFrameDeltaCellsPayloadTagFlagGrapheme() throws {
+        let scotland = Array(
+            "🏴\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}".utf8)
+        XCTAssertEqual(scotland.count, 28)
+        let cells: [CellDeltaSwift] = [
+            CellDeltaSwift(
+                row: 0, col: 0, grapheme: padded(scotland),
+                fg: 0, bg: 0, attrs: 0, width: 2
+            )
+        ]
+        let payload = FrameDeltaDecoding.encodeCells(cells)
+        let frame = FrameDelta(
+            cells: makeBytes(payload),
+            cursor: CursorState(row: 0, col: 0, shape: 0, blink: false, hidden: false),
+            scroll_top: 0, scroll_total: 0
+        )
+        let echoed = echo_frame_delta(frame)
+        let decoded = try FrameDeltaDecoding.decodeCells(echoed.cells)
+        XCTAssertEqual(decoded.count, 1)
+        XCTAssertEqual(
+            Array(decoded[0].grapheme.prefix(scotland.count)), scotland,
+            "the full 28-byte tag flag must round-trip, not truncate to a bare 🏴")
+    }
+
     func testFrameDeltaCellsPayloadRejectsMisaligned() {
-        // 23 bytes is not a multiple of the 24-byte record size.
+        // 23 bytes is not a multiple of the 48-byte record size.
         let bogus = [UInt8](repeating: 0, count: 23)
         XCTAssertThrowsError(try FrameDeltaDecoding.decodeCells(bogus)) { err in
             guard case FrameDeltaDecoding.DecodeError.malformedPayload = err else {
@@ -244,10 +271,10 @@ final class FFIDataTypeTests: XCTestCase {
     /// `CellDeltaWire::new` does on the Rust side.
     private func padded(_ bytes: [UInt8]) -> [UInt8] {
         var out = bytes
-        if out.count > 16 {
-            out = Array(out.prefix(16))
+        if out.count > 32 {
+            out = Array(out.prefix(32))
         } else {
-            while out.count < 16 { out.append(0) }
+            while out.count < 32 { out.append(0) }
         }
         return out
     }

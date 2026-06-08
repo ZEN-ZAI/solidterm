@@ -10,8 +10,8 @@ final class GraphemeClusterCoalescerTests: XCTestCase {
     private func cell(
         _ row: UInt16, _ col: UInt16, _ s: String, width: UInt8 = 1
     ) -> CellDeltaSwift {
-        var buf = [UInt8](repeating: 0, count: 16)
-        for (i, b) in s.utf8.enumerated() where i < 16 { buf[i] = b }
+        var buf = [UInt8](repeating: 0, count: 32)
+        for (i, b) in s.utf8.enumerated() where i < 32 { buf[i] = b }
         return CellDeltaSwift(
             row: row, col: col, grapheme: buf,
             fg: 0xFFFF_FFFF, bg: 0x0000_00FF,
@@ -150,6 +150,72 @@ final class GraphemeClusterCoalescerTests: XCTestCase {
         XCTAssertEqual(out.count, 1)
         XCTAssertEqual(out[0].grapheme, "\u{26A0}\u{FE0F}")
         XCTAssertEqual(out[0].cellSpan, 2)
+    }
+
+    // MARK: - Skin-tone modifier spill (FIX-2)
+
+    func testSkinToneModifierSpillover() {
+        // 👍 + 🏽 (U+1F44D + U+1F3FD) — base emoji and skin-tone modifier
+        // are both width-2 astrals; when they don't pack into one cell
+        // the engine emits them adjacently. Must coalesce into one
+        // 4-column cluster.
+        let input = [
+            cell(0, 0, "\u{1F44D}", width: 2),  // 👍
+            cell(0, 2, "\u{1F3FD}", width: 2),  // 🏽 skin-tone modifier
+        ]
+        let out = GraphemeClusterCoalescer.coalesce(input)
+        XCTAssertEqual(out.count, 1)
+        XCTAssertEqual(out[0].grapheme, "\u{1F44D}\u{1F3FD}")
+        XCTAssertEqual(out[0].cellSpan, 4)
+    }
+
+    func testSkinToneModifierDoesNotSwallowFollowingEmoji() {
+        // 👍 + 🏽 + 😀 — the modifier merges with its base, but the chain
+        // must STOP there and not absorb the next emoji (over-merge
+        // guard). 🏽 (Emoji_Modifier, Grapheme_Cluster_Break=Extend)
+        // attaches to whatever precedes it per UAX#29, so a negative
+        // "stray modifier after a non-emoji base" case does NOT exist —
+        // Swift folds even "A🏽" into one cluster, exactly as the
+        // pre-existing VS16 rule already folds "A︎". The real safety
+        // property is that the run terminates correctly.
+        let input = [
+            cell(0, 0, "\u{1F44D}", width: 2),  // 👍
+            cell(0, 2, "\u{1F3FD}", width: 2),  // 🏽
+            cell(0, 4, "\u{1F600}", width: 2),  // 😀 (separate)
+        ]
+        let out = GraphemeClusterCoalescer.coalesce(input)
+        XCTAssertEqual(out.count, 2)
+        XCTAssertEqual(out[0].grapheme, "\u{1F44D}\u{1F3FD}")
+        XCTAssertEqual(out[0].cellSpan, 4)
+        XCTAssertEqual(out[1].grapheme, "\u{1F600}")
+        XCTAssertEqual(out[1].cellSpan, 2)
+    }
+
+    // MARK: - Generic combining-mark spill (FIX-5)
+
+    func testDevanagariMatraSpillover() {
+        // क + ी (U+0915 + U+0940 VOWEL SIGN II, a spacing mark Mc) split
+        // across cells must coalesce — UAX #29 binds the matra to its
+        // consonant. Exercises the generic Mn/Mc/Me screen, not a
+        // per-script allowlist.
+        let input = [
+            cell(0, 0, "\u{0915}"),  // क
+            cell(0, 1, "\u{0940}"),  // ◌ी matra
+        ]
+        let out = GraphemeClusterCoalescer.coalesce(input)
+        XCTAssertEqual(out.count, 1)
+        XCTAssertEqual(out[0].grapheme, "\u{0915}\u{0940}")
+    }
+
+    func testArabicDiacriticSpillover() {
+        // ب + ◌َ (U+0628 BEH + U+064E FATHA, a nonspacing mark Mn).
+        let input = [
+            cell(0, 0, "\u{0628}"),  // ب
+            cell(0, 1, "\u{064E}"),  // ◌َ fatha
+        ]
+        let out = GraphemeClusterCoalescer.coalesce(input)
+        XCTAssertEqual(out.count, 1)
+        XCTAssertEqual(out[0].grapheme, "\u{0628}\u{064E}")
     }
 
     // MARK: - False-positive guard

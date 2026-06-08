@@ -68,14 +68,17 @@ pub struct Hyperlink {
 /// Engine-internal viewport cell snapshot. Field order matches
 /// `solidterm_ffi::CellDeltaWire` for mechanical transcode.
 ///
-/// `grapheme` is UTF-8, null-padded, truncated at 16 bytes. The 16-byte
+/// `grapheme` is UTF-8, null-padded, truncated at 32 bytes. The 32-byte
 /// buffer covers Thai 3-component clusters (consonant + upper vowel +
-/// tone, 9 bytes — `เพื่อน` pattern), Devanagari conjuncts up to 4
-/// codepoints, and short emoji ZWJ sequences. Deep ZWJ clusters (e.g.
-/// 👨‍👩‍👧‍👦 at 25 bytes) still truncate; a variable-length cluster
-/// side-channel is the future-proof fix tracked in tech-debt. The
-/// truncation matches `CellDeltaWire::new`'s `len.min(16)`, so picking
-/// `[u8; 16]` here doesn't lose information the FFI boundary wouldn't
+/// tone, 9 bytes — `เพื่อน` pattern), Devanagari conjuncts, deep emoji
+/// ZWJ families (👨‍👩‍👧‍👦, 25 bytes), and subdivision tag flags
+/// (🏴󠁧󠁢󠁳󠁣󠁴󠁿, 28 bytes) — the longest single-cell clusters in
+/// practice, since alacritty splits multi-emoji sequences across grid
+/// cells (the renderer's coalescer rejoins those). A still-longer
+/// sequence truncates whole-codepoint; a variable-length cluster
+/// side-channel remains the future-proof fix tracked in tech-debt. The
+/// truncation matches `CellDeltaWire::new`'s `len.min(32)`, so picking
+/// `[u8; 32]` here doesn't lose information the FFI boundary wouldn't
 /// discard anyway.
 ///
 /// `fg` / `bg` are R8G8B8A8-packed u32 (high byte = R, low byte = A);
@@ -107,7 +110,7 @@ pub struct Hyperlink {
 pub struct CellView {
     pub row: u16,
     pub col: u16,
-    pub grapheme: [u8; 16],
+    pub grapheme: [u8; 32],
     pub fg: u32,
     pub bg: u32,
     pub attrs: u16,
@@ -162,23 +165,23 @@ impl CellView {
 }
 
 /// Pack `cell.c` plus any `cell.zerowidth()` characters into the
-/// 16-byte UTF-8 buffer, null-padded and truncated. Zerowidth marks
+/// 32-byte UTF-8 buffer, null-padded and truncated. Zerowidth marks
 /// are appended only if they fit whole, so the buffer is always valid
-/// UTF-8 — a mark that would straddle the 16-byte boundary is dropped
+/// UTF-8 — a mark that would straddle the 32-byte boundary is dropped
 /// rather than written as a partial codepoint.
-fn encode_grapheme(cell: &Cell) -> [u8; 16] {
-    let mut out = [0u8; 16];
+fn encode_grapheme(cell: &Cell) -> [u8; 32] {
+    let mut out = [0u8; 32];
     let mut written = 0usize;
 
     let mut buf = [0u8; 4];
     let primary = cell.c.encode_utf8(&mut buf);
-    let n = primary.len().min(16 - written);
+    let n = primary.len().min(32 - written);
     out[written..written + n].copy_from_slice(&primary.as_bytes()[..n]);
     written += n;
 
     if let Some(zerowidth) = cell.zerowidth() {
         for zw in zerowidth {
-            if written >= 16 {
+            if written >= 32 {
                 break;
             }
             let mut zw_buf = [0u8; 4];
@@ -186,7 +189,7 @@ fn encode_grapheme(cell: &Cell) -> [u8; 16] {
             // Only append a mark that fits WHOLE: a partial copy would
             // leave a lone UTF-8 lead byte and corrupt the buffer for
             // the downstream FFI (bridge.rs row_text / cell_before_cursor).
-            if zw_str.len() > 16 - written {
+            if zw_str.len() > 32 - written {
                 break;
             }
             let n = zw_str.len();
@@ -348,7 +351,8 @@ mod tests {
         let view = CellView::from_alacritty_cell(0, 0, &cell).expect("blank cell is not a spacer");
         assert_eq!(view.row, 0);
         assert_eq!(view.col, 0);
-        assert_eq!(view.grapheme, *b" \0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+        assert_eq!(view.grapheme[0], b' ');
+        assert_eq!(&view.grapheme[1..], &[0u8; 31]);
         assert_eq!(view.width, 1);
         assert_eq!(view.attrs, 0);
         // Default cell uses NamedColor::Foreground / Background.
@@ -368,8 +372,8 @@ mod tests {
         assert_eq!(view.row, 2);
         assert_eq!(view.col, 5);
         assert_eq!(&view.grapheme[..1], b"X");
-        // Bytes 1..16 must be null-padded.
-        assert_eq!(&view.grapheme[1..], &[0u8; 15]);
+        // Bytes 1..32 must be null-padded.
+        assert_eq!(&view.grapheme[1..], &[0u8; 31]);
         assert_eq!(view.width, 1);
     }
 
@@ -383,36 +387,68 @@ mod tests {
         assert_eq!(view.width, 2);
         // 字 is U+5B57; UTF-8 = E5 AD 97.
         assert_eq!(&view.grapheme[..3], &[0xe5, 0xad, 0x97]);
-        assert_eq!(&view.grapheme[3..], &[0u8; 13]);
+        assert_eq!(&view.grapheme[3..], &[0u8; 29]);
     }
 
-    /// Stacking many combining marks past the 16-byte buffer must never
-    /// emit a partial UTF-8 sequence. Thai consonant U+0E19 (NO NU, 3
-    /// bytes) plus five U+0E4A (MAI TRI tone mark, 3 bytes each) is 18
-    /// bytes of intent — only the primary + four marks fit (15 bytes),
-    /// and the fifth mark is dropped WHOLE rather than half-written. The
-    /// buffer must remain valid UTF-8 so the downstream FFI (bridge.rs
-    /// row_text / cell_before_cursor) never sees a lone lead byte.
+    /// Stacking many combining marks past the 32-byte buffer must never
+    /// emit a partial UTF-8 sequence: a mark that would straddle the
+    /// 32-byte boundary is dropped WHOLE. Asserts the invariant (valid
+    /// UTF-8, bounded, base-then-marks) rather than an exact fit count,
+    /// so it stays correct regardless of how many zerowidth marks
+    /// alacritty itself retains. Guards the downstream FFI (bridge.rs
+    /// row_text / cell_before_cursor) against a lone lead byte.
     #[test]
     fn from_alacritty_cell_zerowidth_overflow_stays_valid_utf8() {
         let mut cell = blank_cell();
-        cell.c = '\u{0E19}';
-        for _ in 0..5 {
-            cell.push_zerowidth('\u{0E4A}');
+        cell.c = '\u{0E19}'; // NO NU, 3 bytes
+        for _ in 0..20 {
+            cell.push_zerowidth('\u{0E4A}'); // MAI TRI tone mark, 3 bytes
         }
 
         let view =
             CellView::from_alacritty_cell(0, 0, &cell).expect("Thai cluster cell is not a spacer");
 
         // The buffer up to the first null must be valid UTF-8 — no
-        // truncated codepoint at the 16-byte boundary.
-        let end = view.grapheme.iter().position(|&b| b == 0).unwrap_or(16);
+        // truncated codepoint at the 32-byte boundary.
+        let end = view.grapheme.iter().position(|&b| b == 0).unwrap_or(32);
+        assert!(end <= 32, "grapheme must never exceed the 32-byte buffer");
         let s = std::str::from_utf8(&view.grapheme[..end])
             .expect("overflowing zerowidth marks must never leave a partial UTF-8 sequence");
-        // Primary + four whole tone marks fit in 15 bytes; the fifth is
-        // dropped rather than half-copied.
-        assert_eq!(s, "\u{0E19}\u{0E4A}\u{0E4A}\u{0E4A}\u{0E4A}");
-        assert_eq!(end, 15);
+        // Whatever fit is the base consonant followed by whole tone marks.
+        let mut chars = s.chars();
+        assert_eq!(chars.next(), Some('\u{0E19}'));
+        assert!(chars.all(|c| c == '\u{0E4A}'));
+        // Only whole 3-byte codepoints are written (no partial at the
+        // boundary), and the 32-byte buffer holds strictly more than the
+        // old 16-byte one would have — proving the enlargement took hold.
+        assert_eq!(end % 3, 0, "only whole 3-byte codepoints may be written");
+        assert!(end > 16, "32-byte buffer must hold more than the old 16-byte limit");
+    }
+
+    /// A subdivision tag flag (🏴 + tag letters + CANCEL TAG) is 28 UTF-8
+    /// bytes — it overflowed the old 16-byte buffer and rendered as a
+    /// bare black flag. The 32-byte buffer must carry the whole sequence
+    /// so the renderer's covering-font path can shape the full flag.
+    #[test]
+    fn from_alacritty_cell_subdivision_tag_flag_survives_whole() {
+        let mut cell = blank_cell();
+        cell.c = '\u{1F3F4}'; // 🏴 WAVING BLACK FLAG, 4 bytes
+        // Scotland: tag letters g,b,s,c,t + CANCEL TAG, each 4 bytes.
+        for tag in [
+            '\u{E0067}', '\u{E0062}', '\u{E0073}', '\u{E0063}', '\u{E0074}', '\u{E007F}',
+        ] {
+            cell.push_zerowidth(tag);
+        }
+        let view =
+            CellView::from_alacritty_cell(0, 0, &cell).expect("tag-flag cell is not a spacer");
+        let end = view.grapheme.iter().position(|&b| b == 0).unwrap_or(32);
+        let s = std::str::from_utf8(&view.grapheme[..end]).expect("valid UTF-8");
+        assert_eq!(
+            s,
+            "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}",
+            "the full subdivision tag flag must survive — not truncate to a bare 🏴"
+        );
+        assert_eq!(end, 28, "🏴 (4) + 5 tag letters (20) + CANCEL (4) = 28 bytes");
     }
 
     #[test]

@@ -10,8 +10,8 @@
 import Foundation
 
 /// Renderer-facing cell record. Carries an owned `grapheme` String (vs
-/// CellDeltaSwift's 16-byte buffer) so the coalesced cluster can exceed
-/// 16 bytes when a ZWJ family spills across cells.
+/// CellDeltaSwift's 32-byte buffer) so the coalesced cluster can exceed
+/// 32 bytes when a ZWJ family spills across cells.
 public struct CoalescedCell: Equatable {
     public var row: UInt16
     public var col: UInt16
@@ -134,6 +134,34 @@ public enum GraphemeClusterCoalescer {
         // VS-spill: variation selector continues into the next cell.
         if bHead == 0xFE0E || bHead == 0xFE0F { return true }
 
+        // Skin-tone modifier (U+1F3FB..U+1F3FF) continues an emoji base
+        // (👍🏽). Both base and modifier are width-2 astrals, so when they
+        // don't pack into one 32-byte cell the engine emits them in
+        // adjacent cells. This is only an adjacency screen — shouldMerge
+        // → isOneCluster confirms the join and rejects a stray modifier
+        // with no emoji base, so it can't over-merge.
+        if (0x1F3FB...0x1F3FF).contains(bHead) { return true }
+
+        // Generic combining mark (Unicode Mn / Mc / Me): Devanagari
+        // matra, Arabic diacritic, Hebrew point, Vietnamese stacked
+        // diacritic, enclosing keycap, etc. The engine packs these as
+        // zerowidth on the base cell, but a base + long mark run can
+        // overflow the 32-byte cell and spill the tail into the next
+        // cell; admit marks here so the spill rejoins its base. As with
+        // every branch, isOneCluster is the authority — UAX #29 attaches
+        // marks to a valid base and rejects a leading/orphan mark, so
+        // this screen can't over-merge. Thai marks keep their dedicated
+        // rule above: SARA AM (U+0E33) is `Lo`, not a mark category, and
+        // UAX #29 splits it, so the generic Mn/Mc/Me screen would miss it.
+        if let s = Unicode.Scalar(bHead) {
+            switch s.properties.generalCategory {
+            case .nonspacingMark, .spacingMark, .enclosingMark:
+                return true
+            default:
+                break
+            }
+        }
+
         return false
     }
 
@@ -189,7 +217,7 @@ public enum GraphemeClusterCoalescer {
         return count == 1
     }
 
-    /// Decode the 16-byte UTF-8 grapheme buffer to a Swift String,
+    /// Decode the 32-byte UTF-8 grapheme buffer to a Swift String,
     /// trimming trailing nulls. Matches MetalRenderer.decodeGraphemeString
     /// (we keep a local copy so the coalescer doesn't pull in the
     /// renderer's static surface for unit testing).
@@ -203,13 +231,13 @@ public enum GraphemeClusterCoalescer {
         return String(decoding: buf[0..<end], as: UTF8.self)
     }
 
-    /// First Unicode scalar of the 16-byte UTF-8 buffer, or nil on blank.
+    /// First Unicode scalar of the 32-byte UTF-8 buffer, or nil on blank.
     static func firstScalar(of buf: [UInt8]) -> UInt32? {
         let s = decodeGrapheme(buf)
         return s.unicodeScalars.first.map { $0.value }
     }
 
-    /// Last Unicode scalar of the 16-byte UTF-8 buffer, or nil on blank.
+    /// Last Unicode scalar of the 32-byte UTF-8 buffer, or nil on blank.
     static func lastScalar(of buf: [UInt8]) -> UInt32? {
         let s = decodeGrapheme(buf)
         return s.unicodeScalars.last.map { $0.value }

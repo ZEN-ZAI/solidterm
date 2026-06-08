@@ -1,6 +1,6 @@
 // Implements spec/ffi-boundary.md — Swift-side decoder for the
 // `FrameDelta.cells: Vec<u8>` payload produced by Rust's
-// `encode_cells` (CellDeltaWire records, 32 bytes each, little-endian
+// `encode_cells` (CellDeltaWire records, 48 bytes each, little-endian
 // native ABI).
 //
 // The byte layout is the cross-language contract; field offsets MUST
@@ -14,7 +14,7 @@ import Foundation
 public struct CellDeltaSwift: Equatable {
     public var row: UInt16
     public var col: UInt16
-    public var grapheme: [UInt8]  // 16 bytes, UTF-8, null-padded
+    public var grapheme: [UInt8]  // 32 bytes, UTF-8, null-padded
     public var fg: UInt32
     public var bg: UInt32
     public var attrs: UInt16
@@ -38,7 +38,7 @@ public struct CellDeltaSwift: Equatable {
 /// `CellDeltaSwift` records. Throws on malformed input (length not a
 /// multiple of 32).
 public enum FrameDeltaDecoding {
-    public static let cellWireSize: Int = 32
+    public static let cellWireSize: Int = 48
 
     public enum DecodeError: Error, Equatable {
         case malformedPayload(byteCount: Int)
@@ -81,12 +81,12 @@ public enum FrameDeltaDecoding {
             // Field offsets per the wire layout table in bridge.rs.
             let row = readU16(buf, at: base + 0)
             let col = readU16(buf, at: base + 2)
-            var grapheme = [UInt8](repeating: 0, count: 16)
-            for k in 0..<16 { grapheme[k] = buf[base + 4 + k] }
-            let fg = readU32(buf, at: base + 20)
-            let bg = readU32(buf, at: base + 24)
-            let attrs = readU16(buf, at: base + 28)
-            let width = buf[base + 30]
+            var grapheme = [UInt8](repeating: 0, count: 32)
+            for k in 0..<32 { grapheme[k] = buf[base + 4 + k] }
+            let fg = readU32(buf, at: base + 36)
+            let bg = readU32(buf, at: base + 40)
+            let attrs = readU16(buf, at: base + 44)
+            let width = buf[base + 46]
             out.append(
                 CellDeltaSwift(
                     row: row, col: col, grapheme: grapheme,
@@ -107,13 +107,13 @@ public enum FrameDeltaDecoding {
                 let base = i * cellWireSize
                 writeU16(buf, at: base + 0, c.row)
                 writeU16(buf, at: base + 2, c.col)
-                let limit = min(c.grapheme.count, 16)
+                let limit = min(c.grapheme.count, 32)
                 for k in 0..<limit { buf[base + 4 + k] = c.grapheme[k] }
-                writeU32(buf, at: base + 20, c.fg)
-                writeU32(buf, at: base + 24, c.bg)
-                writeU16(buf, at: base + 28, c.attrs)
-                buf[base + 30] = c.width
-                buf[base + 31] = 0  // reserved
+                writeU32(buf, at: base + 36, c.fg)
+                writeU32(buf, at: base + 40, c.bg)
+                writeU16(buf, at: base + 44, c.attrs)
+                buf[base + 46] = c.width
+                buf[base + 47] = 0  // reserved
             }
         }
         return out

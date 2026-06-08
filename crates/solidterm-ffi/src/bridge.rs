@@ -52,14 +52,17 @@ pub mod kinds {
 
 // ───────────────────────── Wire types ────────────────────────────────────
 
-/// On-wire cell-delta record (32 bytes). Field order, sizes, and offsets
+/// On-wire cell-delta record (48 bytes). Field order, sizes, and offsets
 /// MUST match `spec/ffi-boundary.md` and the Swift-side decoder.
+/// `grapheme` is 32 bytes so a single cell's cluster (subdivision tag
+/// flags, deep ZWJ families, long Thai/Indic mark stacks) survives the
+/// FFI boundary whole.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Pod, Zeroable)]
 pub struct CellDeltaWire {
     pub row: u16,
     pub col: u16,
-    pub grapheme: [u8; 16],
+    pub grapheme: [u8; 32],
     pub fg: u32,
     pub bg: u32,
     pub attrs: u16,
@@ -68,7 +71,7 @@ pub struct CellDeltaWire {
 }
 
 const _: () = {
-    assert!(core::mem::size_of::<CellDeltaWire>() == 32);
+    assert!(core::mem::size_of::<CellDeltaWire>() == 48);
     assert!(core::mem::align_of::<CellDeltaWire>() == 4);
 };
 
@@ -83,8 +86,8 @@ impl CellDeltaWire {
         attrs: u16,
         width: u8,
     ) -> Self {
-        let mut g = [0u8; 16];
-        let n = grapheme.len().min(16);
+        let mut g = [0u8; 32];
+        let n = grapheme.len().min(32);
         g[..n].copy_from_slice(&grapheme[..n]);
         Self {
             row,
@@ -618,7 +621,7 @@ impl TerminalSession {
             .viewport_cells(cursor.row..cursor.row.saturating_add(1));
         for cell in &cells {
             if cell.col == target_col {
-                let len = cell.grapheme.iter().position(|&b| b == 0).unwrap_or(16);
+                let len = cell.grapheme.iter().position(|&b| b == 0).unwrap_or(32);
                 return cell.grapheme[..len].to_vec();
             }
         }
@@ -630,7 +633,7 @@ impl TerminalSession {
         let cells = self.inner.viewport_cells(row..row.saturating_add(1));
         let mut out = String::with_capacity(cells.len());
         for cell in &cells {
-            let len = cell.grapheme.iter().position(|&b| b == 0).unwrap_or(16);
+            let len = cell.grapheme.iter().position(|&b| b == 0).unwrap_or(32);
             if let Ok(s) = std::str::from_utf8(&cell.grapheme[..len]) {
                 out.push_str(s);
             }
@@ -816,7 +819,7 @@ mod tests {
     use super::{decode_cells, decode_env, encode_cells, kinds, CellDeltaWire, SearchMatchWire};
 
     fn sample_cell(row: u16, col: u16, ch: u8) -> CellDeltaWire {
-        let mut g = [0u8; 16];
+        let mut g = [0u8; 32];
         g[0] = ch;
         CellDeltaWire {
             row,
@@ -832,7 +835,7 @@ mod tests {
 
     #[test]
     fn cell_delta_wire_size_and_align_pinned() {
-        assert_eq!(core::mem::size_of::<CellDeltaWire>(), 32);
+        assert_eq!(core::mem::size_of::<CellDeltaWire>(), 48);
         assert_eq!(core::mem::align_of::<CellDeltaWire>(), 4);
     }
 
@@ -840,7 +843,7 @@ mod tests {
     fn encode_then_decode_cells_round_trip() {
         let cells = vec![sample_cell(0, 0, b'a'), sample_cell(0, 1, b'b')];
         let payload = encode_cells(&cells);
-        assert_eq!(payload.len(), cells.len() * 32);
+        assert_eq!(payload.len(), cells.len() * 48);
         let back = decode_cells(&payload).expect("aligned");
         assert_eq!(back, cells.as_slice());
     }
