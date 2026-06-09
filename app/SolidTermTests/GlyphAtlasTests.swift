@@ -261,6 +261,30 @@ final class GlyphAtlasTests: XCTestCase {
         XCTAssertEqual(info.atlasIndex, 1, "ℹ️ must stay color")
     }
 
+    // MARK: - Same-frame eviction pinning (bug-hunt round 1)
+
+    func testBatchPinningPreventsSameFrameRectAliasing() throws {
+        // Resolve a batch far larger than the 512² atlas can hold. Glyphs
+        // placed earlier this batch must NOT be evicted to fit later ones
+        // — that would alias their atlas rects (the mid-screen CJK garble
+        // + per-frame repaint thrash). Once capacity is hit, further
+        // glyphs fail to place (caught → rendered blank) rather than
+        // stealing a resolved rect, so every entry returned this batch
+        // keeps a distinct origin.
+        atlas.beginResolveBatch()
+        var origins: [[UInt32]] = []
+        for v in 0x4E00..<(0x4E00 + 1500) {
+            guard let scalar = Unicode.Scalar(v) else { continue }
+            guard let e = try? atlas.entry(for: scalar, commandQueue: queue)
+            else { break }  // hit capacity — expected and correct
+            origins.append([e.originPx.x, e.originPx.y])
+        }
+        XCTAssertGreaterThan(origins.count, 0, "some glyphs should place")
+        XCTAssertEqual(
+            Set(origins).count, origins.count,
+            "no two glyphs resolved in one batch may share an atlas rect")
+    }
+
     /// A-emoji-5: Thai 3-mark clusters (consonant + upper vowel +
     /// tone) stay in the GRAY atlas — they're not color-font emoji.
     /// Regression pin for the dispatcher: emoji-vs-Thai routing

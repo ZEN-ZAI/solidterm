@@ -207,6 +207,24 @@ final class GlyphAtlas {
     /// at 1 GHz access rate; ignore the wrap).
     private var accessCounter: UInt64 = 0
 
+    /// Eviction floor: only entries with `lastAccess <= frameAccessFloor`
+    /// may be evicted. `beginResolveBatch()` snapshots `accessCounter`
+    /// here at the start of each frame's slot resolution, pinning glyphs
+    /// placed THIS batch — evicting one would free a rect a CellSlot
+    /// resolved earlier this frame still points at, aliasing it to the
+    /// glyph that reuses the rect (the mid-screen CJK/Thai garble + the
+    /// per-frame full-repaint thrash when the working set exceeds the
+    /// atlas). Defaults to `.max` (plain LRU) for out-of-band callers.
+    private var frameAccessFloor: UInt64 = .max
+
+    /// Pin all currently-resolved glyphs against eviction for the duration
+    /// of one frame's slot-resolution batch. The renderer calls this
+    /// before resolving a frame's cells; the gray and color atlases share
+    /// the floor. See `evictOneLRU` / `frameAccessFloor`.
+    func beginResolveBatch() {
+        frameAccessFloor = accessCounter
+    }
+
     /// Free rects produced by LRU eviction. First-fit allocator scans
     /// this list before falling back to shelf advance. Simple any-fit
     /// is intentional: shelf-packed allocations are uniform-cell-sized
@@ -1400,15 +1418,22 @@ final class GlyphAtlas {
         // their rects to the free list, until either (a) the free
         // list serves the request or (b) we run out of evictable
         // entries.
-        while !entries.isEmpty {
-            evictOneLRU()
+        while evictOneLRU() {
             if let origin = takeFromFreeList(width: w, height: h) {
                 return origin
             }
         }
-        // Free-list fragmentation cliff: every evictable entry has
-        // been freed yet the request still won't fit. Reset wholesale
-        // and try once more. A reset re-pins the blank slot.
+        // No evictable (pre-batch) entry remains. If glyphs resolved THIS
+        // batch still occupy the atlas, the frame's working set exceeds
+        // capacity — resetting would free their rects and alias the
+        // already-resolved CellSlots (garble). Fail safe: this glyph
+        // renders blank. (Cure = a larger atlas; tracked tech-debt.)
+        if entries.contains(where: { $0.value.lastAccess > frameAccessFloor }) {
+            throw AtlasError.atlasFull(needed: SIMD2(w, h))
+        }
+        // Free-list fragmentation cliff: only stale entries remained and
+        // the request still won't fit. Reset wholesale and try once more.
+        // A reset re-pins the blank slot.
         NSLog(
             "GlyphAtlas: fragmentation cliff — full atlas reset (needed %ux%u)",
             w, h)
@@ -1461,10 +1486,17 @@ final class GlyphAtlas {
     /// Evict the single oldest (lowest `lastAccess`) entry, refunding
     /// its rect to the free list. Pinned regions are never in
     /// `entries`, so they're inherently safe.
-    private func evictOneLRU() {
+    /// Evict the least-recently-used entry that is NOT pinned by the
+    /// current resolve batch (`lastAccess <= frameAccessFloor`). Returns
+    /// `false` when no such entry exists — the caller must NOT then reset
+    /// or alias the remaining (this-batch) entries.
+    @discardableResult
+    private func evictOneLRU() -> Bool {
         guard
-            let victim = entries.min(by: { $0.value.lastAccess < $1.value.lastAccess })
-        else { return }
+            let victim = entries.lazy
+                .filter({ $0.value.lastAccess <= self.frameAccessFloor })
+                .min(by: { $0.value.lastAccess < $1.value.lastAccess })
+        else { return false }
         let rect = victim.value.entry
         freeRects.append(
             FreeRect(originPx: rect.originPx, sizePx: rect.sizePx))
@@ -1472,6 +1504,7 @@ final class GlyphAtlas {
         bytesAllocated -= min(bytesAllocated, bytes)
         entries.removeValue(forKey: victim.key)
         pendingEviction = true
+        return true
     }
 
     /// Full-atlas reset: clear all entries + free-list, reset shelf
@@ -1673,11 +1706,13 @@ final class GlyphAtlas {
         if let origin = advanceColorShelf(width: w, height: h) {
             return origin
         }
-        while !colorEntries.isEmpty {
-            evictOneColorLRU()
+        while evictOneColorLRU() {
             if let origin = takeFromColorFreeList(width: w, height: h) {
                 return origin
             }
+        }
+        if colorEntries.contains(where: { $0.value.lastAccess > frameAccessFloor }) {
+            throw AtlasError.atlasFull(needed: SIMD2(w, h))
         }
         NSLog(
             "GlyphAtlas: color atlas fragmentation cliff — reset (needed %ux%u)",
@@ -1723,12 +1758,15 @@ final class GlyphAtlas {
         return SIMD2(originX, originY)
     }
 
-    private func evictOneColorLRU() {
+    @discardableResult
+    private func evictOneColorLRU() -> Bool {
+        // Same batch-pinning rule as the gray atlas: don't evict a glyph
+        // touched this resolve batch (lastAccess > frameAccessFloor).
         guard
-            let victim = colorEntries.min(by: {
-                $0.value.lastAccess < $1.value.lastAccess
-            })
-        else { return }
+            let victim = colorEntries.lazy
+                .filter({ $0.value.lastAccess <= self.frameAccessFloor })
+                .min(by: { $0.value.lastAccess < $1.value.lastAccess })
+        else { return false }
         let entry = victim.value.entry
         colorEntries.removeValue(forKey: victim.key)
         colorFreeRects.append(
@@ -1739,6 +1777,7 @@ final class GlyphAtlas {
         colorBytesAllocated = colorBytesAllocated >= bytes
             ? colorBytesAllocated - bytes : 0
         pendingEviction = true
+        return true
     }
 
     private func resetColorAtlas() {

@@ -1621,6 +1621,9 @@ final class MetalRenderer {
         makeSlot: (CellDeltaSwift) -> CellSlot?
     ) {
         guard !decoded.isEmpty else { return }
+        // Pin glyphs resolved this batch so a later cell can't evict an
+        // earlier cell's atlas rect mid-frame (CJK/Thai garble).
+        atlas.beginResolveBatch()
         var resolved: [(row: Int, col: Int, slot: CellSlot)] = []
         resolved.reserveCapacity(decoded.count)
         for cell in decoded {
@@ -1694,6 +1697,9 @@ final class MetalRenderer {
         makeSlot: (CoalescedCell) -> CellSlot?
     ) {
         guard !coalesced.isEmpty else { return }
+        // Pin glyphs resolved this batch so a later cell can't evict an
+        // earlier cell's atlas rect mid-frame (CJK/Thai garble).
+        atlas.beginResolveBatch()
         var resolved: [(row: Int, col: Int, slot: CellSlot)] = []
         resolved.reserveCapacity(coalesced.count)
         for cell in coalesced {
