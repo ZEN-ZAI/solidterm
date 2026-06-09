@@ -36,7 +36,7 @@ public struct CellDeltaSwift: Equatable {
 
 /// Decode the `FrameDelta.cells: Vec<u8>` byte payload into Swift
 /// `CellDeltaSwift` records. Throws on malformed input (length not a
-/// multiple of 32).
+/// multiple of 48, the CellDeltaWire wire size).
 public enum FrameDeltaDecoding {
     public static let cellWireSize: Int = 48
 
@@ -63,8 +63,16 @@ public enum FrameDeltaDecoding {
         guard length % cellWireSize == 0 else {
             throw DecodeError.malformedPayload(byteCount: length)
         }
-        let buf = UnsafeBufferPointer(start: vec.as_ptr(), count: length)
-        return decodeCellsBuffer(buf)
+        // `withExtendedLifetime` keeps the RustVec (and thus the Rust-owned
+        // buffer `as_ptr()` points into) alive across the entire read.
+        // Without it, ARC may release `vec` after its last syntactic use
+        // (the `as_ptr()` call) — before `decodeCellsBuffer` finishes —
+        // since that callee only sees the raw pointer, not the owner.
+        // That is a use-after-free in optimized release builds.
+        return withExtendedLifetime(vec) {
+            let buf = UnsafeBufferPointer(start: vec.as_ptr(), count: length)
+            return decodeCellsBuffer(buf)
+        }
     }
 
     /// Decode an already-validated buffer of wire bytes into Swift records.

@@ -1356,10 +1356,15 @@ final class GlyphAtlas {
         let bytes = UInt64(w) * UInt64(h) * Self.bytesPerPixel
 
         // Hard ceiling check — defensive at the production 512² shelf
-        // (unreachable in practice) but contract-pinned for post-M1.
-        if bytesAllocated + bytes > Self.maxBytes {
+        // (unreachable in practice) but contract-pinned for post-M1. The
+        // 64 MiB ceiling is SHARED with the color atlas, so account for
+        // both sides here (placeColor does the same); checking only
+        // bytesAllocated would let gray + color together exceed it once
+        // the post-M1 4096² heaps make the ceiling load-bearing.
+        if bytesAllocated + colorBytesAllocated + bytes > Self.maxBytes {
             throw AtlasError.bytesCeilingExceeded(
-                needed: bytesAllocated + bytes, ceiling: Self.maxBytes)
+                needed: bytesAllocated + colorBytesAllocated + bytes,
+                ceiling: Self.maxBytes)
         }
 
         let origin = try allocateOrigin(width: w, height: h, queue: queue)
