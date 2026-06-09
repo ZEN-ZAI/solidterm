@@ -56,20 +56,27 @@ pub fn search(
     let topmost = grid.topmost_line().0;
     let bottommost = grid.bottommost_line().0;
 
-    let regex: Option<Regex> = if use_regex {
-        Some(
-            RegexBuilder::new(query)
-                .case_insensitive(false)
-                .build()
-                .map_err(|e| SearchError::InvalidRegex(e.to_string()))?,
-        )
+    // Both modes search `text` directly, so match byte-offsets index the
+    // `byte_to_col` table built from the SAME string. Plain mode compiles
+    // the query as an escaped, case-insensitive literal (matches Ghostty /
+    // iTerm2). This also fixes a prior bug: plain mode searched a
+    // separately-lowercased haystack but indexed columns from the
+    // original-case text, so any character whose lowercase form changed
+    // UTF-8 byte length (e.g. 'K' U+212A → 'k', 'İ' U+0130 → 'i̇') desynced
+    // the reported column or dropped the match. Regex mode honors the
+    // user's own inline `(?i)` flags.
+    let regex: Regex = if use_regex {
+        RegexBuilder::new(query)
+            .case_insensitive(false)
+            .build()
+            .map_err(|e| SearchError::InvalidRegex(e.to_string()))?
     } else {
-        None
-    };
-    let needle_lc = if use_regex {
-        String::new()
-    } else {
-        query.to_lowercase()
+        // `regex::escape` output is always a valid pattern; the map_err is
+        // belt-and-suspenders.
+        RegexBuilder::new(&regex::escape(query))
+            .case_insensitive(true)
+            .build()
+            .map_err(|e| SearchError::InvalidRegex(e.to_string()))?
     };
 
     let mut out: Vec<SearchMatch> = Vec::new();
@@ -82,16 +89,24 @@ pub fn search(
         // the same `c` as the leading wide cell's spacer position, so
         // we explicitly skip them via the flag check below.
         let mut text = String::with_capacity(cols);
+        // `byte_to_col[b]` = leftmost column of the cell byte `b` belongs
+        // to; `byte_to_col_right[b]` = its RIGHTMOST column (one greater
+        // for a double-width CJK cell). Keeping both lets a match ending
+        // on a wide char report the two cells it actually spans, not one.
         let mut byte_to_col: Vec<u16> = Vec::with_capacity(cols);
+        let mut byte_to_col_right: Vec<u16> = Vec::with_capacity(cols);
         for c in 0..cols {
             let cell: &Cell = &grid[Point::new(Line(line), Column(c))];
-            // Skip the trailing half of a CJK wide pair so the leading
-            // glyph's column anchors the match. Without this skip the
-            // continuation cell duplicates the wide char and `col` for
-            // the next row's first cell would be reported one too high.
+            // Skip BOTH wide-char continuation placeholders — the trailing
+            // spacer and the LEADING spacer alacritty emits when a wide
+            // char would straddle the wrap edge — so the leading glyph's
+            // column anchors the match (matching `viewport_cells`, which
+            // skips both). Missing the leading variant corrupts the
+            // column mapping for wrap-straddling wide chars.
+            use alacritty_terminal::term::cell::Flags;
             if cell
                 .flags
-                .contains(alacritty_terminal::term::cell::Flags::WIDE_CHAR_SPACER)
+                .intersects(Flags::WIDE_CHAR_SPACER | Flags::LEADING_WIDE_CHAR_SPACER)
             {
                 continue;
             }
@@ -102,8 +117,10 @@ pub fn search(
             // configs.
             #[allow(clippy::cast_possible_truncation)]
             let col_u16 = c as u16;
+            let right_u16 = col_u16 + u16::from(cell.flags.contains(Flags::WIDE_CHAR));
             for _ in 0..glyph.len_utf8() {
                 byte_to_col.push(col_u16);
+                byte_to_col_right.push(right_u16);
             }
             text.push(glyph);
         }
@@ -112,6 +129,7 @@ pub fn search(
         while text.ends_with(' ') {
             text.pop();
             byte_to_col.pop();
+            byte_to_col_right.pop();
         }
 
         if text.is_empty() {
@@ -125,52 +143,24 @@ pub fn search(
             }
             let last_byte = end.saturating_sub(1).min(byte_to_col.len() - 1);
             let start_col = byte_to_col[start];
-            let end_col = byte_to_col[last_byte];
-            // Inclusive-to-exclusive len: end_col is the leftmost col of
-            // the last char; +1 for the cell it occupies, +0 for any
-            // wide-char trailing spacer (already collapsed above).
+            // RIGHTMOST column of the last matched cell, so a match ending
+            // on a double-width glyph counts both of its cells.
+            let end_col = byte_to_col_right[last_byte];
             let len = end_col.saturating_sub(start_col) + 1;
             Some((start_col, len))
         };
 
-        if let Some(re) = &regex {
-            for m in re.find_iter(&text) {
-                if m.range().is_empty() {
-                    continue;
-                }
-                if let Some((col, len)) = to_cells(m.start(), m.end()) {
-                    #[allow(clippy::cast_possible_truncation)]
-                    let line_i32 = line;
-                    out.push(SearchMatch {
-                        line: line_i32,
-                        col,
-                        len,
-                    });
-                    if out.len() >= MAX_MATCHES {
-                        return Ok(out);
-                    }
-                }
+        // Single matcher for both modes (plain mode is the escaped,
+        // case-insensitive regex built above). `find_iter` yields
+        // non-overlapping matches — the standard highlight behavior.
+        for m in regex.find_iter(&text) {
+            if m.range().is_empty() {
+                continue;
             }
-        } else {
-            // Case-insensitive substring search. Building the lowercased
-            // row once per line is O(n) but skipped entirely on the
-            // common-case "no match in this row" via a fast check.
-            let hay_lc = text.to_lowercase();
-            let mut start = 0;
-            while let Some(rel) = hay_lc[start..].find(&needle_lc) {
-                let abs_start = start + rel;
-                let abs_end = abs_start + needle_lc.len();
-                if let Some((col, len)) = to_cells(abs_start, abs_end) {
-                    out.push(SearchMatch { line, col, len });
-                    if out.len() >= MAX_MATCHES {
-                        return Ok(out);
-                    }
-                }
-                // Advance by one byte to find overlapping matches; in
-                // practice CJK + ASCII mixtures benefit from this.
-                start = abs_start + needle_lc.len().max(1);
-                if start >= hay_lc.len() {
-                    break;
+            if let Some((col, len)) = to_cells(m.start(), m.end()) {
+                out.push(SearchMatch { line, col, len });
+                if out.len() >= MAX_MATCHES {
+                    return Ok(out);
                 }
             }
         }
@@ -295,5 +285,32 @@ mod tests {
         feed(&mut term, b"hello\r\n");
         let hits = search(term.grid(), "zzz", false).unwrap();
         assert!(hits.is_empty());
+    }
+
+    #[test]
+    fn plain_columns_correct_after_multibyte_lowercasing_char() {
+        // 'K' (KELVIN SIGN U+212A, 3 bytes) lowercases to 'k' (1 byte).
+        // The old plain path searched a separately-lowercased haystack
+        // but indexed a column table built from the original text, so the
+        // byte-length change desynced the reported column. The match
+        // after the Kelvin sign must still land at the right column.
+        let mut term = make_term(3, 40);
+        feed(&mut term, "\u{212A} hello\r\n".as_bytes());
+        let hits = search(term.grid(), "hello", false).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].col, 2, "column must account for the 3-byte 'K'");
+        assert_eq!(hits[0].len, 5);
+    }
+
+    #[test]
+    fn match_ending_on_wide_char_counts_both_cells() {
+        // A match ending on a double-width CJK glyph must report the two
+        // cells it occupies, not one.
+        let mut term = make_term(3, 40);
+        feed(&mut term, "a\u{4E16}\r\n".as_bytes()); // "a世"
+        let hits = search(term.grid(), "a\u{4E16}", false).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].col, 0);
+        assert_eq!(hits[0].len, 3, "'a' (1) + '世' (2) = 3 cells");
     }
 }

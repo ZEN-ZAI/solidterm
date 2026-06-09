@@ -197,10 +197,23 @@ impl OscPerform {
         // lowercase). Other schemes are out-of-scope for cwd reporting.
         const SCHEME: &[u8] = b"file://";
 
-        // OSC 7 carries the URL as a single tail argument.
-        let Some(url_bytes) = params.get(1) else {
-            tracing::debug!("OSC 7 missing URL argument; dropping");
-            return;
+        // OSC 7 carries the URL as the tail argument. vte splits OSC
+        // params on ';', but ';' is a legal byte inside a path, so a URL
+        // with literal semicolons arrives split across params[1..]. Rejoin
+        // rather than silently truncating the cwd at the first ';'. (Shells
+        // usually percent-encode ';' as %3b, keeping it in params[1], so
+        // this is a no-op in the common case.)
+        let joined_url: Vec<u8>;
+        let url_bytes: &[u8] = match params.get(1) {
+            None => {
+                tracing::debug!("OSC 7 missing URL argument; dropping");
+                return;
+            }
+            Some(first) if params.len() <= 2 => first,
+            Some(_) => {
+                joined_url = params[1..].join(&b';');
+                &joined_url
+            }
         };
 
         let Some(after_scheme) = url_bytes.strip_prefix(SCHEME) else {
@@ -386,9 +399,16 @@ impl vte::Perform for OscPerform {
         &mut self,
         params: &vte::Params,
         intermediates: &[u8],
-        _ignore: bool,
+        ignore: bool,
         action: char,
     ) {
+        // vte sets `ignore` when the CSI overflowed its intermediate /
+        // parameter limits or was otherwise malformed; a spec-conformant
+        // terminal drops it rather than replying or mutating state.
+        if ignore {
+            return;
+        }
+
         // `CSI > Ps q` — XTVERSION terminal-identification request.
         // alacritty 0.26 leaves it unhandled (no XTVERSION support), so we
         // answer it in the sibling parser, same rationale as
