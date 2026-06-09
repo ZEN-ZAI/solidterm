@@ -49,6 +49,15 @@ public final class SearchPanelController: NSObject {
         }
     }
 
+    deinit {
+        // Backstop: if the controller is released without a user dismiss
+        // (window closed while the find bar was up), unregister the
+        // global click-outside monitor so it doesn't leak for the app's
+        // lifetime. `forceClose()` from the window-close path is the
+        // primary, deterministic cleanup; this catches any path missing it.
+        if let m = clickOutsideMonitor { NSEvent.removeMonitor(m) }
+    }
+
     public func attach(to window: NSWindow) {
         self.anchor = window
     }
@@ -205,6 +214,19 @@ public final class SearchPanelController: NSObject {
         if let surface, anchor.firstResponder !== surface {
             anchor.makeFirstResponder(surface)
         }
+    }
+
+    /// Synchronous teardown for when the owning window closes while the
+    /// panel is still visible (⌘W without Esc). `dismiss()` never runs in
+    /// that path, so the floating panel would orphan on screen and the
+    /// click-outside monitor would leak. Orders the panel out and removes
+    /// the monitor immediately.
+    func forceClose() {
+        removeClickOutsideMonitor()
+        surface?.rendererForTesting.searchHighlights = nil
+        isDismissing = false
+        panel?.orderOut(nil)
+        panel?.alphaValue = 1
     }
 
     // MARK: - Search core

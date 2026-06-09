@@ -236,6 +236,14 @@ final class TerminalWindowController: NSWindowController, NSMenuItemValidation {
         controller.toggle()
     }
 
+    /// Tear down the ⌘F search panel when the window is closing. The
+    /// panel is a standalone floating NSPanel (not a child window), so it
+    /// would otherwise orphan on screen and leak its global event monitor
+    /// when the window closes while the find bar is up.
+    func closeSearchPanel() {
+        searchPanelController?.forceClose()
+    }
+
     private func ensureSearchPanelController() -> SearchPanelController {
         if let existing = searchPanelController { return existing }
         let controller = SearchPanelController()

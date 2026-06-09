@@ -127,10 +127,20 @@ final class TerminalSwitcherController: NSObject {
     /// re-keys its chosen window right after its `dismiss(animated:false)`
     /// returns, so this call is harmlessly overridden in that path.
     private func restoreFocusToTerminal() {
-        guard NSApp.isActive, let anchor else { return }
+        guard NSApp.isActive else { return }
+        // `anchor` can be nil here: if its window was closed while the
+        // switcher was open, the switcher's `model.entries` held the last
+        // strong reference and freed it in the dismiss completion that
+        // just ran — so fall back to any live terminal window. Otherwise
+        // the app is left with NO key window (dead keyboard), the exact
+        // failure the ⌘F focus-restore guards against.
+        let target = anchor
+            ?? (NSApp.delegate as? AppDelegate)?.allWindowControllers
+                .lazy.compactMap(\.window).first(where: \.isVisible)
+        guard let target else { return }
         let key = NSApp.keyWindow
         if key == nil || key === panel {
-            anchor.makeKey()
+            target.makeKey()
         }
     }
 

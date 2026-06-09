@@ -13,6 +13,11 @@ final class ToastOverlay {
 
     private var panel: NSPanel?
     private var dismissTimer: Timer?
+    /// Bumped on every `show()`. The dismiss timer captures the value at
+    /// scheduling time and bails if a newer `show()` has since run —
+    /// without it, a stale timer's already-enqueued dismiss Task fires
+    /// `dismiss()` and hides the toast the new `show()` just presented.
+    private var generation: Int = 0
 
     private init() {}
 
@@ -51,10 +56,15 @@ final class ToastOverlay {
             panel.animator().alphaValue = 1
         }
 
+        generation &+= 1
+        let gen = generation
         dismissTimer = Timer.scheduledTimer(
             withTimeInterval: 1.8, repeats: false
         ) { [weak self] _ in
-            Task { @MainActor in self?.dismiss() }
+            Task { @MainActor in
+                guard let self, self.generation == gen else { return }
+                self.dismiss()
+            }
         }
     }
 

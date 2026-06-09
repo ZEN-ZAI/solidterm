@@ -173,6 +173,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         guard let closing = notification.object as? NSWindow else { return }
+        // Dismiss the window's find bar BEFORE releasing its controller —
+        // the floating search panel isn't a child window, so it won't be
+        // torn down automatically and would ghost on screen.
+        windowControllers.first { $0.window === closing }?.closeSearchPanel()
         windowControllers.removeAll { $0.window === closing }
     }
 }
