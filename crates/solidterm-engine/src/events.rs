@@ -54,6 +54,14 @@ use crossbeam_channel::Sender;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
+/// Cap on the DECODED OSC 52 payload we retain and forward. A hostile
+/// child can emit megabytes of base64 in one sequence; alacritty has
+/// already decoded it by the time we see the String (that transient
+/// allocation is alacritty-internal and freed immediately), so the cap
+/// bounds what we LATCH in the FFI layer and push to NSPasteboard —
+/// not the one-shot decode. 1 MiB is far above any legitimate copy.
+const OSC52_MAX_DECODED_BYTES: usize = 1 << 20;
+
 /// Hardcoded Zenzai Dark foreground (`#d6d6dd`, per
 /// `spec/theme-appearance.md`). Used as the reply payload for OSC 10
 /// queries until M5's `ThemeManager` lands. M1 keeps theming
@@ -67,7 +75,7 @@ pub(crate) const ZENZAI_DARK_FOREGROUND: Rgb = Rgb {
 
 /// Hardcoded Zenzai Dark background (`#0c0d10`, per
 /// `spec/theme-appearance.md` — also matches the Phase 0 Metal renderer
-/// clear color in `app/NextTerm/TerminalSurfaceView.swift:29`). Used as
+/// clear color in `app/SolidTerm/TerminalSurfaceView.swift:29`). Used as
 /// the reply payload for OSC 11 queries.
 pub(crate) const ZENZAI_DARK_BACKGROUND: Rgb = Rgb {
     r: 0x0c,
@@ -216,8 +224,9 @@ pub enum EngineEvent {
     /// Source: `FinalTerm` semantic-prompts proposal, adopted by VS Code,
     /// iTerm2, kitty, etc. Surfaced by the `OscPerform` sibling parser
     /// (the OSC sideband alacritty's `vte::ansi::Handler` doesn't
-    /// expose). Consumers (`BlockStateMachine` in `solidterm-blocks`) use
-    /// this as the boundary between completed-output and new-prompt.
+    /// expose). Consumers (the Swift renderer's prompt-marker accent —
+    /// "Show command markers") use this as the boundary between
+    /// completed-output and new-prompt.
     PromptStart,
     /// OSC 133 ; B — user input begins (right after the prompt is
     /// drawn). Marks the boundary between prompt cells and user-typed
@@ -332,10 +341,20 @@ impl EventListener for EventProxy {
             AlacrittyEvent::Bell => Some(EngineEvent::Bell),
             AlacrittyEvent::Title(t) => Some(EngineEvent::TitleChanged(t)),
             AlacrittyEvent::ResetTitle => Some(EngineEvent::TitleReset),
-            AlacrittyEvent::ClipboardStore(ty, text) => Some(EngineEvent::ClipboardStore {
-                kind: ty.into(),
-                text,
-            }),
+            AlacrittyEvent::ClipboardStore(ty, text) => {
+                if text.len() > OSC52_MAX_DECODED_BYTES {
+                    tracing::warn!(
+                        len = text.len(),
+                        "OSC 52 clipboard write exceeds cap; dropping"
+                    );
+                    None
+                } else {
+                    Some(EngineEvent::ClipboardStore {
+                        kind: ty.into(),
+                        text,
+                    })
+                }
+            }
             AlacrittyEvent::ClipboardLoad(ty, _formatter) => {
                 // The formatter `Arc<dyn Fn(&str) -> String>` is
                 // dropped here per the module-level note. Consumers
@@ -967,6 +986,38 @@ mod tests {
                 kind: ClipboardKind::Clipboard,
                 text: String::new(),
             }],
+        );
+    }
+
+    /// OSC 52 with a decoded payload that exceeds `OSC52_MAX_DECODED_BYTES`
+    /// is dropped at the EventProxy cap check. "QUFB" is base64 for "AAA"
+    /// (3 bytes); repeating it `(cap / 3) + 1` times decodes to more than
+    /// cap bytes. The engine must not emit a `ClipboardStore` event.
+    #[test]
+    fn osc_52_write_over_cap_is_dropped() {
+        use super::OSC52_MAX_DECODED_BYTES;
+        // (cap / 3) + 1 repetitions decodes to cap + 1 bytes — just over the limit.
+        let payload = "QUFB".repeat((OSC52_MAX_DECODED_BYTES / 3) + 1);
+        let seq = format!("\x1b]52;c;{payload}\x1b\\");
+        let events = drive_through_term(seq.as_bytes());
+        assert!(
+            events.is_empty(),
+            "OSC 52 payload exceeding OSC52_MAX_DECODED_BYTES must be dropped; got {events:?}",
+        );
+    }
+
+    /// OSC 52 with a decoded payload well under the cap passes through
+    /// unchanged. "QUFB" decodes to "AAA" (3 bytes).
+    #[test]
+    fn osc_52_write_under_cap_passes() {
+        let events = drive_through_term(b"\x1b]52;c;QUFB\x1b\\");
+        assert_eq!(
+            events,
+            vec![EngineEvent::ClipboardStore {
+                kind: ClipboardKind::Clipboard,
+                text: "AAA".to_string(),
+            }],
+            "OSC 52 payload under cap must emit exactly one ClipboardStore event",
         );
     }
 
