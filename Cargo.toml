@@ -18,20 +18,12 @@ repository = "https://github.com/ZEN-ZAI/solidterm"
 alacritty_terminal = "0.26"
 vte = "0.13"
 
-# Async + concurrency
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "io-util", "process", "time"] }
 crossbeam-channel = "0.5"
 parking_lot = "0.12"
 
 # Serde + config
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-toml = "0.8"
-schemars = "0.8"
-
-# Strings + collections
-smallvec = "1"
-smol_str = "0.3"
 
 # Scrollback regex search.
 regex = "1"
@@ -39,15 +31,9 @@ regex = "1"
 # Zero-copy byte-slice ↔ repr(C) struct conversion (FFI wire encoding)
 bytemuck = { version = "1", features = ["derive"] }
 
-# Filesystem watching + locking
-notify = "6"
-fs4 = { version = "0.13", features = ["sync"] }
-
 # Errors + tracing
 thiserror = "2"
-anyhow = "1"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 # FFI
 swift-bridge = "0.1"

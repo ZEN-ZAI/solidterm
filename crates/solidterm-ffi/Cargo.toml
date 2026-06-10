@@ -22,16 +22,10 @@ workspace = true
 
 [dependencies]
 solidterm-engine = { path = "../solidterm-engine" }
-solidterm-config = { path = "../solidterm-config" }
 
 swift-bridge.workspace = true
 bytemuck.workspace = true
-crossbeam-channel.workspace = true
-parking_lot.workspace = true
-serde.workspace = true
-serde_json.workspace = true
 tracing.workspace = true
-tracing-subscriber.workspace = true
 
 [build-dependencies]
 swift-bridge-build = "0.1"

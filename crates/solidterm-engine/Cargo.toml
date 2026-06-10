@@ -15,19 +15,10 @@ vte.workspace = true
 crossbeam-channel.workspace = true
 parking_lot.workspace = true
 serde.workspace = true
-serde_json.workspace = true
-smol_str.workspace = true
 regex.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 libc = "0.2"
-
-[features]
-# Exposes test-only injection helpers (e.g. `TerminalEngine::inject_claude_block_for_test`)
-# to other workspace crates that need to drive engine internals without
-# spawning a real PTY subprocess. Off by default; enabled per dev-dep on
-# the consuming side.
-test-util = []
 
 [dev-dependencies]
 serde_json.workspace = true
