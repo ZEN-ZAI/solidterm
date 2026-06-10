@@ -41,8 +41,8 @@ final class GlyphAtlasTests: XCTestCase {
 
     func testAtlasTextureWiredCorrectly() {
         XCTAssertEqual(atlas.texture.pixelFormat, .r8Unorm)
-        XCTAssertEqual(atlas.texture.width, 512)
-        XCTAssertEqual(atlas.texture.height, 512)
+        XCTAssertEqual(atlas.texture.width, 2048)
+        XCTAssertEqual(atlas.texture.height, 2048)
         XCTAssertEqual(atlas.texture.storageMode, .private)
     }
 
@@ -264,7 +264,7 @@ final class GlyphAtlasTests: XCTestCase {
     // MARK: - Same-frame eviction pinning (bug-hunt round 1)
 
     func testBatchPinningPreventsSameFrameRectAliasing() throws {
-        // Resolve a batch far larger than the 512² atlas can hold. Glyphs
+        // Resolve a batch far larger than the 2048² atlas can hold. Glyphs
         // placed earlier this batch must NOT be evicted to fit later ones
         // — that would alias their atlas rects (the mid-screen CJK garble
         // + per-frame repaint thrash). Once capacity is hit, further
@@ -273,7 +273,7 @@ final class GlyphAtlasTests: XCTestCase {
         // keeps a distinct origin.
         atlas.beginResolveBatch()
         var origins: [[UInt32]] = []
-        for v in 0x4E00..<(0x4E00 + 1500) {
+        for v in 0x4E00..<(0x4E00 + 5000) {
             guard let scalar = Unicode.Scalar(v) else { continue }
             guard let e = try? atlas.entry(for: scalar, commandQueue: queue)
             else { break }  // hit capacity — expected and correct
@@ -310,7 +310,7 @@ final class GlyphAtlasTests: XCTestCase {
         for s in scalars {
             let entry = try atlas.entry(for: s, commandQueue: queue)
             // Shelf packer monotonically advances the X cursor along
-            // a single row at the spike scale (cell width × 7 << 512).
+            // a single row at the spike scale (cell width × 7 << 2048).
             XCTAssertGreaterThanOrEqual(entry.originPx.x, lastX)
             lastX = entry.originPx.x + entry.sizePx.x
         }

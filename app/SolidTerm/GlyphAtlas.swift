@@ -100,10 +100,15 @@ struct GlyphKey: Hashable {
 }
 
 final class GlyphAtlas {
-    /// Production atlas dimensions in pixels. 512 × 512 × 1 B = 256 KB.
-    /// Heap-backed 4096² version arrives post-M1 alongside the dual
-    /// (color emoji) atlas — see tech-debt.md.
-    static let atlasSize: SIMD2<UInt32> = SIMD2(512, 512)
+    /// Production atlas dimensions in pixels. 2048 × 2048 × 1 B = 4 MiB.
+    /// Bumped from 512² (which held only ~80 two-cell cells): dense
+    /// scripts where almost every syllable is a distinct coalesced
+    /// cluster — Thai (consonant + vowel/tone), Devanagari, etc. — blew
+    /// past the old shelf in a single viewport, and the same-frame
+    /// eviction guard then rendered the overflow blank (missing glyphs).
+    /// 2048² holds ~1.3k two-cell clusters, comfortably more than one
+    /// screen. Still far under the 64 MiB ceiling.
+    static let atlasSize: SIMD2<UInt32> = SIMD2(2048, 2048)
 
     /// Color emoji atlas dimensions. 1024 × 1024 × 4 B = 4 MiB —
     /// compromise between the spec's 2048² (16 MiB) and the gray
