@@ -23,6 +23,8 @@ cargo test --workspace
 ./scripts/install-hooks.sh
 ```
 
+Note: the locally-resolved `xcrun swift-format` can be a different version from CI's and may flag pre-existing lines your change didn't touch — if the pre-commit lint blocks on untouched code, rely on the CI lint as the source of truth.
+
 For Swift changes:
 
 ```bash

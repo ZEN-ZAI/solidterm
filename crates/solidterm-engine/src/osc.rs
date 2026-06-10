@@ -180,9 +180,17 @@ impl OscPerform {
     /// - Host can be empty (`file:///path`), `localhost`, or a remote
     ///   hostname; in every case we skip everything between `file://`
     ///   and the next `/`, then take the remainder as the path.
-    /// - URL-decoding (`%XX` → bytes) is intentionally skipped at M1.
-    ///   Most shell-emitted paths are plain ASCII; non-ASCII or
-    ///   special-character paths get a TODO for M2+.
+    /// - URL-decoding (`%XX` → bytes) is performed unconditionally via an
+    ///   internal `percent_decode` helper. Each `%XX` triplet is decoded to
+    ///   its raw byte; non-`%` bytes pass through unchanged. A malformed
+    ///   `%XX` (non-hex digits) causes the entire OSC to be dropped rather
+    ///   than partially decoded. After decoding, a post-decode control-
+    ///   character guard rejects paths containing C0/C1 bytes (e.g.
+    ///   `%1b`=ESC, `%0d`=CR) to prevent reinjecting bytes that vte
+    ///   deliberately stripped. The `;`-split rejoin step preserves any
+    ///   `%3b`-encoded semicolons in the URL (vte splits OSC params on `;`,
+    ///   so a literal `;` in the path arrives split; percent-encoded `%3b`
+    ///   stays in `params[1]` and survives the rejoin).
     /// - Invalid UTF-8 path bytes: silently dropped with a debug
     ///   breadcrumb (no event, no panic).
     /// - Non-`file://` schemes (e.g. `http://`): silently dropped with

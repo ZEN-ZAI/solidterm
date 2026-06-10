@@ -67,8 +67,12 @@ final class LatencyMeasurementTests: XCTestCase {
         // suite runs under concurrent load (observed p99 spikes to
         // hundreds of ms with nothing wrong in the render path). Gate it
         // behind SOLIDTERM_RUN_PERF=1 so the routine `xcodebuild test` is
-        // deterministically green, while an intentional perf run
-        // (`SOLIDTERM_RUN_PERF=1 xcodebuild test …`) still exercises it.
+        // deterministically green, while an intentional perf run still
+        // exercises it. To activate via xcodebuild, use the TEST_RUNNER_
+        // prefix: `TEST_RUNNER_SOLIDTERM_RUN_PERF=1 xcodebuild test …` —
+        // that prefix is how xcodebuild forwards variables into the test
+        // runner process. Xcode scheme runs set the plain name
+        // (SOLIDTERM_RUN_PERF=1) directly in the scheme's environment.
         try XCTSkipUnless(
             ProcessInfo.processInfo.environment["SOLIDTERM_RUN_PERF"] == "1",
             "perf measurement — set SOLIDTERM_RUN_PERF=1 to run (skipped in routine suite)")
