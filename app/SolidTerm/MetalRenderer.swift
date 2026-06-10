@@ -367,6 +367,24 @@ final class MetalRenderer {
     /// summary once `targetSampleCount` (default 1000) is reached.
     let latencyMeter = LatencyMeter(targetSampleCount: 1000)
 
+    /// One-frame-in-flight fence for the grid cell textures (`.shared`
+    /// storage, mutated by CPU `replace(region:)`). Hold the slot whenever
+    /// mutating the LIVE pipeline's textures or while a committed frame's
+    /// GPU reads are outstanding; every committed command buffer signals
+    /// from its completion handler. Fresh-pipeline `setGrid` paths
+    /// (reloadFont/windowChanged/resizeGrid) need no slot — their textures
+    /// have never been submitted, and in-flight buffers retain the old set.
+    private let frameSlot = DispatchSemaphore(value: 1)
+
+    /// Out-of-tick mutators of the live cell textures (theme repaint):
+    /// wait → mutate → signal immediately. No GPU work is submitted while
+    /// the slot is held here; the next draw tick re-acquires it.
+    private func withCellTextureSlot<T>(_ body: () throws -> T) rethrows -> T {
+        frameSlot.wait()
+        defer { frameSlot.signal() }
+        return try body()
+    }
+
     var clearColor: MTLClearColor = TerminalSurfaceView.defaultClearColor
 
     /// Linear-space white text on the dark theme background. Pure linear
@@ -523,30 +541,32 @@ final class MetalRenderer {
         // No session yet (renderer still initialising) → fall back to
         // the blank-grid path so the new background color paints
         // immediately.
-        if let session, let pipeline = gridPipeline, let atlas {
-            let frame = session.take_full_frame_delta()
-            self.lastCursor = frame.cursor
-            if let decoded = try? FrameDeltaDecoding.decodeCells(frame.cells) {
-                if useShaping {
-                    let coalesced = GraphemeClusterCoalescer.coalesce(decoded)
-                    Self.applyCoalescedCellsAsRegions(
-                        coalesced, pipeline: pipeline, atlas: atlas,
-                        makeSlot: { [weak self] cell in
-                            self?.makeSlot(from: cell, atlas: atlas)
-                        })
-                } else {
-                    Self.applyCellsAsRegions(
-                        decoded, pipeline: pipeline, atlas: atlas,
-                        makeSlot: { [weak self] cell in
-                            self?.makeSlot(from: cell, atlas: atlas)
-                        })
+        withCellTextureSlot {
+            if let session, let pipeline = gridPipeline, let atlas {
+                let frame = session.take_full_frame_delta()
+                self.lastCursor = frame.cursor
+                if let decoded = try? FrameDeltaDecoding.decodeCells(frame.cells) {
+                    if useShaping {
+                        let coalesced = GraphemeClusterCoalescer.coalesce(decoded)
+                        Self.applyCoalescedCellsAsRegions(
+                            coalesced, pipeline: pipeline, atlas: atlas,
+                            makeSlot: { [weak self] cell in
+                                self?.makeSlot(from: cell, atlas: atlas)
+                            })
+                    } else {
+                        Self.applyCellsAsRegions(
+                            decoded, pipeline: pipeline, atlas: atlas,
+                            makeSlot: { [weak self] cell in
+                                self?.makeSlot(from: cell, atlas: atlas)
+                            })
+                    }
                 }
+            } else {
+                self.cells = Self.makeBlankGrid(
+                    cols: gridCols, rows: gridRows, palette: resolvedPalette)
+                try? gridPipeline?.setGrid(
+                    self.cells, atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
             }
-        } else {
-            self.cells = Self.makeBlankGrid(
-                cols: gridCols, rows: gridRows, palette: resolvedPalette)
-            try? gridPipeline?.setGrid(
-                self.cells, atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
         }
         // Keep the engine's OSC 10/11/12 reply colors in lockstep with the
         // rendered theme: a child querying fg/bg/cursor (Claude Code's
@@ -729,6 +749,7 @@ final class MetalRenderer {
                 pixelFormat: attachedPixelFormat,
                 cols: gridCols,
                 rows: gridRows)
+            // No frameSlot needed: fresh pipeline — these textures have never been submitted; in-flight buffers retain the old set.
             try newPipeline.setGrid(
                 self.cells, atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
             self.atlas = newAtlas
@@ -822,6 +843,7 @@ final class MetalRenderer {
                 rows: gridRows)
             self.cells = Self.makeBlankGrid(
                 cols: gridCols, rows: gridRows, palette: resolvedPalette)
+            // No frameSlot needed: fresh pipeline — textures are new and unsubmitted; in-flight buffers retain the old set.
             try pipeline.setGrid(self.cells, atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
             self.atlas = atlas
             self.gridPipeline = pipeline
@@ -928,6 +950,7 @@ final class MetalRenderer {
         // of bg-base. Visible as a light-gray rectangle covering the
         // un-touched area of the viewport.
         do {
+            // No frameSlot needed: fresh pipeline — textures have never been submitted; in-flight buffers continue sampling the old pipeline's set.
             try newPipeline.setGrid(cells, atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
         } catch {
             NSLog(
@@ -1220,6 +1243,18 @@ final class MetalRenderer {
         // to the pipeline textures. These call `MTLTexture.replace`
         // which is synchronous CPU→GPU upload and doesn't need an
         // encoder, so it's safe to run before the encode-skip decision.
+
+        // Acquire the frame slot before the first cell-texture mutation.
+        // This must precede the mutation block (the encode-skip decision
+        // is COMPUTED from it, so it can't move later), and it blocks only
+        // until the previous frame's GPU reads complete — sub-ms for a
+        // terminal grid. Every exit path below either falls into the
+        // defer (no GPU work submitted) or hands the slot to the command
+        // buffer's completion handler (`slotTransferredToGPU`).
+        frameSlot.wait()
+        var slotTransferredToGPU = false
+        defer { if !slotTransferredToGPU { frameSlot.signal() } }
+
         var frameHadCells = false
         if let atlas, let pipeline = gridPipeline {
             // Atlas-eviction repaint: if any LRU eviction or full reset
@@ -1453,6 +1488,13 @@ final class MetalRenderer {
         encoder.endEncoding()
 
         commandBuffer.present(drawable)
+        // Return the frame slot when the GPU finishes this frame —
+        // including `.error` completions (GPU fault/device loss), so a
+        // committed frame can never strand the slot. Registered FIRST so
+        // it runs before the latency handler (FIFO), and capturing the
+        // semaphore itself (never `self`) so the signal survives renderer
+        // deinit with a frame still in flight.
+        commandBuffer.addCompletedHandler { [frameSlot] _ in frameSlot.signal() }
         if !frameKeystrokes.isEmpty {
             // `drawable.presentedTime` is the actual host time the GPU
             // finished presenting the surface to the compositor, on the
@@ -1501,6 +1543,7 @@ final class MetalRenderer {
                 }
             }
         }
+        slotTransferredToGPU = true
         commandBuffer.commit()
 
         // P1: bookkeeping for the next idle-skip decision. The encoded
