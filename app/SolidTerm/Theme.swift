@@ -747,7 +747,7 @@ final class ThemeManager: ObservableObject {
     /// (`MetalRenderer`, `BlockOverlayManager`) observe this; SwiftUI
     /// consumers can use `@ObservedObject` against the singleton
     /// directly.
-    static let themeDidChange = Notification.Name("nextTermThemeDidChange")
+    static let themeDidChange = Notification.Name("solidTermThemeDidChange")
 
     @Published private(set) var mode: Theme.Mode {
         didSet {

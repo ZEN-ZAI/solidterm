@@ -157,7 +157,7 @@ public final class ThemeFileStore: ObservableObject {
     /// Notification posted when `current` (or `available`) changes.
     /// `ThemeManager` re-broadcasts as `themeDidChange` so the
     /// renderer's existing observer wakes up.
-    public static let didChange = Notification.Name("nextTermThemeFileDidChange")
+    public static let didChange = Notification.Name("solidTermThemeFileDidChange")
 
     private let themesDir: URL
     private var dirSource: DispatchSourceFileSystemObject?

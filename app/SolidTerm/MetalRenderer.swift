@@ -408,10 +408,13 @@ final class MetalRenderer {
     /// flag pairs, ZWJ family spillovers) render as one wide glyph.
     /// Default ON since v0.1.7 (ADR-19 / atomic 5 — manual verification
     /// of `ทำ`, `ห้`, `ก่อ`, `กืน` 2026-05-16). Setting
-    /// `NEXTTERM_SHAPING=0` disables the coalescer and restores the
-    /// v0.1.6 single-cell path for diagnosis.
-    private let useShaping: Bool =
-        ProcessInfo.processInfo.environment["NEXTTERM_SHAPING"] != "0"
+    /// `SOLIDTERM_SHAPING=0` disables the coalescer and restores the
+    /// v0.1.6 single-cell path for diagnosis (the legacy
+    /// `NEXTTERM_SHAPING` name is still honored).
+    private let useShaping: Bool = {
+        let env = ProcessInfo.processInfo.environment
+        return (env["SOLIDTERM_SHAPING"] ?? env["NEXTTERM_SHAPING"]) != "0"
+    }()
 
     init(device: MTLDevice) {
         self.device = device
@@ -1840,8 +1843,6 @@ final class MetalRenderer {
     /// The continuation cell is filtered upstream by
     /// `CellView::from_alacritty_cell` (`cells.rs:121`) so we never see
     /// it here.
-    // TODO(post-4.1): honor cell.attrs (BOLD/ITALIC need font-weight
-    // selection — overlaps 4.3; UNDERLINE needs an overlay pass).
     /// Cached resolved palette — refreshed on `themeDidChange` and on
     /// renderer init. Read on the same thread that drives drawing,
     /// avoiding the MainActor hop in the per-cell hot loop. The
