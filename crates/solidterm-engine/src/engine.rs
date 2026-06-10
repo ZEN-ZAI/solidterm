@@ -2440,36 +2440,6 @@ mod tests {
         assert_eq!(cells[1].col, 2);
     }
 
-    /// SolidTerm vendored-alacritty patch (vendor/alacritty_terminal,
-    /// src/term/mod.rs `Term::input`): a base char + U+FE0F (emoji
-    /// presentation selector, e.g. ⚠️ = U+26A0 U+FE0F) is promoted to a
-    /// FULL-WIDTH cell so it renders across two columns like other emoji,
-    /// instead of the narrow 1-cell that upstream alacritty produces.
-    #[test]
-    fn viewport_cells_vs16_emoji_promoted_to_width_2() {
-        let mut engine =
-            TerminalEngine::new(cat_config()).expect("/bin/cat spawn should succeed on macOS");
-        // ⚠️ = U+26A0 (E2 9A A0) + U+FE0F (EF B8 8F).
-        engine
-            .feed_input("\u{26A0}\u{FE0F}\n".as_bytes())
-            .expect("feed_input should write to /bin/cat's stdin");
-        drain_until(&mut engine, 10);
-
-        let cells = engine.viewport_cells(0..1);
-        assert_eq!(cells[0].col, 0);
-        assert_eq!(
-            cells[0].width, 2,
-            "base + VS16 must be promoted to a width-2 cell"
-        );
-        // The grapheme carries the whole sequence (base + FE0F zerowidth).
-        assert_eq!(
-            &cells[0].grapheme[..6],
-            &[0xe2, 0x9a, 0xa0, 0xef, 0xb8, 0x8f]
-        );
-        // The wide spacer occupies col 1, so the next emitted cell is col 2.
-        assert_eq!(cells[1].col, 2, "wide-char spacer at col 1 is skipped");
-    }
-
     /// Emoji ZWJ sequences are NOT collapsed into one grid cell by
     /// alacritty — each base emoji takes its own pair of grid cells
     /// (width 2 + `WIDE_CHAR_SPACER`), and the U+200D ZWJ is treated as

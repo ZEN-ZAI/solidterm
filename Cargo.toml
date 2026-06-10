@@ -5,17 +5,6 @@ members = [
     "crates/solidterm-config",
     "crates/solidterm-ffi",
 ]
-# The vendored alacritty fork (see [patch.crates-io]) is a patch target,
-# not a workspace member — keep cargo from treating it as one.
-exclude = ["vendor/alacritty_terminal"]
-
-# Vendored fork of alacritty_terminal 0.26.0 with a single local change:
-# U+FE0F (Variation Selector-16) promotes its base cell to a full-width
-# (WIDE_CHAR) glyph, so emoji-presentation sequences (⚠️ ℹ️ ☂️ …) render
-# at two cells like other emoji (kitty / Ghostty behavior). The only edit
-# is in src/term/mod.rs `Term::input`; re-audit it on every alacritty bump.
-[patch.crates-io]
-alacritty_terminal = { path = "vendor/alacritty_terminal" }
 
 [workspace.package]
 version = "0.1.0"
