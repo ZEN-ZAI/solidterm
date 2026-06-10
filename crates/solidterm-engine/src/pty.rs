@@ -21,7 +21,16 @@ use std::io::{self, Read};
 use std::thread;
 use std::time::Duration;
 
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::{bounded, Receiver, Sender};
+
+/// Upper bound on buffered PTY output: 512 chunks × ≤4 KiB ≈ 2 MiB.
+/// `poll_output` drains the channel completely on every display-link
+/// tick, so steady state never approaches the cap. When the UI stalls
+/// (modal drag loop, beachball) and a child floods, the reader thread
+/// blocks on `send` instead of growing RSS without bound; the kernel
+/// PTY buffer then fills and the child blocks in write(2) — standard
+/// TTY flow control, identical to every other terminal.
+const PTY_CHANNEL_CAP: usize = 512;
 
 /// Sleep duration for the `WouldBlock` retry path. alacritty sets the
 /// PTY master to `O_NONBLOCK` on construction (see
@@ -40,9 +49,14 @@ const WOULDBLOCK_BACKOFF: Duration = Duration::from_millis(1);
 /// bytes channel. The engine writes to the PTY through its own copy of
 /// the master `File`; this struct only handles the read side.
 pub struct PtyReader {
-    /// Receiver end of the channel the reader thread populates with
-    /// raw byte chunks read from the PTY master.
-    rx: Receiver<Vec<u8>>,
+    /// Receiver end of the bounded channel the reader thread populates
+    /// with raw byte chunks read from the PTY master. Wrapped in
+    /// `Option` so `Drop` can `take()` it before joining the thread:
+    /// dropping the receiver disconnects the channel, unblocking a
+    /// reader thread that is parked in `send` on a full channel
+    /// (crossbeam wakes a blocked sender with `Err` on disconnect).
+    /// `None` only after `Drop` has taken it.
+    rx: Option<Receiver<Vec<u8>>>,
     /// Reader thread handle. `None` after `Drop` consumes it via
     /// `take()`. Held purely for clean teardown.
     handle: Option<thread::JoinHandle<()>>,
@@ -67,46 +81,55 @@ impl PtyReader {
     where
         R: Read + Send + 'static,
     {
-        let (tx, rx) = unbounded::<Vec<u8>>();
+        let (tx, rx) = bounded::<Vec<u8>>(PTY_CHANNEL_CAP);
         let handle = thread::Builder::new()
             .name("solidterm-pty-reader".to_string())
             .spawn(move || pty_read_loop(&mut reader_file, &tx))
             .expect("spawning a thread on macOS should not fail");
 
         Self {
-            rx,
+            rx: Some(rx),
             handle: Some(handle),
         }
     }
 
     /// Try to receive the next chunk from the reader thread without
-    /// blocking. Returns `None` if the channel is empty or closed.
-    /// Used by the integration test (and future `poll_output`, task
-    /// 1.4) to drain pending bytes.
+    /// blocking. Returns `None` if the channel is empty, closed, or
+    /// the receiver has already been taken by `Drop`.
+    /// Used by `poll_output` to drain pending bytes each tick.
     #[must_use]
     pub fn try_recv(&self) -> Option<Vec<u8>> {
-        self.rx.try_recv().ok()
+        self.rx.as_ref().and_then(|rx| rx.try_recv().ok())
     }
 
     /// Block until the next chunk arrives or the channel closes.
-    /// Returns `None` on close (reader thread exited). Used only by
-    /// the integration test's "wait for ≥1 byte" check; production
-    /// will go through `try_recv` from the engine's tick loop.
+    /// Returns `None` on close (reader thread exited) or if the
+    /// receiver has been taken by `Drop`. Used only by integration
+    /// tests; production drains via `try_recv` from the tick loop.
     #[must_use]
     pub fn recv_blocking(&self) -> Option<Vec<u8>> {
-        self.rx.recv().ok()
+        self.rx.as_ref().and_then(|rx| rx.recv().ok())
     }
 }
 
 impl Drop for PtyReader {
     fn drop(&mut self) {
+        // Disconnect the channel FIRST by dropping our receiver end.
+        // With a bounded channel, a reader thread blocked in `send`
+        // (channel full) would never reach the next `read()` call, so
+        // EOF from the PTY master cannot unblock it — joining without
+        // this step would deadlock. Dropping the receiver causes
+        // crossbeam to wake any pending `send` with `Err(SendError)`
+        // immediately, letting the thread see the disconnection and
+        // exit its loop. EOF (child-closed slave) remains the normal-
+        // exit path when the channel is not full; this disconnect just
+        // guarantees unblocking in all cases — including a child that
+        // is SIGSTOPped with a full channel.
+        drop(self.rx.take());
+
         if let Some(handle) = self.handle.take() {
-            // The reader thread exits when the PTY master sees EOF
-            // (child closed the slave) or any read error. Drop order
-            // in `TerminalEngine` runs before this, so by the time we
-            // get here the master has already been revoked and the
-            // thread is on its way out — the join is a sync point, not
-            // a wait of indeterminate length.
+            // Now safe to join: the reader thread will exit as soon as
+            // its current (or next) `send` / `read` resolves.
             //
             // Errors here are logged but not panicked: a poisoned
             // thread shouldn't tear down the test runner / app.
