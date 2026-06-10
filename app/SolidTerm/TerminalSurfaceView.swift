@@ -218,6 +218,10 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
             NotificationCenter.default.removeObserver(obs)
         }
         windowFocusObservers.removeAll()
+        if let obs = inputSourceObserver {
+            NotificationCenter.default.removeObserver(obs)
+            inputSourceObserver = nil
+        }
     }
 
     var metalLayer: CAMetalLayer { layer as! CAMetalLayer }
@@ -720,6 +724,23 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         let clampedCol = max(0, min(renderer.viewportCols - 1, col))
         let clampedRow = max(0, min(renderer.viewportRows - 1, row))
         return (row: UInt16(clampedRow), col: UInt16(clampedCol))
+    }
+
+    /// Inverse of `pointToCell` for tests: the window-coordinate midpoint
+    /// of cell (row, col). Maintained next to `pointToCell` so the two
+    /// stay in lockstep.
+    func windowPoint(forRow row: UInt16, col: UInt16) -> NSPoint {
+        let cellWidthPt = renderer.cellWidthPt ?? 0
+        let cellHeightPt = renderer.cellHeightPt ?? 0
+        // Cell midpoint in view-local top-left coords, then invert both
+        // the gutter offset and the Y-flip that `pointToCell` applies.
+        let xFromTopLeft = Theme.Gutter.widthPt + (CGFloat(col) + 0.5) * cellWidthPt
+        let yFromTopLeft = (CGFloat(row) + 0.5) * cellHeightPt
+        let viewPoint = NSPoint(
+            x: xFromTopLeft,
+            y: bounds.height - yFromTopLeft)
+        // Convert view-space → window-space (inverse of `convert(_:from:nil)`).
+        return convert(viewPoint, to: nil)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -2115,8 +2136,9 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         recomputeFileClickHover(at: mouseInWindow, modifiers: event.modifierFlags)
     }
 
-    private func recomputeFileClickHover(at windowPoint: NSPoint, modifiers: NSEvent.ModifierFlags)
-    {
+    // Internal (not private) so Osc8HoverPolicyTests can drive the hover policy
+    // without synthesizing NSEvents (blocked in headless XCTest).
+    func recomputeFileClickHover(at windowPoint: NSPoint, modifiers: NSEvent.ModifierFlags) {
         guard modifiers.contains(.command),
             let session = renderer.session,
             let (row, col) = pointToCell(windowPoint)
