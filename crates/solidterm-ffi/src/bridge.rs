@@ -322,6 +322,14 @@ mod ffi {
 
 // ───────────────────────── TerminalSession wrapper ─────────────────────
 
+/// # Thread-affinity contract
+///
+/// swift-bridge hands Swift an opaque raw pointer with NO `Send`/`Sync` — nothing
+/// stops Swift moving it across threads, so the soundness of every `&mut self`
+/// method rests on this rule: **ALL methods must be called from the thread that
+/// created the session** (the Swift app confines each session to the main thread
+/// via the display-link/input path). Debug builds assert it; release builds
+/// compile the check out.
 pub struct TerminalSession {
     inner: solidterm_engine::TerminalEngine,
     pending_title: Option<String>,
@@ -340,6 +348,10 @@ pub struct TerminalSession {
     /// default `Osc52::OnlyCopy`, so only the safe write direction lands.
     pending_clipboard: Option<String>,
     last_search_error: Option<String>,
+    /// Records the [`std::thread::ThreadId`] of the thread that constructed
+    /// this session. Used by [`Self::debug_assert_owner`] to enforce the
+    /// single-thread contract in debug builds; zero cost in release.
+    owner_thread: std::thread::ThreadId,
 }
 
 impl TerminalSession {
@@ -375,7 +387,19 @@ impl TerminalSession {
             pending_bell: false,
             pending_clipboard: None,
             last_search_error: None,
+            owner_thread: std::thread::current().id(),
         })
+    }
+
+    /// Debug-build guard for the single-thread contract documented on the
+    /// struct. Zero cost in release.
+    #[inline]
+    fn debug_assert_owner(&self) {
+        debug_assert_eq!(
+            std::thread::current().id(),
+            self.owner_thread,
+            "TerminalSession is single-threaded: call only from the thread that created it"
+        );
     }
 
     fn drain_pending_events(&mut self) {
@@ -420,6 +444,7 @@ impl TerminalSession {
     /// kernel accepted before EAGAIN. Caller retries the remainder
     /// next runloop tick.
     pub fn paste_chunk(&mut self, bytes: &[u8]) -> u32 {
+        self.debug_assert_owner();
         match self.inner.feed_input_nonblocking(bytes) {
             Ok(n) => u32::try_from(n).unwrap_or(0),
             Err(err) => {
@@ -431,6 +456,7 @@ impl TerminalSession {
 
     #[allow(clippy::needless_pass_by_value)]
     pub fn send_input(&mut self, event: ffi::InputEvent) {
+        self.debug_assert_owner();
         match event.kind {
             kinds::INPUT_EVENT_KEY => {
                 if let Err(err) = self.inner.feed_input(event.key.text.as_bytes()) {
@@ -450,19 +476,23 @@ impl TerminalSession {
     }
 
     pub fn scroll_lines(&mut self, delta: i32) {
+        self.debug_assert_owner();
         self.inner.scroll_lines(delta);
     }
 
     pub fn scroll_to_bottom(&mut self) {
+        self.debug_assert_owner();
         self.inner.scroll_to_bottom();
     }
 
     pub fn scroll_to_line(&mut self, line: i32) {
+        self.debug_assert_owner();
         self.inner.scroll_to_line(line);
     }
 
     #[must_use]
     pub fn search(&mut self, query: &str, regex_flag: bool) -> Vec<u8> {
+        self.debug_assert_owner();
         match self.inner.search(query, regex_flag) {
             Ok(matches) => {
                 self.last_search_error = None;
@@ -486,6 +516,7 @@ impl TerminalSession {
     }
 
     pub fn start_selection(&mut self, mode: u8, row: u16, col: u16) {
+        self.debug_assert_owner();
         let engine_mode = match mode {
             kinds::SELECTION_MODE_SIMPLE => solidterm_engine::SelectionMode::Simple,
             kinds::SELECTION_MODE_WORD => solidterm_engine::SelectionMode::Word,
@@ -502,10 +533,12 @@ impl TerminalSession {
     }
 
     pub fn update_selection(&mut self, row: u16, col: u16) {
+        self.debug_assert_owner();
         self.inner.update_selection(row, col);
     }
 
     pub fn clear_selection(&mut self) {
+        self.debug_assert_owner();
         self.inner.clear_selection();
     }
 
@@ -565,11 +598,13 @@ impl TerminalSession {
     }
 
     pub fn drain_latest_title(&mut self) -> String {
+        self.debug_assert_owner();
         self.drain_pending_events();
         self.pending_title.take().unwrap_or_default()
     }
 
     pub fn drain_latest_cwd(&mut self) -> String {
+        self.debug_assert_owner();
         self.drain_pending_events();
         self.pending_cwd.take().unwrap_or_default()
     }
@@ -578,6 +613,7 @@ impl TerminalSession {
     /// call. Consumed once-per-frame by the Swift renderer so a
     /// single flash overlay fires per audible/visual bell.
     pub fn drain_bell(&mut self) -> bool {
+        self.debug_assert_owner();
         self.drain_pending_events();
         let bell = self.pending_bell;
         self.pending_bell = false;
@@ -589,6 +625,7 @@ impl TerminalSession {
     /// drain. The Swift renderer calls this once per frame and pushes a
     /// non-empty result onto `NSPasteboard.general`.
     pub fn drain_clipboard_store(&mut self) -> String {
+        self.debug_assert_owner();
         self.drain_pending_events();
         self.pending_clipboard.take().unwrap_or_default()
     }
@@ -596,6 +633,7 @@ impl TerminalSession {
     /// Update the fg/bg/cursor used for OSC 10/11/12 color-query replies
     /// (sRGB `0x00RRGGBB`). Forwarded to the engine's shared theme slot.
     pub fn set_theme_colors(&mut self, fg: u32, bg: u32, cursor: u32) {
+        self.debug_assert_owner();
         self.inner.set_theme_colors(fg, bg, cursor);
     }
 
@@ -658,10 +696,12 @@ impl TerminalSession {
     }
 
     pub fn resize(&mut self, rows: u16, cols: u16) -> bool {
+        self.debug_assert_owner();
         self.inner.resize(rows, cols).is_ok()
     }
 
     pub fn take_frame_delta(&mut self) -> ffi::FrameDelta {
+        self.debug_assert_owner();
         if let Err(err) = self.inner.poll_output() {
             tracing::warn!(?err, "take_frame_delta: poll_output failed");
         }
@@ -677,6 +717,7 @@ impl TerminalSession {
     }
 
     pub fn take_full_frame_delta(&mut self) -> ffi::FrameDelta {
+        self.debug_assert_owner();
         if let Err(err) = self.inner.poll_output() {
             tracing::warn!(?err, "take_full_frame_delta: poll_output failed");
         }
