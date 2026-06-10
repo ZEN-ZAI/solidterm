@@ -57,9 +57,15 @@ fn malformed_corpus() -> Vec<(&'static str, &'static [u8])> {
         ("CSI param trailing semicolon", b"\x1b[31;"),
         ("CSI mid-sequence newline", b"\x1b[31\nm"),
         ("OSC 8 without terminator", b"\x1b]8;;file:///etc/passwd"),
-        ("OSC 8 nested params", b"\x1b]8;id=a;id=b;id=c;https://x.com\x1b\\"),
+        (
+            "OSC 8 nested params",
+            b"\x1b]8;id=a;id=b;id=c;https://x.com\x1b\\",
+        ),
         ("OSC 133 D with no payload", b"\x1b]133;D\x07"),
-        ("OSC 133 D huge payload", b"\x1b]133;D;99999999999999999999\x07"),
+        (
+            "OSC 133 D huge payload",
+            b"\x1b]133;D;99999999999999999999\x07",
+        ),
         ("OSC 0 with NUL inside", b"\x1b]0;title\x00more\x07"),
         ("DCS with embedded CSI", b"\x1bP1;0|q\x1b[31m\x1b\\"),
         ("ESC followed by NUL", b"\x1b\x00\x00\x00"),
@@ -67,7 +73,10 @@ fn malformed_corpus() -> Vec<(&'static str, &'static [u8])> {
         ("UTF-8 lone continuation", b"\x80\x80\x80\x80"),
         ("UTF-8 overlong null", b"\xc0\x80"),
         ("UTF-8 truncated 4-byte", b"\xf0\x9f"),
-        ("Backspace into nothing", b"\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08"),
+        (
+            "Backspace into nothing",
+            b"\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08",
+        ),
         ("Tab storm", &[b'\t'; 200]),
         ("CR-LF spam", b"\r\n\r\n\r\n"),
         ("CSI 38;2 with negative", b"\x1b[38;2;-1;-1;-1m"),
@@ -112,8 +121,7 @@ fn fuzz_malformed_sequences_do_not_panic() {
 /// landed.
 #[test]
 fn fuzz_random_bytes_do_not_panic() {
-    let mut engine =
-        TerminalEngine::new(cat_config()).expect("/bin/cat spawn should succeed");
+    let mut engine = TerminalEngine::new(cat_config()).expect("/bin/cat spawn should succeed");
 
     // Simple LCG seeded with a constant — deterministic so failures
     // reproduce. Quality doesn't need to be cryptographic; we just
@@ -122,7 +130,9 @@ fn fuzz_random_bytes_do_not_panic() {
     let mut state: u64 = 0x1234_5678_9abc_def0;
     let mut buf = Vec::with_capacity(4096);
     for _ in 0..4096 {
-        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
         // Pseudo-random byte from the high half of the LCG state.
         // Intentional truncation — we want byte coverage, not the full u64.
         #[allow(clippy::cast_possible_truncation)]
@@ -154,8 +164,7 @@ fn fuzz_random_bytes_do_not_panic() {
 /// degrade gracelessly.
 #[test]
 fn fuzz_huge_csi_parameter_list_does_not_explode() {
-    let mut engine =
-        TerminalEngine::new(cat_config()).expect("/bin/cat spawn should succeed");
+    let mut engine = TerminalEngine::new(cat_config()).expect("/bin/cat spawn should succeed");
 
     let mut payload = Vec::with_capacity(10_500);
     payload.extend_from_slice(b"\x1b[");

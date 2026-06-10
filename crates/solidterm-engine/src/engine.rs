@@ -554,9 +554,7 @@ impl TerminalEngine {
         // documented non-blocking invariant and issue the raw write
         // directly. A short write / `EAGAIN` is returned as the count
         // accepted so far, which `paste_chunk` resubmits next tick.
-        let n = unsafe {
-            libc::write(fd, bytes.as_ptr() as *const _, bytes.len())
-        };
+        let n = unsafe { libc::write(fd, bytes.as_ptr() as *const _, bytes.len()) };
         if n >= 0 {
             return Ok(n as usize);
         }
@@ -3264,7 +3262,9 @@ mod tests {
 
         let deadline = Instant::now() + Duration::from_secs(5);
         while Instant::now() < deadline && !engine.app_cursor_active() {
-            let _ = engine.poll_output().expect("poll_output is infallible today");
+            let _ = engine
+                .poll_output()
+                .expect("poll_output is infallible today");
             if !engine.app_cursor_active() {
                 std::thread::sleep(Duration::from_millis(10));
             }
@@ -3284,7 +3284,9 @@ mod tests {
             .expect("feed_input should write DECCKM set");
         let deadline = Instant::now() + Duration::from_secs(5);
         while Instant::now() < deadline && !engine.app_cursor_active() {
-            let _ = engine.poll_output().expect("poll_output is infallible today");
+            let _ = engine
+                .poll_output()
+                .expect("poll_output is infallible today");
             if !engine.app_cursor_active() {
                 std::thread::sleep(Duration::from_millis(10));
             }
@@ -3296,7 +3298,9 @@ mod tests {
             .expect("feed_input should write DECCKM reset");
         let deadline = Instant::now() + Duration::from_secs(5);
         while Instant::now() < deadline && engine.app_cursor_active() {
-            let _ = engine.poll_output().expect("poll_output is infallible today");
+            let _ = engine
+                .poll_output()
+                .expect("poll_output is infallible today");
             if engine.app_cursor_active() {
                 std::thread::sleep(Duration::from_millis(10));
             }
@@ -4347,7 +4351,11 @@ mod tests {
         engine.start_selection(SelectionMode::Simple, 0, 4);
         engine.update_selection(0, 0);
         let span = engine.selection_span().expect("reverse drag has a span");
-        assert_eq!((span.start_row, span.start_col), (0, 0), "leftmost cell kept");
+        assert_eq!(
+            (span.start_row, span.start_col),
+            (0, 0),
+            "leftmost cell kept"
+        );
         assert_eq!((span.end_row, span.end_col), (0, 4), "anchor cell kept");
         assert_eq!(engine.selection_text().as_deref(), Some("hello"));
     }
@@ -4479,13 +4487,19 @@ mod tests {
 
         engine.start_selection(SelectionMode::Simple, 0, 0);
         engine.update_selection(3, 19);
-        let text = engine.selection_text().expect("reflowed selection has text");
+        let text = engine
+            .selection_text()
+            .expect("reflowed selection has text");
         assert_eq!(
             text,
             format!("{}\n{}", "A".repeat(60), "B".repeat(60)),
             "reflowed soft-wrap copies as the two original logical lines"
         );
-        assert_eq!(text.matches('\n').count(), 1, "only the hard break survives");
+        assert_eq!(
+            text.matches('\n').count(),
+            1,
+            "only the hard break survives"
+        );
     }
 
     // ─── 4.6 selection_text — copy path ──────────────────────────────────

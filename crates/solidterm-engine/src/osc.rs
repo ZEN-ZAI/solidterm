@@ -579,7 +579,10 @@ mod tests {
         let (_events, replies) = drive_with_pty(b"\x1b[>0q");
         assert_eq!(replies.len(), 1, "exactly one XTVERSION reply");
         let r = &replies[0];
-        assert!(r.starts_with("\x1bP>|SolidTerm "), "DCS>| <name> prefix, got {r:?}");
+        assert!(
+            r.starts_with("\x1bP>|SolidTerm "),
+            "DCS>| <name> prefix, got {r:?}"
+        );
         assert!(r.ends_with("\x1b\\"), "ST-terminated, got {r:?}");
     }
 
@@ -825,10 +828,7 @@ mod tests {
     #[test]
     fn osc_7_percent_decodes_utf8_thai() {
         let events = drive(b"\x1b]7;file:///home/%E0%B8%81\x1b\\");
-        assert_eq!(
-            events,
-            vec![EngineEvent::CwdChanged("/home/ก".to_string())],
-        );
+        assert_eq!(events, vec![EngineEvent::CwdChanged("/home/ก".to_string())],);
     }
 
     /// Malformed `%XX` (non-hex digits) — drop the entire OSC silently.

@@ -156,7 +156,6 @@ pub fn encode_search_matches(matches: &[solidterm_engine::SearchMatch]) -> Vec<u
     out
 }
 
-
 // ───────────────────────── swift-bridge surface ──────────────────────────
 
 #[swift_bridge::bridge]

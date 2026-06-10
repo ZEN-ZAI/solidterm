@@ -445,11 +445,11 @@ mod tests {
         theme_color_for_index, ClipboardKind, EngineEvent, EventProxy, ThemeColors,
         ZENZAI_DARK_BACKGROUND, ZENZAI_DARK_CURSOR, ZENZAI_DARK_FOREGROUND,
     };
-    use std::sync::Arc;
     use alacritty_terminal::event::{Event as AlacrittyEvent, EventListener};
     use alacritty_terminal::term::ClipboardType;
     use alacritty_terminal::vte::ansi::NamedColor;
     use crossbeam_channel::{unbounded, Receiver};
+    use std::sync::Arc;
 
     /// Build an `EventProxy` whose PTY-response channel is a throwaway
     /// `Receiver` we drop on the floor. Used by every test that doesn't

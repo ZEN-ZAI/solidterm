@@ -422,7 +422,10 @@ mod tests {
         // boundary), and the 32-byte buffer holds strictly more than the
         // old 16-byte one would have — proving the enlargement took hold.
         assert_eq!(end % 3, 0, "only whole 3-byte codepoints may be written");
-        assert!(end > 16, "32-byte buffer must hold more than the old 16-byte limit");
+        assert!(
+            end > 16,
+            "32-byte buffer must hold more than the old 16-byte limit"
+        );
     }
 
     /// A subdivision tag flag (🏴 + tag letters + CANCEL TAG) is 28 UTF-8
@@ -433,9 +436,14 @@ mod tests {
     fn from_alacritty_cell_subdivision_tag_flag_survives_whole() {
         let mut cell = blank_cell();
         cell.c = '\u{1F3F4}'; // 🏴 WAVING BLACK FLAG, 4 bytes
-        // Scotland: tag letters g,b,s,c,t + CANCEL TAG, each 4 bytes.
+                              // Scotland: tag letters g,b,s,c,t + CANCEL TAG, each 4 bytes.
         for tag in [
-            '\u{E0067}', '\u{E0062}', '\u{E0073}', '\u{E0063}', '\u{E0074}', '\u{E007F}',
+            '\u{E0067}',
+            '\u{E0062}',
+            '\u{E0073}',
+            '\u{E0063}',
+            '\u{E0074}',
+            '\u{E007F}',
         ] {
             cell.push_zerowidth(tag);
         }
@@ -444,11 +452,13 @@ mod tests {
         let end = view.grapheme.iter().position(|&b| b == 0).unwrap_or(32);
         let s = std::str::from_utf8(&view.grapheme[..end]).expect("valid UTF-8");
         assert_eq!(
-            s,
-            "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}",
+            s, "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}",
             "the full subdivision tag flag must survive — not truncate to a bare 🏴"
         );
-        assert_eq!(end, 28, "🏴 (4) + 5 tag letters (20) + CANCEL (4) = 28 bytes");
+        assert_eq!(
+            end, 28,
+            "🏴 (4) + 5 tag letters (20) + CANCEL (4) = 28 bytes"
+        );
     }
 
     #[test]
