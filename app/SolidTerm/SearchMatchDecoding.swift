@@ -49,8 +49,16 @@ public enum SearchMatchDecoding {
             throw DecodeError.malformedPayload(byteCount: length)
         }
         guard length > 0 else { return [] }
-        let buf = UnsafeBufferPointer(start: vec.as_ptr(), count: length)
-        return decodeBuffer(buf)
+        // `withExtendedLifetime` keeps the RustVec (and thus the Rust-owned
+        // buffer `as_ptr()` points into) alive across the entire read.
+        // Without it, ARC may release `vec` after its last syntactic use
+        // (the `as_ptr()` call) — before `decodeBuffer` finishes —
+        // since that callee only sees the raw pointer, not the owner.
+        // That is a use-after-free in optimized release builds.
+        return withExtendedLifetime(vec) {
+            let buf = UnsafeBufferPointer(start: vec.as_ptr(), count: length)
+            return decodeBuffer(buf)
+        }
     }
 
     private static func decodeBuffer(
