@@ -103,8 +103,8 @@ enum ShellIntegrationInstaller {
                     source ~/.config/solidterm/shell/solidterm.fish
                 end
 
-            Restart your shell to activate. Then SolidTerm's block
-            tracking (⌘[/⌘], Copy Block, duration HUD) will work.
+            Restart your shell to activate. Then the prompt markers
+            (Settings → Appearance → \u{201C}Show command markers\u{201D}) will work.
             """
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")

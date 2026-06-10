@@ -1,9 +1,9 @@
 # SolidTerm shell integration — bash
 #
 # Emits OSC 133 prompt / preexec / precmd sequences so SolidTerm can
-# tag command boundaries in the scrollback. Required for: command
-# block tracking, ⌘[/⌘] block jumps, ⌘⇧C "Copy Block", duration HUD,
-# OSC 133 accent rule.
+# tag command boundaries in the scrollback. Required for the
+# prompt-marker accent rule (Settings → Appearance → "Show command
+# markers"), color-coded by command exit status.
 #
 # Activate by adding to ~/.bashrc:
 #   [ -f ~/.config/solidterm/shell/solidterm.bash ] && source ~/.config/solidterm/shell/solidterm.bash
@@ -17,8 +17,9 @@
 # single self-contained file).
 
 # Guard against double-loading.
-[ -n "$_NEXTTERM_INTEGRATION_LOADED" ] && return
-_NEXTTERM_INTEGRATION_LOADED=1
+# Legacy _NEXTTERM_ name honored: pre-rename installs may have set it.
+{ [ -n "$_SOLIDTERM_INTEGRATION_LOADED" ] || [ -n "$_NEXTTERM_INTEGRATION_LOADED" ]; } && return
+_SOLIDTERM_INTEGRATION_LOADED=1
 
 # Suppress PROMPT_COMMAND-driven OSC emission for non-interactive shells.
 case $- in
@@ -30,10 +31,10 @@ esac
 # drawing each PS1. D reports the exit code of the just-finished
 # command if one was running.
 _solidterm_prompt() {
-    local _nt_exit=$?
-    if [ -n "$_NEXTTERM_COMMAND_STARTED" ]; then
-        printf '\e]133;D;%d\a' "$_nt_exit"
-        unset _NEXTTERM_COMMAND_STARTED
+    local _st_exit=$?
+    if [ -n "$_SOLIDTERM_COMMAND_STARTED" ]; then
+        printf '\e]133;D;%d\a' "$_st_exit"
+        unset _SOLIDTERM_COMMAND_STARTED
     fi
     printf '\e]133;A\a'
 }
@@ -46,7 +47,7 @@ _solidterm_preexec() {
     case "$BASH_COMMAND" in
         _solidterm_prompt|*PROMPT_COMMAND*) return ;;
     esac
-    _NEXTTERM_COMMAND_STARTED=1
+    _SOLIDTERM_COMMAND_STARTED=1
     printf '\e]133;C\a'
 }
 

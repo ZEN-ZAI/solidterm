@@ -374,7 +374,7 @@ extension KeybindingStore {
     ///   "cmd+shift+c"  → ("C", [.command, .shift])  // uppercase + shift mask
     ///   "cmd+,"        → (",", [.command])
     /// AppKit's idiom for "shifted letter" is uppercase-letter + .shift
-    /// modifier (see AppMenu.swift "Copy Block" comment).
+    /// modifier (required so NSMenuItem shows the correct ⇧ glyph in the menu).
     public static func parseToMenuKey(
         _ normalized: String
     ) -> (String, NSEvent.ModifierFlags) {
