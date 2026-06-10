@@ -460,15 +460,28 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
             return
         }
 
-        // (Removed) Thai-aware backspace: it unconditionally sent
-        // DEL + (cluster minus last scalar), which DOUBLE-TYPES the base
-        // on the common shells that delete one code point per DEL
-        // (`ก่` + ⌫ produced `กก`). Those shells already do the right
-        // thing — the trailing tone mark comes off — with a plain DEL,
-        // so Backspace now falls through to the standard send path below.
-        // Re-typing was only correct for the rare whole-grapheme-DEL
-        // config, and there is no shell-agnostic way to detect which is
-        // in use.
+        // Thai-aware backspace (Task #16): when the cell just left of the
+        // cursor carries a multi-codepoint Thai cluster (e.g. `ก่` = ก +
+        // ่), users expect the trailing tone mark to come off
+        // independently — ก stays, ่ goes — in ONE backspace rather than
+        // codepoint-by-codepoint. Intercept BS on the primary screen,
+        // peek at the cell, and re-emit `cluster minus last codepoint`
+        // after the standard DEL. Skipped on alt-screen (vim/less own
+        // backspace semantics) and when the trailing codepoint isn't a
+        // Thai combining mark.
+        //
+        // NOTE (shell-dependent): on shells that delete one CODEPOINT per
+        // DEL (default zsh without `setopt COMBINING_CHARS`) the re-type
+        // can double the base. If you hit that, enable COMBINING_CHARS or
+        // tell me your shell so this can be tuned per-config.
+        if event.keyCode == Self.kVKDelete, !modifiers.contains(.shift),
+            let session = renderer.session,
+            !session.is_alt_screen(),
+            tryThaiAwareBackspace(session: session)
+        {
+            renderer.recordKeystroke(eventTimestamp: event.timestamp)
+            return
+        }
 
         // 4.4: PgUp / PgDn drive scrollback navigation on the primary
         // screen. In alt-screen mode (vim, less, man, htop) the app
@@ -581,6 +594,44 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     private static func isArrowKeycode(_ keyCode: UInt16) -> Bool {
         keyCode == kVKLeftArrow || keyCode == kVKRightArrow
             || keyCode == kVKUpArrow || keyCode == kVKDownArrow
+    }
+
+    /// Thai-aware backspace handler. Returns `true` when this path fully
+    /// owned the backspace event (caller should NOT also direct-send DEL);
+    /// `false` means fall through to standard byte send.
+    ///
+    ///   1. Read the cell just left of the cursor via FFI
+    ///      `cell_before_cursor()`. Empty bytes → not our case.
+    ///   2. Decode as UTF-8. If only one Unicode scalar OR the trailing
+    ///      scalar isn't a Thai combining mark → not our case.
+    ///   3. Otherwise send DEL + (cluster without last scalar) so the
+    ///      net visual effect is "trailing mark removed; base + earlier
+    ///      marks remain" in a single backspace.
+    private func tryThaiAwareBackspace(session: TerminalSession) -> Bool {
+        let bytes = session.cell_before_cursor()
+        let count = bytes.len()
+        guard count > 0 else { return false }
+        var swiftBytes = [UInt8](repeating: 0, count: Int(count))
+        for i in 0..<Int(count) {
+            swiftBytes[i] = bytes.get(index: UInt(i)).map { $0 } ?? 0
+        }
+        guard let cluster = String(bytes: swiftBytes, encoding: .utf8),
+            !cluster.isEmpty
+        else { return false }
+        let scalars = Array(cluster.unicodeScalars)
+        guard scalars.count > 1 else { return false }
+        guard Self.isThaiCombiningMark(scalars.last!) else {
+            return false
+        }
+        // Everything except the last scalar — may still be multi-scalar
+        // when marks stack (ก + ั + ้ → after backspace: ก + ั).
+        let truncated = String(String.UnicodeScalarView(scalars.dropLast()))
+        let payload = "\u{7F}" + truncated
+        session.scroll_to_bottom()
+        session.send_input(
+            InputEventEncoder.makeKeyInputEvent(
+                characters: payload, keycode: 0, modifiers: []))
+        return true
     }
 
     /// Thai combining marks: above-vowels U+0E30..U+0E3A and tone /
