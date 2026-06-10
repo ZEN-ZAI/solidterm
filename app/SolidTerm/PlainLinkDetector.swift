@@ -12,6 +12,9 @@
 //    `file:///Users/you/.ssh/id_rsa` and turn it into a one-click
 //    disclosure; local files instead go through the path regex, which
 //    gates on on-disk existence and opens via the configured editor.
+//    The OSC 8 hyperlink path in TerminalSurfaceView shares this same
+//    allowlist via `sanctionedURL(fromTerminalContent:)`, keeping both
+//    open-paths behind one policy.
 //  • File paths: absolute (/…) or home-relative (~…), must exist on disk
 //    before becoming clickable, capped at 512 chars to bound the stat().
 //  • Opening is gated entirely on the caller's explicit ⌘-click — this
@@ -84,6 +87,19 @@ final class PlainLinkDetector {
     /// the user may not expect. `file` is excluded for the disclosure
     /// reason in the file header.
     private static let allowedSchemes: Set<String> = ["http", "https", "mailto"]
+
+    /// Single policy gate for ANY terminal-content URL the app may open:
+    /// the plain-text detection below AND the OSC 8 hyperlink hover path
+    /// in TerminalSurfaceView. Returns nil unless the scheme is in
+    /// `allowedSchemes` — a remote program controls OSC 8 URIs byte-for-
+    /// byte, so an unfiltered open is an arbitrary-scheme launch vector.
+    static func sanctionedURL(fromTerminalContent raw: String) -> URL? {
+        guard let url = URL(string: raw),
+            let scheme = url.scheme?.lowercased(),
+            allowedSchemes.contains(scheme)
+        else { return nil }
+        return url
+    }
 
     /// Guard against pathological rows; row_text is one row so this is
     /// generous (a normal row is bounded by the column count).

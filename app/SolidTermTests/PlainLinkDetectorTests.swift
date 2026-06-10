@@ -42,6 +42,63 @@ final class PlainLinkDetectorTests: XCTestCase {
             "file:// URLs are not promoted to clickable hyperlinks")
     }
 
+    // MARK: - sanctionedURL (shared OSC 8 + plain-text scheme policy)
+
+    func testSanctionedURLAllowsHttps() {
+        let url = PlainLinkDetector.sanctionedURL(
+            fromTerminalContent: "https://example.com/path?q=1")
+        XCTAssertNotNil(url, "https is an allowed scheme")
+        XCTAssertEqual(url?.absoluteString, "https://example.com/path?q=1")
+    }
+
+    func testSanctionedURLAllowsMailto() {
+        XCTAssertNotNil(
+            PlainLinkDetector.sanctionedURL(fromTerminalContent: "mailto:a@b.c"),
+            "mailto is an allowed scheme")
+    }
+
+    func testSanctionedURLSchemeCaseInsensitive() {
+        XCTAssertNotNil(
+            PlainLinkDetector.sanctionedURL(fromTerminalContent: "HTTPS://EXAMPLE.COM"),
+            "scheme matching is lowercased, so HTTPS must be accepted")
+    }
+
+    func testSanctionedURLRejectsFile() {
+        XCTAssertNil(
+            PlainLinkDetector.sanctionedURL(fromTerminalContent: "file:///etc/hosts"),
+            "file:// would enable one-click local-file disclosure via an OSC 8 URI")
+    }
+
+    func testSanctionedURLRejectsArbitrarySchemes() {
+        XCTAssertNil(
+            PlainLinkDetector.sanctionedURL(fromTerminalContent: "ftp://example.com/file"),
+            "ftp is outside the scheme allowlist")
+        XCTAssertNil(
+            PlainLinkDetector.sanctionedURL(fromTerminalContent: "ssh://evil.example"),
+            "ssh is outside the scheme allowlist")
+        XCTAssertNil(
+            PlainLinkDetector.sanctionedURL(fromTerminalContent: "javascript:alert(1)"),
+            "javascript: must never be openable from terminal content")
+    }
+
+    func testSanctionedURLRejectsSchemeless() {
+        XCTAssertNil(
+            PlainLinkDetector.sanctionedURL(fromTerminalContent: "example.com"),
+            "bare hostnames have no scheme and are not openable")
+        XCTAssertNil(
+            PlainLinkDetector.sanctionedURL(fromTerminalContent: "/tmp"),
+            "absolute paths have no scheme and are not openable via this gate")
+    }
+
+    func testSanctionedURLRejectsEmptyAndGarbage() {
+        XCTAssertNil(
+            PlainLinkDetector.sanctionedURL(fromTerminalContent: ""),
+            "empty string produces no URL")
+        XCTAssertNil(
+            PlainLinkDetector.sanctionedURL(fromTerminalContent: "not a url at all"),
+            "unparseable strings produce no URL")
+    }
+
     // MARK: - File paths
 
     func testAbsoluteExistingPathDetected() {

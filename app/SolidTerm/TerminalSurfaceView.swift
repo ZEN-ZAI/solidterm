@@ -2127,9 +2127,16 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
 
         // OSC 8 hyperlink is the only supported ⌘-hover surface in
         // solidterm. `uri == ""` is the sentinel for "no link at this cell".
+        // The URI is remote-controlled byte-for-byte, so it must pass the
+        // same scheme allowlist as plain-text links; a denied scheme falls
+        // through to the plain-text detector below, which sees only the
+        // VISIBLE text (anti-spoofing: the user opens what they can read,
+        // or nothing).
         let hit = session.hyperlink_at(row, col)
         let hyperUri = hit.uri.toString()
-        if !hyperUri.isEmpty, let url = URL(string: hyperUri) {
+        if !hyperUri.isEmpty,
+            let url = PlainLinkDetector.sanctionedURL(fromTerminalContent: hyperUri)
+        {
             renderer.linkHover = MetalRenderer.LinkHover(
                 row: Int(row),
                 startCol: Int(hit.start_col),
