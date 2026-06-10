@@ -115,10 +115,11 @@ final class GlyphAtlasTests: XCTestCase {
     }
 
     /// A-emoji-1: color atlas is constructed as a sibling of the gray
-    /// atlas, with rgba8Unorm pixel format and the default 1024² size.
+    /// atlas, with rgba8Unorm_srgb pixel format (so emoji sRGB bytes
+    /// decode to linear on sample) and the default 1024² size.
     /// Standalone — doesn't require any routing change.
     func testColorAtlasTextureWiredCorrectly() {
-        XCTAssertEqual(atlas.colorTexture.pixelFormat, .rgba8Unorm)
+        XCTAssertEqual(atlas.colorTexture.pixelFormat, .rgba8Unorm_srgb)
         XCTAssertEqual(
             atlas.colorTexture.width, Int(GlyphAtlas.defaultColorAtlasSize.x))
         XCTAssertEqual(

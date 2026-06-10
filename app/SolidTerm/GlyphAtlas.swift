@@ -322,8 +322,16 @@ final class GlyphAtlas {
         tex.label = "GlyphAtlas (gray, \(atlasSize.x)×\(atlasSize.y))"
         self.texture = tex
 
+        // sRGB format (not plain .rgba8Unorm): AppleColorEmoji bitmaps are
+        // rasterized in a deviceRGB (sRGB) context, so their bytes are
+        // sRGB-encoded. The render pipeline blends in LINEAR space and the
+        // drawable is `.bgra8Unorm_srgb` (linear→sRGB on write). Sampling
+        // an sRGB texture hardware-decodes sRGB→linear, so the emoji enters
+        // the linear composite correctly and round-trips once through the
+        // framebuffer's encode. Plain .rgba8Unorm skipped the decode →
+        // the values were sRGB-encoded twice → washed-out / pale emoji.
         let colorDescriptor = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: .rgba8Unorm,
+            pixelFormat: .rgba8Unorm_srgb,
             width: Int(colorAtlasSize.x),
             height: Int(colorAtlasSize.y),
             mipmapped: false)
