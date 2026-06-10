@@ -508,7 +508,17 @@ impl TerminalEngine {
         // mirroring `WOULDBLOCK_BACKOFF` in `pty.rs` and the read-loop's
         // EAGAIN cadence) before retrying. `Interrupted` (EINTR) retries
         // immediately. Only a real error is surfaced as `Err`.
+        //
+        // Retry budget for the blocking input write: ~250 ms of 1 ms sleeps.
+        // A `kill -STOP`ped child with a full TTY input buffer returns EAGAIN
+        // forever; without a deadline every keystroke would hang the calling
+        // (UI) thread indefinitely. On exhaustion the input is dropped with
+        // an error — the bridge logs it; this matches what other terminals
+        // effectively do to a wedged foreground process.
+        const FEED_INPUT_RETRY_BUDGET: usize = 250;
+
         let mut written = 0usize;
+        let mut would_block_count = 0usize;
         let writer = self.pty.writer();
         while written < bytes.len() {
             match writer.write(&bytes[written..]) {
@@ -521,9 +531,22 @@ impl TerminalEngine {
                         "PTY master accepted zero bytes",
                     )));
                 }
-                Ok(n) => written += n,
+                Ok(n) => {
+                    written += n;
+                    // Successful progress resets the backpressure counter
+                    // so a brief stall that then clears doesn't prematurely
+                    // exhaust the budget on a slow but live child.
+                    would_block_count = 0;
+                }
                 Err(ref err) if err.kind() == io::ErrorKind::Interrupted => {}
                 Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    would_block_count += 1;
+                    if would_block_count > FEED_INPUT_RETRY_BUDGET {
+                        return Err(EngineError::Io(io::Error::new(
+                            io::ErrorKind::TimedOut,
+                            "PTY input stalled; dropping write",
+                        )));
+                    }
                     std::thread::sleep(std::time::Duration::from_millis(1));
                 }
                 Err(err) => return Err(EngineError::Io(err)),
@@ -554,7 +577,11 @@ impl TerminalEngine {
         // documented non-blocking invariant and issue the raw write
         // directly. A short write / `EAGAIN` is returned as the count
         // accepted so far, which `paste_chunk` resubmits next tick.
-        let n = unsafe { libc::write(fd, bytes.as_ptr() as *const _, bytes.len()) };
+        // SAFETY: `fd` is a valid open descriptor borrowed from
+        // `self.pty.file()` and cannot be closed while `&mut self` is held;
+        // `bytes` is a valid slice for `bytes.len()`; casting `*const u8` to
+        // `*const libc::c_void` is ABI-correct for write(2).
+        let n = unsafe { libc::write(fd, bytes.as_ptr().cast::<libc::c_void>(), bytes.len()) };
         if n >= 0 {
             return Ok(n as usize);
         }
