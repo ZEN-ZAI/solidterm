@@ -12,6 +12,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// (⌘⇧O) reads this to enumerate every open terminal as a flat list.
     var allWindowControllers: [TerminalWindowController] { windowControllers }
 
+    /// SwiftUI's `NSHostingView` (find bar / terminal switcher) intermittently
+    /// strips the File and Edit submenus out of `NSApp.mainMenu` after a few
+    /// key-window transitions — every menu shortcut in them (⌘N, ⌘T, ⌘W, ⌘F,
+    /// paste, …) then goes dead while typing still works. No app code mutates
+    /// the menu and its object identity is unchanged, so it is an AppKit/
+    /// SwiftUI mutation we can't cleanly suppress (tried `NSHostingView` over
+    /// `NSHostingController`, and `sceneBridgingOptions = []` — both only
+    /// reduce the frequency). `applicationDidUpdate` runs after each event
+    /// batch, so restoring the menu here heals it within one cycle — before
+    /// the user's next keypress. The guard makes it a cheap ~6-item scan that
+    /// reinstalls only when the File menu has actually gone missing.
+    func applicationDidUpdate(_ notification: Notification) {
+        if NSApp.mainMenu?.items.contains(where: { $0.submenu?.title == "File" }) == false {
+            AppMenu.install()
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppMenu.install()
         // ⌘N must always create a standalone window. AppKit's automatic

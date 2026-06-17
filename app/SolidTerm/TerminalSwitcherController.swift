@@ -190,9 +190,12 @@ final class TerminalSwitcherController: NSObject {
 
     private func ensurePanel() -> NSPanel {
         if let existing = panel { return existing }
-        let host = NSHostingController(
-            rootView: TerminalSwitcherView(model: model))
-        host.view.translatesAutoresizingMaskIntoConstraints = false
+        // Bare `NSHostingView`, not an `NSHostingController`, so SwiftUI
+        // hijacks `NSApp.mainMenu` far less aggressively (the menu can still
+        // get stripped — see the self-heal in
+        // `AppDelegate.applicationDidUpdate`). Same pattern as
+        // SearchPanelController / SettingsWindowController.
+        let hostingView = NSHostingView(rootView: TerminalSwitcherView(model: model))
 
         let p = SwitcherPanel(
             contentRect: NSRect(
@@ -210,7 +213,9 @@ final class TerminalSwitcherController: NSObject {
         p.backgroundColor = .clear
         p.hasShadow = true
         p.level = .floating
-        p.contentViewController = host
+        hostingView.frame = p.contentLayoutRect
+        hostingView.autoresizingMask = [.width, .height]
+        p.contentView = hostingView
         p.contentView?.wantsLayer = true
         p.delegate = self
         self.panel = p

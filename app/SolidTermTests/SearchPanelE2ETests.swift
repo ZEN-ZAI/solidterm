@@ -5,6 +5,7 @@
 // live state via test seams → assert at the integration boundary.
 
 import AppKit
+import SwiftUI
 import XCTest
 
 @testable import SolidTerm
@@ -35,6 +36,22 @@ final class SearchPanelE2ETests: XCTestCase {
         RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         XCTAssertFalse(controller.isVisible)
         XCTAssertEqual(controller.panelForTest?.isVisible, false)
+    }
+
+    /// Find panel hosts its SwiftUI body in a bare `NSHostingView`, not an
+    /// `NSHostingController` — the controller hijacks `NSApp.mainMenu` most
+    /// aggressively. (The plain view still gets stripped occasionally, which
+    /// the AppDelegate self-heal covers; the view just keeps the churn low.)
+    func testFindPanelUsesBareHostingView() {
+        let controller = SearchPanelController()
+        controller.toggle()
+        defer { if controller.isVisible { controller.toggle() } }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        guard let panel = controller.panelForTest else { return XCTFail("no panel") }
+        XCTAssertNil(panel.contentViewController, "must not host via NSHostingController")
+        XCTAssertTrue(
+            panel.contentView is NSHostingView<SearchPanelView>,
+            "find panel content must be a bare NSHostingView")
     }
 
     /// Regression: panel shown but keystrokes never reach the

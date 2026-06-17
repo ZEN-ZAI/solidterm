@@ -316,9 +316,13 @@ public final class SearchPanelController: NSObject {
 
     private func ensurePanel() -> NSPanel {
         if let existing = panel { return existing }
-        let host = NSHostingController(
-            rootView: SearchPanelView(model: model))
-        host.view.translatesAutoresizingMaskIntoConstraints = false
+        // Host the SwiftUI body in a bare `NSHostingView`, not an
+        // `NSHostingController`: as a panel's `contentViewController` the
+        // controller hijacks `NSApp.mainMenu` aggressively. The plain view
+        // still lets AppKit strip the File/Edit menus occasionally (see the
+        // self-heal in `AppDelegate.applicationDidUpdate`), but far less
+        // often, so the menu bar barely churns.
+        let hostingView = NSHostingView(rootView: SearchPanelView(model: model))
 
         let p = SearchPanel(
             contentRect: NSRect(x: 0, y: 0, width: 480, height: 56),
@@ -336,7 +340,9 @@ public final class SearchPanelController: NSObject {
         p.backgroundColor = .clear
         p.hasShadow = true
         p.level = .floating
-        p.contentViewController = host
+        hostingView.frame = p.contentLayoutRect
+        hostingView.autoresizingMask = [.width, .height]
+        p.contentView = hostingView
         p.contentView?.wantsLayer = true
         p.delegate = self
         self.panel = p
