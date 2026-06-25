@@ -93,6 +93,21 @@ struct GridUniforms {
     uint2  gridSizeCells;      // grid columns × rows
     float2 gridOriginPx;       // top-left of the grid in pixels
     float2 colorAtlasSizePx;   // color emoji atlas dimensions in pixels
+    // Block-cursor reverse-video (cursor visibility fix). A BLOCK cursor
+    // must not paint an opaque quad over the glyph — that hides the
+    // character under it. Instead the grid pass, which already samples the
+    // glyph, reverse-videos the cursor cell: the cell fills with the cursor
+    // colour and the glyph is redrawn in the cell's background colour so it
+    // stays readable (standard terminal behaviour: Terminal.app / iTerm2).
+    // Only the BLOCK shape uses this; beam / underline stay as overlay
+    // quads because they don't cover the glyph. `cursorBlockActive == 0`
+    // disables the path entirely (no cursor, beam/underline cursor, hidden,
+    // scrolled into history, or blink-off phase), keeping the steady-state
+    // render byte-identical to before the fix.
+    uint2  cursorCell;         // (col, row) of the block cursor cell
+    float4 cursorColorLinear;  // linear-space cursor colour (the fill)
+    float  cursorBlockAlpha;   // blink phase 0..1 (1 = full reverse-video)
+    uint   cursorBlockActive;  // 1 = reverse-video the cursorCell, 0 = off
 };
 
 struct GridVertexOut {
@@ -207,18 +222,50 @@ fragment float4 grid_fragment(
         + float2(localXInCluster / clusterWidthPx,
                  cellLocalPx.y / u.cellSizePx.y) * atlasSpanUV;
 
+    // Block-cursor reverse-video. When this fragment's *primary* cell is
+    // the cursor cell and the block cursor is active, swap the fill and the
+    // glyph colour: the cell background becomes the cursor colour and the
+    // glyph is redrawn in what was the cell's background colour, so the
+    // character under the cursor stays readable (standard reverse-video).
+    // We compare against `primary` rather than `cell` so a multi-column
+    // cluster whose primary is the cursor cell reverses as a whole; the
+    // cursor only ever sits on a primary, so cross-cell continuations of a
+    // glyph that starts elsewhere are unaffected.
+    //
+    // `cursorBlockAlpha` is the CPU-driven blink phase: at 1.0 the cell is
+    // fully reversed, and as it falls to 0.0 the appearance fades back to
+    // the cell's normal fg-on-bg so the blink animation still reads right.
+    // The two `mix`es are unconditional cheap math; the only branch is the
+    // cursor-cell test, which is uniform across the cursor cell's fragments.
+    bool onCursorCell = (u.cursorBlockActive != 0u)
+        && (primary.x == u.cursorCell.x)
+        && (primary.y == u.cursorCell.y);
+    if (onCursorCell) {
+        float a = u.cursorBlockAlpha;
+        float4 reversedBg = mix(bg, u.cursorColorLinear, a);
+        float4 reversedFg = mix(fg, bg, a);
+        bg = reversedBg;
+        fg = reversedFg;
+    }
+
     constexpr sampler atlasSampler(
         mag_filter::linear, min_filter::linear,
         mip_filter::nearest, address::clamp_to_edge);
 
     if (selector == 0u) {
         // Grayscale path — atlas alpha is coverage; tint with fg color.
+        // With reverse-video applied above, `fg`/`bg` already carry the
+        // cursor-cell swap, so a single `mix` paints the readable glyph.
         float alpha = grayAtlas.sample(atlasSampler, atlasUV).r;
         return mix(bg, fg, alpha);
     } else {
         // Color emoji path — sample RGBA from color atlas. Premultiplied
         // by the rasterizer, so straight-over against bg using its own
-        // alpha. No fg tint; emoji carries its own palette.
+        // alpha. No fg tint; emoji carries its own palette. Reversing an
+        // emoji's colours isn't meaningful, so under the block cursor we
+        // keep the emoji intact and only let the cursor colour show through
+        // its transparent margins via the reversed `bg` — the emoji stays
+        // visible and the cursor still reads as "here".
         float4 emoji = colorAtlas.sample(atlasSampler, atlasUV);
         return float4(emoji.rgb + bg.rgb * (1.0 - emoji.a), 1.0);
     }

@@ -2,6 +2,11 @@
 
 All notable changes to SolidTerm are documented here. The format is based on [Keep a Changelog 1.0.0](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Fixed
+- Block cursor no longer hides the character under it. The cursor cell now reverse-videos (cell fills with the cursor colour, the glyph is redrawn in a contrasting colour) instead of painting an opaque block over the glyph — matching Terminal.app / iTerm2. Beam and underline cursors are unchanged. Blink fade still animates correctly.
+
 ## [0.1.0] — 2026-05-17 — fork from NextTerm
 
 Initial fork from `nextterm` v0.1.8 (commit `1633d62`). All Claude-Code-specific features stripped out. The remaining surface is a clean macOS terminal:

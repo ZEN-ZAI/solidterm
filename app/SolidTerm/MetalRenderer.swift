@@ -1391,7 +1391,20 @@ final class MetalRenderer {
             let gutterPx = Float(Theme.Gutter.widthPt) *
                 Float(layer.contentsScale)
             let gridOriginPx = SIMD2<Float>(gutterPx, 0)
-            let uniforms = GridUniforms(
+
+            // Cursor visibility fix: resolve the block-cursor reverse-video
+            // state ONCE here, before the grid encode, because the helper
+            // advances per-frame blink bookkeeping (`blinkOriginTime`,
+            // `wasTypingLastFrame`) and must run exactly once per tick. The
+            // grid pass consumes it to reverse-video the cursor cell (so the
+            // glyph stays readable); `encodeCursorOverlay` reuses the same
+            // alpha for the beam / underline shapes, which still draw as
+            // overlay quads. A nil result means "no block cursor this frame"
+            // (hidden, scrolled into history, off-screen, blink-off, or a
+            // beam / underline shape).
+            let cursorBlock = computeCursorBlockState()
+
+            var uniforms = GridUniforms(
                 screenSizePx: drawableSizePx,
                 cellSizePx: cellPx,
                 atlasSizePx: SIMD2(
@@ -1401,6 +1414,13 @@ final class MetalRenderer {
                 colorAtlasSizePx: SIMD2(
                     Float(atlas.colorAtlasSize.x),
                     Float(atlas.colorAtlasSize.y)))
+            if let block = cursorBlock, block.kind == .cursorBlock {
+                // Only the BLOCK shape reverse-videos in the grid pass.
+                uniforms.cursorCell = SIMD2(UInt32(block.col), UInt32(block.row))
+                uniforms.cursorColorLinear = block.color
+                uniforms.cursorBlockAlpha = block.alpha
+                uniforms.cursorBlockActive = 1
+            }
             pipeline.encode(uniforms: uniforms, atlas: atlas, encoder: encoder)
 
             // Stage-2 overlay pass: selection (4.5) + cursor (4.7),
@@ -1432,6 +1452,7 @@ final class MetalRenderer {
                     gridOriginPx: gridOriginPx,
                     overlay: overlay)
                 encodeCursorOverlay(
+                    state: cursorBlock,
                     encoder: encoder,
                     drawableSizePx: drawableSizePx,
                     cellSizePx: cellPx,
@@ -2252,65 +2273,65 @@ final class MetalRenderer {
         }
     }
 
-    /// Encode the Stage-2 cursor overlay quad against the open render
-    /// encoder. Skips encode when the cursor is hidden (DECTCEM `?25l`),
-    /// when the cursor cell is outside the current grid, or when the
-    /// blink phase is in its off half.
-    ///
-    /// Shape mapping pins `bridge.rs::kinds::CURSOR_SHAPE_*`
-    /// (`bridge.rs:101-104`):
-    ///   0 (`CURSOR_SHAPE_BLOCK`)     → `.cursorBlock`
-    ///   1 (`CURSOR_SHAPE_BEAM`)      → `.cursorBeam`
-    ///   2 (`CURSOR_SHAPE_UNDERLINE`) → `.cursorUnderline`
-    ///   _                            → `.cursorBlock` (safe default)
-    private func encodeCursorOverlay(
-        encoder: MTLRenderCommandEncoder,
-        drawableSizePx: SIMD2<Float>,
-        cellSizePx: SIMD2<Float>,
-        gridOriginPx: SIMD2<Float>,
-        overlay: OverlayPipeline
-    ) {
-        guard let cursor = lastCursor, !cursor.hidden else { return }
+    /// Resolved per-frame cursor presentation, shared by the grid pass
+    /// (BLOCK reverse-video) and the overlay pass (BEAM / UNDERLINE quads).
+    /// Computed once per tick by `computeCursorBlockState()` so the blink
+    /// bookkeeping advances exactly once. `nil` means "draw no cursor this
+    /// frame" — hidden, scrolled into history, off-screen, or blink-off.
+    struct CursorBlockState {
+        var col: Int
+        var row: Int
+        var kind: OverlayKind  // .cursorBlock / .cursorBeam / .cursorUnderline
+        var color: SIMD4<Float>  // straight linear RGBA, .w forced to 1
+        var alpha: Float  // blink phase, > 0 (callers gate on nil for off)
+    }
+
+    /// Resolve the cursor's draw state for this frame. Holds all the
+    /// visibility gates (hidden / scrolled-into-history / off-screen /
+    /// blink-off) and the blink + pause-on-type bookkeeping that used to
+    /// live inline in `encodeCursorOverlay`. Pulled out so it can run
+    /// BEFORE the grid encode — the grid pass needs the BLOCK cursor's
+    /// cell + colour + alpha to reverse-video the glyph, and this helper
+    /// mutates `blinkOriginTime` / `wasTypingLastFrame`, so it must run
+    /// exactly once per tick. Returns `nil` when nothing should draw.
+    private func computeCursorBlockState() -> CursorBlockState? {
+        guard let cursor = lastCursor, !cursor.hidden else { return nil }
         // UX3: don't draw the cursor while the user is scrolled into
         // history (display_offset > 0). It's misleading there — the
-        // I-beam-style overlay on old output reads as "this line is
-        // editable" when it isn't. Snap-to-bottom restores the cursor
-        // automatically on the next input frame, so we just gate the
-        // encode here. Matches Terminal.app / iTerm2 behaviour.
-        if lastScrollTop > 0 { return }
+        // block on old output reads as "this line is editable" when it
+        // isn't. Snap-to-bottom restores the cursor automatically on the
+        // next input frame. Matches Terminal.app / iTerm2 behaviour.
+        if lastScrollTop > 0 { return nil }
         // Defensive: a misbehaving producer could place the cursor
-        // outside the grid; we drop rather than encode an off-screen
-        // quad (which is harmless but wastes a draw call).
+        // outside the grid; drop rather than reverse-video / encode an
+        // off-screen cell.
         guard Int(cursor.row) < gridRows,
             Int(cursor.col) < gridCols
-        else { return }
+        else { return nil }
 
         let kind = Self.cursorKind(forShape: cursor.shape)
 
         // Lazily anchor the blink phase so blink starts from "visible"
         // the moment the renderer has work to do, not the moment the
-        // process launched (which can be seconds before the first
-        // frame on a cold start).
+        // process launched (which can be seconds before the first frame
+        // on a cold start).
         let now = CACurrentMediaTime()
         if blinkOriginTime == nil { blinkOriginTime = now }
-        let elapsed = now - (blinkOriginTime ?? now)
 
-        // V2 pause-on-type: hold solid while the user is actively
-        // typing. The blink resumes ~500 ms after the last keystroke.
-        // Re-anchor `blinkOriginTime` on resume so the cursor enters
-        // at the visible-steady phase rather than mid-fade.
+        // V2 pause-on-type: hold solid while the user is actively typing.
+        // The blink resumes ~500 ms after the last keystroke. Re-anchor
+        // `blinkOriginTime` on resume so the cursor enters at the
+        // visible-steady phase rather than mid-fade.
         let timeSinceKey = now - lastKeystrokeTime
         let typingActive = lastKeystrokeTime > 0
             && timeSinceKey < Self.blinkPauseAfterKeystrokeSec
         // UX6: re-anchor `blinkOriginTime` only on the typing → idle
-        // transition. Continuously anchoring during typing (the
-        // previous behaviour) made `elapsed` jump to the pause
-        // duration the instant typing stopped — landing the first
-        // post-pause frame in the hidden-steady phase, so the cursor
-        // disappeared for ~150 ms right when the user finished typing
-        // and expected to see it. Anchoring only at the boundary
-        // guarantees the first idle frame enters the visible-steady
-        // phase (elapsed = 0).
+        // transition. Continuously anchoring during typing made `elapsed`
+        // jump to the pause duration the instant typing stopped — landing
+        // the first post-pause frame in the hidden-steady phase, so the
+        // cursor disappeared for ~150 ms right when the user finished
+        // typing and expected to see it. Anchoring only at the boundary
+        // guarantees the first idle frame enters the visible-steady phase.
         if !typingActive && wasTypingLastFrame {
             blinkOriginTime = now
         }
@@ -2320,33 +2341,61 @@ final class MetalRenderer {
         if !cursor.blink || typingActive {
             alpha = 1.0
         } else {
-            // Recompute elapsed in case we re-anchored above.
             let elapsedNow = now - (blinkOriginTime ?? now)
             alpha = easedBlinkAlpha(
                 elapsed: elapsedNow, period: Self.blinkPeriodSec)
         }
 
-        // Blink-off phase: no encode, no waste.
-        guard alpha > 0 else { return }
-
-        let originPx = SIMD2<Float>(
-            gridOriginPx.x + Float(cursor.col) * cellSizePx.x,
-            gridOriginPx.y + Float(cursor.row) * cellSizePx.y)
+        // Blink-off phase: nothing draws.
+        guard alpha > 0 else { return nil }
 
         var color = resolvedCursor
-        // Modulate the uniform's alpha through the color's alpha so the
-        // shader's `colorLinear.a * alpha` term is the source of truth.
-        // Color stays straight-RGBA; the source-over blend factor is
-        // configured on the pipeline.
+        // The uniform's `alpha` carries the blink phase; keep the colour
+        // straight-RGBA with full opacity so the grid reverse-video mix
+        // and the overlay's `colorLinear.a * alpha` term agree.
         color.w = 1.0
+
+        return CursorBlockState(
+            col: Int(cursor.col),
+            row: Int(cursor.row),
+            kind: kind,
+            color: color,
+            alpha: alpha)
+    }
+
+    /// Encode the Stage-2 cursor overlay quad for the BEAM / UNDERLINE
+    /// shapes only. The BLOCK shape is no longer drawn here: it would
+    /// paint an opaque quad over the glyph and hide the character. Instead
+    /// the grid pass reverse-videos the cursor cell (see `grid_fragment` +
+    /// `computeCursorBlockState`), keeping the character readable. Beam and
+    /// underline don't cover the glyph, so they stay as overlay quads with
+    /// the source-over blend exactly as before.
+    ///
+    /// `state` is the precomputed per-frame cursor presentation; `nil`
+    /// means no cursor this frame (already gated in the helper).
+    private func encodeCursorOverlay(
+        state: CursorBlockState?,
+        encoder: MTLRenderCommandEncoder,
+        drawableSizePx: SIMD2<Float>,
+        cellSizePx: SIMD2<Float>,
+        gridOriginPx: SIMD2<Float>,
+        overlay: OverlayPipeline
+    ) {
+        guard let state else { return }
+        // BLOCK is handled by the grid-pass reverse-video; skip the quad.
+        guard state.kind != .cursorBlock else { return }
+
+        let originPx = SIMD2<Float>(
+            gridOriginPx.x + Float(state.col) * cellSizePx.x,
+            gridOriginPx.y + Float(state.row) * cellSizePx.y)
 
         let uniforms = OverlayUniforms(
             screenSizePx: drawableSizePx,
             cellOriginPx: originPx,
             cellSizePx: cellSizePx,
-            colorLinear: color,
-            kind: kind.rawValue,
-            alpha: alpha,
+            colorLinear: state.color,
+            kind: state.kind.rawValue,
+            alpha: state.alpha,
             cellSpanCols: 1)
         overlay.encode(uniforms: uniforms, encoder: encoder)
     }

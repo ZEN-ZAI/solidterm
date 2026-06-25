@@ -37,6 +37,17 @@ struct GridUniforms {
     var gridSizeCells: SIMD2<UInt32>
     var gridOriginPx: SIMD2<Float>
     var colorAtlasSizePx: SIMD2<Float>
+    /// Block-cursor reverse-video (cursor visibility fix). The grid pass
+    /// reverse-videos the cursor cell in `grid_fragment` instead of the
+    /// overlay pass painting an opaque block that hides the glyph. Field
+    /// order / SIMD alignment MUST match `GridUniforms` in `Shaders.metal`.
+    /// `cursorBlockActive == 0` (the default below) leaves the steady-state
+    /// render unchanged; only a visible, on-screen BLOCK cursor flips it to
+    /// 1. Beam / underline cursors keep using the overlay quad.
+    var cursorCell: SIMD2<UInt32> = SIMD2(0, 0)
+    var cursorColorLinear: SIMD4<Float> = SIMD4(0, 0, 0, 0)
+    var cursorBlockAlpha: Float = 0
+    var cursorBlockActive: UInt32 = 0
 }
 
 final class GridPipeline {

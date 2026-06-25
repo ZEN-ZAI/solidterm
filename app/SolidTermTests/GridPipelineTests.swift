@@ -41,18 +41,36 @@ final class GridPipelineTests: XCTestCase {
     /// languages would silently break rendering. This assertion fails
     /// loudly instead.
     ///
-    /// Expected layout (5 × 8-byte SIMD2 fields, all 8-aligned):
-    ///   - screenSizePx:  float2 / SIMD2<Float>  (8 B)
-    ///   - cellSizePx:    float2 / SIMD2<Float>  (8 B)
-    ///   - atlasSizePx:   float2 / SIMD2<Float>  (8 B)
-    ///   - gridSizeCells:    uint2  / SIMD2<UInt32> (8 B)
-    ///   - gridOriginPx:     float2 / SIMD2<Float>  (8 B)
-    ///   - colorAtlasSizePx: float2 / SIMD2<Float>  (8 B)
-    /// Total: 48 B size, 48 B stride, 8 B alignment.
+    /// Expected layout. The first six 8-byte SIMD2 fields are followed by
+    /// the block-cursor reverse-video block (cursor visibility fix). The
+    /// `cursorColorLinear` float4 forces 16-byte struct alignment, so the
+    /// uint2 `cursorCell` at offset 48 pads up to 64 before the float4;
+    /// Metal's std layout rules land the float4 on the same 16-aligned
+    /// offset, so the byte-copy contract holds.
+    ///
+    ///   offset  field             size  align
+    ///        0  screenSizePx         8      8  (float2)
+    ///        8  cellSizePx           8      8
+    ///       16  atlasSizePx          8      8
+    ///       24  gridSizeCells        8      8  (uint2)
+    ///       32  gridOriginPx         8      8
+    ///       40  colorAtlasSizePx     8      8
+    ///       48  cursorCell           8      8  (uint2)
+    ///       56  (pad to 64)
+    ///       64  cursorColorLinear   16     16  (float4)
+    ///       80  cursorBlockAlpha     4      4  (float)
+    ///       84  cursorBlockActive    4      4  (uint)
+    ///       88  size; stride rounds to 96 (alignment 16)
     func testGridUniformsLayoutMatchesShader() {
-        XCTAssertEqual(MemoryLayout<GridUniforms>.size, 48)
-        XCTAssertEqual(MemoryLayout<GridUniforms>.stride, 48)
-        XCTAssertEqual(MemoryLayout<GridUniforms>.alignment, 8)
+        XCTAssertEqual(MemoryLayout<GridUniforms>.size, 88)
+        XCTAssertEqual(MemoryLayout<GridUniforms>.stride, 96)
+        XCTAssertEqual(MemoryLayout<GridUniforms>.alignment, 16)
+        // Pin the cursor-block field offsets so a future reorder that keeps
+        // the same total size still trips this guard.
+        XCTAssertEqual(MemoryLayout<GridUniforms>.offset(of: \.cursorCell), 48)
+        XCTAssertEqual(MemoryLayout<GridUniforms>.offset(of: \.cursorColorLinear), 64)
+        XCTAssertEqual(MemoryLayout<GridUniforms>.offset(of: \.cursorBlockAlpha), 80)
+        XCTAssertEqual(MemoryLayout<GridUniforms>.offset(of: \.cursorBlockActive), 84)
     }
 
     func testSetGridRejectsMismatchedCount() throws {
