@@ -818,6 +818,178 @@ final class CopyPasteTests: XCTestCase {
         XCTAssertFalse(text.isEmpty, "selection over a populated block row must yield text")
     }
 
+    // MARK: - Ctrl-C survives a wedged IME composition (SIGINT regression)
+
+    /// Root-cause regression: a custom `NSTextInputClient` does NOT get its
+    /// preedit auto-cancelled by AppKit when a ⌘-equivalent (Copy/Paste)
+    /// fires mid-composition, so `compositionState` can be left orphaned
+    /// non-nil. From then on `hasMarkedText()` is permanently true and the
+    /// `keyDown` direct-send gate (`!insertTextFiredThisKeyDown &&
+    /// !hasMarkedText()`) blocks EVERY raw key — including Ctrl-C — so the
+    /// user can no longer interrupt a foreground TUI (the reported "Ctrl+C
+    /// suddenly stops working in Claude" bug).
+    ///
+    /// The fix intercepts Control-mapped C0 keys in `keyDown` BEFORE the
+    /// IME/gate path and cancels any in-flight composition. This test
+    /// forces the wedge (via `setMarkedText`, the exact production trigger
+    /// for a stuck `compositionState`), synthesizes a Ctrl-C `keyDown`, and
+    /// asserts the composition is cleared so `hasMarkedText()` can no longer
+    /// block direct send. The byte-level "Ctrl-C → 0x03" contract is pinned
+    /// separately below (`testCtrlCEncodesToETXByte`) because the PTY line
+    /// discipline turns 0x03 into SIGINT rather than an echoable byte.
+    func testCtrlCClearsWedgedCompositionSoSigintCanSend() throws {
+        let surface = Self.makeSurface()
+        _ = try XCTUnwrap(
+            surface.rendererForTesting.session,
+            "cat session must be up so the control-byte intercept's "
+                + "`renderer.session` guard is satisfied")
+
+        // Force the orphaned-composition wedge: a live Thai preedit that
+        // never got committed/cancelled (what a mid-composition ⌘C leaves
+        // behind on a custom NSTextInputClient).
+        surface.setMarkedText(
+            "ก",
+            selectedRange: NSRange(location: 1, length: 0),
+            replacementRange: NSRange(location: NSNotFound, length: 0))
+        XCTAssertTrue(
+            surface.hasMarkedText(),
+            "precondition: composition is stuck active — this is the state "
+                + "that wedges the keyDown gate against Ctrl-C")
+
+        // Synthesize Ctrl-C exactly as macOS delivers it: `characters` is
+        // the resolved C0 byte (ETX = 0x03), `charactersIgnoringModifiers`
+        // the base "c", keyCode = kVK_ANSI_C (0x08), Control held.
+        let ctrlC = try XCTUnwrap(
+            NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: .control,
+                timestamp: CACurrentMediaTime(),
+                windowNumber: 0,
+                context: nil,
+                characters: "\u{03}",
+                charactersIgnoringModifiers: "c",
+                isARepeat: false,
+                keyCode: 0x08),
+            "synthetic Ctrl-C NSEvent.keyEvent returned nil — methodology blocked")
+
+        surface.keyDown(with: ctrlC)
+
+        // The wedge is gone: `hasMarkedText()` no longer suppresses direct
+        // send, so the next (and this) Ctrl-C reaches the PTY. Before the
+        // fix this stayed true and SIGINT was swallowed forever.
+        XCTAssertFalse(
+            surface.hasMarkedText(),
+            "Ctrl-C keyDown must cancel the orphaned composition so the "
+                + "direct-send gate stops blocking SIGINT")
+    }
+
+    /// Byte contract: Ctrl-C must encode to the single ETX byte (0x03) the
+    /// PTY turns into SIGINT. The control-byte intercept reuses the exact
+    /// `InputEventEncoder.encode(...)` of the normal path, so pinning the
+    /// encoder output here proves the intercept changes only WHEN the bytes
+    /// are sent, never WHAT — Ctrl-C stays 0x03.
+    func testCtrlCEncodesToETXByte() throws {
+        let ctrlC = try XCTUnwrap(
+            NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: .control,
+                timestamp: CACurrentMediaTime(),
+                windowNumber: 0,
+                context: nil,
+                characters: "\u{03}",
+                charactersIgnoringModifiers: "c",
+                isARepeat: false,
+                keyCode: 0x08))
+        let event = InputEventEncoder.encode(ctrlC)
+        XCTAssertEqual(
+            event.key.text.toString(), "\u{03}",
+            "Ctrl-C must encode to ETX (0x03) — the SIGINT byte")
+        XCTAssertEqual(event.key.codepoint, 0x03)
+    }
+
+    /// Scope guard for the bypass predicate. `isControlByteKey` decides
+    /// which keys take the early Control-byte intercept; this pins its
+    /// exact boundary so a future edit can't silently widen it (e.g. start
+    /// swallowing ⌘ shortcuts) or narrow it (re-break Ctrl-C). Synthesized
+    /// NSEvents mirror how macOS delivers each combo: `characters` is the
+    /// modifier-resolved text the OS produces.
+    func testIsControlByteKeyScope() throws {
+        func event(
+            _ chars: String, _ baseChars: String,
+            _ mods: NSEvent.ModifierFlags, _ keyCode: UInt16
+        ) throws -> NSEvent {
+            try XCTUnwrap(
+                NSEvent.keyEvent(
+                    with: .keyDown, location: .zero, modifierFlags: mods,
+                    timestamp: CACurrentMediaTime(), windowNumber: 0, context: nil,
+                    characters: chars, charactersIgnoringModifiers: baseChars,
+                    isARepeat: false, keyCode: keyCode))
+        }
+
+        // IN: the C0 control family — these must take the bypass.
+        XCTAssertTrue(  // Ctrl-C → ETX (SIGINT)
+            TerminalSurfaceView.isControlByteKey(
+                try event("\u{03}", "c", .control, 0x08)))
+        XCTAssertTrue(  // Ctrl-D → EOT
+            TerminalSurfaceView.isControlByteKey(
+                try event("\u{04}", "d", .control, 0x02)))
+        XCTAssertTrue(  // Ctrl-[ → ESC
+            TerminalSurfaceView.isControlByteKey(
+                try event("\u{1B}", "[", .control, 0x21)))
+        XCTAssertTrue(  // Ctrl-Space → NUL
+            TerminalSurfaceView.isControlByteKey(
+                try event("\u{00}", " ", .control, 0x31)))
+        XCTAssertTrue(  // Ctrl-Shift-C still resolves to a control byte
+            TerminalSurfaceView.isControlByteKey(
+                try event("\u{03}", "C", [.control, .shift], 0x08)))
+
+        // OUT: ⌘C (a Copy shortcut — Command set) must NOT be intercepted.
+        XCTAssertFalse(
+            TerminalSurfaceView.isControlByteKey(
+                try event("c", "c", .command, 0x08)))
+        // OUT: Ctrl+⌘ combos stay on the shortcut path.
+        XCTAssertFalse(
+            TerminalSurfaceView.isControlByteKey(
+                try event("\u{03}", "c", [.control, .command], 0x08)))
+        // OUT: Ctrl+Option carries its own (Meta/readline) semantics.
+        XCTAssertFalse(
+            TerminalSurfaceView.isControlByteKey(
+                try event("\u{03}", "c", [.control, .option], 0x08)))
+        // OUT: a plain printable key (no Control) is normal input/preedit.
+        XCTAssertFalse(
+            TerminalSurfaceView.isControlByteKey(
+                try event("a", "a", [], 0x00)))
+        // OUT: Control on a key with no C0 mapping (Ctrl-9) — `characters`
+        // is not a single control byte, so it stays on the normal path.
+        XCTAssertFalse(
+            TerminalSurfaceView.isControlByteKey(
+                try event("9", "9", .control, 0x19)))
+    }
+
+    /// Secondary fix: `copy(_:)` cancels an orphaned composition so a
+    /// mid-composition ⌘C can't leave `compositionState` wedged (which is
+    /// what AppKit fails to do for a custom NSTextInputClient). Pins the
+    /// leak plug for the Copy selector; `paste`/`pastePlain`/`selectAll`
+    /// share the same `cancelComposition()` call.
+    func testCopyCancelsActiveComposition() throws {
+        let surface = Self.makeSurface()
+        _ = try XCTUnwrap(surface.rendererForTesting.session)
+        surface.setMarkedText(
+            "한",
+            selectedRange: NSRange(location: 1, length: 0),
+            replacementRange: NSRange(location: NSNotFound, length: 0))
+        XCTAssertTrue(surface.hasMarkedText())
+
+        surface.copy(nil)
+
+        XCTAssertFalse(
+            surface.hasMarkedText(),
+            "⌘C must cancel an active composition so it can't orphan "
+                + "compositionState and wedge the keyDown gate")
+    }
+
     // MARK: - Helpers
 
     private static func makeSurface() -> TerminalSurfaceView {

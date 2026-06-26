@@ -5,7 +5,7 @@ All notable changes to SolidTerm are documented here. The format is based on [Ke
 ## [Unreleased]
 
 ### Fixed
-- Block cursor no longer hides the character under it. The cursor cell now reverse-videos (cell fills with the cursor colour, the glyph is redrawn in a contrasting colour) instead of painting an opaque block over the glyph — matching Terminal.app / iTerm2. Beam and underline cursors are unchanged. Blink fade still animates correctly.
+- Ctrl-C (and the whole Ctrl-A..Z / Ctrl-[ \ ] ^ _ / Ctrl-Space control family) could suddenly stop reaching the foreground program — most visibly, Ctrl-C no longer interrupting a full-screen TUI like Claude. Root cause: an IME composition left orphaned when a ⌘C/⌘V fired mid-preedit kept `hasMarkedText()` permanently true, wedging the keyboard direct-send gate. Control-mapped keys now bypass the IME gate (they're never composition input) and any active composition is cancelled by Copy/Paste/Paste-Plain/Select-All.
 
 ## [0.1.0] — 2026-05-17 — fork from NextTerm
 

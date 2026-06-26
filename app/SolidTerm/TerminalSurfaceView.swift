@@ -184,6 +184,75 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         lastInputSourceID = Self.currentInputSourceID()
     }
 
+    /// Tear down any in-flight preedit WITHOUT committing it. Mirrors the
+    /// `compositionState = nil` + `invalidateCompositionRender()` pair the
+    /// lifecycle methods (`unmarkText`, the empty-`setMarkedText` branch,
+    /// `handleInputSourceChange`) already run, factored out so the new
+    /// control-key intercept and the ⌘-shortcut actions (`copy`/`paste`/
+    /// `pastePlain`/`selectAll`) share one correct cancel path.
+    ///
+    /// Why this exists (the bug it fixes): this view is a CUSTOM
+    /// `NSTextInputClient`. When a ⌘-key equivalent (Copy/Paste/Select
+    /// All) fires while a Thai/CJK composition is active, AppKit does
+    /// NOT auto-commit or cancel the preedit for a custom client the way
+    /// it would for an `NSTextView`. So none of insertText / unmarkText /
+    /// setMarkedText("") runs, and `compositionState` is left orphaned
+    /// non-nil. From then on `hasMarkedText()` stays true forever and the
+    /// `keyDown` direct-send gate (`!insertTextFiredThisKeyDown &&
+    /// !hasMarkedText()`) blocks EVERY raw key — including Ctrl-C (SIGINT)
+    /// — so the user can't interrupt a foreground TUI. Callers invoke this
+    /// to drop the orphan before it wedges the gate.
+    ///
+    /// Also tells AppKit's IME machinery to discard its own marked-text
+    /// bookkeeping (`discardMarkedText`), so the input context and our
+    /// Swift-side state stay in agreement; otherwise the IME could re-emit
+    /// the stale preedit on the next handleEvent.
+    private func cancelComposition() {
+        guard compositionState != nil else { return }
+        compositionState = nil
+        renderer.invalidateCompositionRender()
+        inputContext?.discardMarkedText()
+    }
+
+    /// True when `event` is a Control-modified key that a terminal must
+    /// treat as a raw C0 control byte (Ctrl-A..Z, Ctrl-[ \ ] ^ _,
+    /// Ctrl-Space) rather than as IME composition input. Such keystrokes
+    /// are NEVER preedit: every terminal forwards them verbatim. The
+    /// decision rides on `NSEvent.characters` already being the C0 byte
+    /// macOS produced (Ctrl-C → "\u{03}", Ctrl-[ → "\u{1B}", …) so the
+    /// intercept's bytes match the normal encoder path exactly — we only
+    /// change WHEN they're sent, never WHAT.
+    ///
+    /// Strictly scoped to Control-WITHOUT-Command so app shortcuts
+    /// (⌘C copy, ⌃⌘F full-screen, …) are never swallowed. Control+Option
+    /// combos are deliberately excluded too: those carry their own
+    /// terminal semantics (some readline bindings, Option-as-Meta with a
+    /// control) and the existing encode path / Option-as-Meta block must
+    /// keep handling them. Shift is allowed (Ctrl-Shift-key still resolves
+    /// to a control byte where one exists; otherwise `characters` is empty
+    /// and we return false).
+    ///
+    /// Internal (not `private`) so the unit-test target can pin the exact
+    /// scope of the bypass (Ctrl-C in, ⌘C / Ctrl+Option / plain keys out)
+    /// without the headless-fragile live `keyDown` + input-context path.
+    static func isControlByteKey(_ event: NSEvent) -> Bool {
+        let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard mods.contains(.control),
+            !mods.contains(.command),
+            !mods.contains(.option)
+        else { return false }
+        // `characters` is the modifier-resolved text: for a key that maps
+        // to a C0 control code under Control, macOS already returns that
+        // single 0x00..0x1F (or 0x7F for some layouts) byte here. A
+        // Control-modified key that does NOT produce a control byte (e.g.
+        // Ctrl-9, which has no C0 mapping) yields a normal/empty
+        // `characters`; we leave those on the regular path.
+        guard let chars = event.characters, chars.unicodeScalars.count == 1,
+            let scalar = chars.unicodeScalars.first
+        else { return false }
+        return scalar.value <= 0x1F || scalar.value == 0x7F
+    }
+
     /// Current selected keyboard input source ID via Carbon TIS.
     /// Cheap (a `CFRetain` + dictionary lookup); safe to poll on every
     /// keystroke. Returns nil if TIS is unavailable, which collapses
@@ -543,6 +612,42 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
                     kittyFlags: session.kitty_keyboard_flags(),
                     appCursor: session.app_cursor_active(),
                     optionAsMeta: true))
+            renderer.recordKeystroke(eventTimestamp: event.timestamp)
+            return
+        }
+
+        // Control-byte intercept (correct-by-construction Ctrl-C / SIGINT).
+        // A Control-modified key that maps to a C0 control byte (Ctrl-A..Z,
+        // Ctrl-[ \ ] ^ _, Ctrl-Space) is NEVER IME composition input — it
+        // is terminal input every terminal forwards raw. We short-circuit
+        // it HERE, before `inputContext?.handleEvent(event)`, so it can't
+        // be gated by `hasMarkedText()`. That matters because this view is
+        // a custom NSTextInputClient: a ⌘-shortcut fired mid-composition
+        // can leave `compositionState` orphaned non-nil (AppKit won't
+        // auto-cancel a custom client's preedit), and that stuck state
+        // would otherwise make the post-handleEvent gate
+        // (`!insertTextFiredThisKeyDown && !hasMarkedText()`) block Ctrl-C
+        // forever — the exact "Ctrl-C suddenly stops interrupting Claude"
+        // report. Mirrors the Option-as-Meta early-intercept above.
+        //
+        // We `return` after sending, so the fall-through gate below never
+        // runs for this event — no double-send. The encoder is the SAME
+        // `InputEventEncoder.encode(...)` the normal path uses, fed the
+        // live Kitty-keyboard flags + DECCKM state, so the bytes are
+        // byte-identical to what would have gone out absent the wedge; we
+        // only change WHEN, not WHAT (e.g. Ctrl-C still emits 0x03).
+        //
+        // If a composition is in flight when a control key arrives, cancel
+        // it first: it can never be the target of a control byte, and
+        // leaving stale preedit on screen (or a stuck `compositionState`)
+        // is precisely the failure this fix exists to prevent.
+        if Self.isControlByteKey(event), let session = renderer.session {
+            cancelComposition()
+            session.send_input(
+                InputEventEncoder.encode(
+                    event,
+                    kittyFlags: session.kitty_keyboard_flags(),
+                    appCursor: session.app_cursor_active()))
             renderer.recordKeystroke(eventTimestamp: event.timestamp)
             return
         }
@@ -1178,6 +1283,10 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     /// can read the text the same way it does for mouse-driven
     /// selections.
     @objc override func selectAll(_ sender: Any?) {
+        // A ⌘-shortcut firing mid-composition won't auto-cancel the preedit
+        // for a custom NSTextInputClient — drop any orphan so it can't wedge
+        // the keyDown gate (see `cancelComposition`).
+        cancelComposition()
         guard let session = renderer.session else { return }
         let rows = renderer.viewportRows
         let cols = renderer.viewportCols
@@ -1194,6 +1303,11 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     }
 
     @objc func copy(_ sender: Any?) {
+        // See `cancelComposition`: AppKit doesn't auto-cancel a custom
+        // client's preedit when a ⌘-equivalent fires, so a Thai/CJK
+        // composition active at ⌘C time would otherwise leave
+        // `compositionState` orphaned and wedge the keyDown gate.
+        cancelComposition()
         guard let session = renderer.session else { return }
         // Detect engine-dropped selection: mirror present, engine span
         // empty. Re-establish so `selection_text()` has cells to read.
@@ -1214,6 +1328,9 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     /// `send_input` byte path as IME-committed text — single FFI call,
     /// engine-side parser handles the markers.
     @objc func paste(_ sender: Any?) {
+        // See `cancelComposition`: cancel any orphaned preedit a ⌘V fired
+        // mid-composition would leave behind on a custom NSTextInputClient.
+        cancelComposition()
         guard let session = renderer.session else { return }
         let pb = NSPasteboard.general
 
@@ -1238,6 +1355,9 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     /// Same scroll-to-bottom + `send_input` plumbing as `paste(_:)` —
     /// only the wrap decision differs.
     @objc func pastePlain(_ sender: Any?) {
+        // See `cancelComposition`: cancel any orphaned preedit a ⌘⇧V fired
+        // mid-composition would leave behind on a custom NSTextInputClient.
+        cancelComposition()
         guard let session = renderer.session else { return }
         let pb = NSPasteboard.general
         guard let text = pb.string(forType: .string), !text.isEmpty else { return }
