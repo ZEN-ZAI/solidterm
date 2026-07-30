@@ -433,7 +433,7 @@ impl TerminalEngine {
         // `try_clone` against `EventedReadWrite::reader()`'s `File`.
         let reader_file = pty.reader().try_clone().map_err(EngineError::Spawn)?;
 
-        let reader = PtyReader::spawn(reader_file);
+        let reader = PtyReader::spawn(reader_file).map_err(EngineError::Spawn)?;
 
         tracing::debug!(
             rows = config.rows,
@@ -617,6 +617,17 @@ impl TerminalEngine {
     /// `EngineEvent` channel will route child-exit / parser-error
     /// signals through here.
     pub fn poll_output(&mut self) -> Result<usize, EngineError> {
+        // Per-call byte budget. A child that outproduces the parser
+        // (`cat /dev/urandom`, `yes`) keeps the bounded reader channel
+        // full, so without a cap this loop would never see an empty
+        // `try_recv` and `poll_output` would not return — freezing the
+        // calling display-link tick for the whole flood, and piling
+        // unbounded events into `held_events`. Draining at most this
+        // many bytes per call leaves the rest in the channel for the
+        // next tick; the reader keeps refilling, so sustained
+        // throughput stays high while per-frame stall (and per-call
+        // event production) is bounded.
+        const POLL_OUTPUT_MAX_BYTES: usize = 1 << 20;
         let mut total = 0usize;
         while let Some(chunk) = self.reader.try_recv() {
             // Order: alacritty Processor first (load-bearing grid
@@ -629,6 +640,9 @@ impl TerminalEngine {
             self.parser.advance(&mut self.term, &chunk);
             self.osc_parser.advance(&mut self.osc_perform, &chunk);
             total += chunk.len();
+            if total >= POLL_OUTPUT_MAX_BYTES {
+                break;
+            }
         }
 
         // Track alt-screen flips for `is_alt_screen` accessor.

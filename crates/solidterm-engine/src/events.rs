@@ -62,6 +62,14 @@ use std::sync::Arc;
 /// not the one-shot decode. 1 MiB is far above any legitimate copy.
 const OSC52_MAX_DECODED_BYTES: usize = 1 << 20;
 
+/// Upper bound on an OSC 0/2 window-title payload. A title is only ever
+/// shown in tab/window chrome, so a few KiB is generous; capping stops a
+/// hostile `\e]2;<tens of MB>\a` (or a `CSI 22 t` push_title stack) from
+/// parking huge Strings in `held_events` and shipping them to the host.
+/// Truncated (not dropped) at a char boundary so a legitimate long title
+/// still shows a usable prefix.
+const TITLE_MAX_BYTES: usize = 4096;
+
 /// Hardcoded Zenzai Dark foreground (`#d6d6dd`, per
 /// `spec/theme-appearance.md`). Used as the reply payload for OSC 10
 /// queries until M5's `ThemeManager` lands. M1 keeps theming
@@ -339,7 +347,16 @@ impl EventListener for EventProxy {
     fn send_event(&self, event: AlacrittyEvent) {
         let translated = match event {
             AlacrittyEvent::Bell => Some(EngineEvent::Bell),
-            AlacrittyEvent::Title(t) => Some(EngineEvent::TitleChanged(t)),
+            AlacrittyEvent::Title(mut t) => {
+                if t.len() > TITLE_MAX_BYTES {
+                    let mut end = TITLE_MAX_BYTES;
+                    while end > 0 && !t.is_char_boundary(end) {
+                        end -= 1;
+                    }
+                    t.truncate(end);
+                }
+                Some(EngineEvent::TitleChanged(t))
+            }
             AlacrittyEvent::ResetTitle => Some(EngineEvent::TitleReset),
             AlacrittyEvent::ClipboardStore(ty, text) => {
                 if text.len() > OSC52_MAX_DECODED_BYTES {

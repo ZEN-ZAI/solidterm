@@ -76,21 +76,25 @@ impl PtyReader {
     ///   etc.). The error is logged via `tracing` for postmortem; the
     ///   thread doesn't propagate it because there's no consumer once
     ///   the receiver is gone.
-    #[must_use]
-    pub fn spawn<R>(mut reader_file: R) -> Self
+    pub fn spawn<R>(mut reader_file: R) -> std::io::Result<Self>
     where
         R: Read + Send + 'static,
     {
         let (tx, rx) = bounded::<Vec<u8>>(PTY_CHANNEL_CAP);
+        // Propagate spawn failure (pthread_create EAGAIN under
+        // RLIMIT_NPROC / thread exhaustion) instead of `.expect()`-ing:
+        // with `panic = "abort"` a panic here would SIGABRT the whole
+        // app. `TerminalSession::new` (bridge.rs) is documented to
+        // return nil to Swift on spawn failure, so the error must flow
+        // out as `EngineError::Spawn`, not abort.
         let handle = thread::Builder::new()
             .name("solidterm-pty-reader".to_string())
-            .spawn(move || pty_read_loop(&mut reader_file, &tx))
-            .expect("spawning a thread on macOS should not fail");
+            .spawn(move || pty_read_loop(&mut reader_file, &tx))?;
 
-        Self {
+        Ok(Self {
             rx: Some(rx),
             handle: Some(handle),
-        }
+        })
     }
 
     /// Try to receive the next chunk from the reader thread without
@@ -191,7 +195,7 @@ mod tests {
     fn spawn_forwards_bytes_to_channel_until_eof() {
         let payload: Vec<u8> = (0..16_384u32).map(|i| (i & 0xff) as u8).collect();
         let cursor: Cursor<Vec<u8>> = Cursor::new(payload.clone());
-        let reader = PtyReader::spawn(cursor);
+        let reader = PtyReader::spawn(cursor).expect("test reader spawn");
 
         // Drain until the channel goes quiet (thread hit EOF and
         // exited; subsequent recvs see the channel close).
@@ -207,7 +211,7 @@ mod tests {
     #[test]
     fn spawn_with_empty_reader_exits_immediately() {
         let cursor: Cursor<Vec<u8>> = Cursor::new(Vec::new());
-        let reader = PtyReader::spawn(cursor);
+        let reader = PtyReader::spawn(cursor).expect("test reader spawn");
         // First recv on an empty source: the thread sees EOF and
         // exits without sending anything. The channel closes; recv
         // returns None.
