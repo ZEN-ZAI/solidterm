@@ -436,8 +436,17 @@ final class GridPipelineTests: XCTestCase {
             makeCellDelta(row: 1, col: 5),
             makeCellDelta(row: 1, col: 6),
         ]
+        var shadow = [CellSlot](
+            repeating: .blank(bgColorLinear: SIMD4(0, 0, 0, 1)), count: 8 * 4)
         MetalRenderer.applyCellsAsRegions(
             cells, pipeline: pipeline, atlas: atlas,
+            shadow: &shadow, gridCols: 8,
             makeSlot: { _ in stubSlot })
+        // #2 regression: the apply path now mirrors resolved slots into the
+        // CPU-side `cells` shadow the SGR-underline overlay walks. Written
+        // cells carry the stub glyph; untouched cells stay blank.
+        XCTAssertNotNil(shadow[0].glyph)
+        XCTAssertNotNil(shadow[1 * 8 + 4].glyph)
+        XCTAssertNil(shadow[3 * 8 + 7].glyph)
     }
 }

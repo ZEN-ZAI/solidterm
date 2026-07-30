@@ -553,12 +553,14 @@ final class MetalRenderer {
                         let coalesced = GraphemeClusterCoalescer.coalesce(decoded)
                         Self.applyCoalescedCellsAsRegions(
                             coalesced, pipeline: pipeline, atlas: atlas,
+                            shadow: &self.cells, gridCols: gridCols,
                             makeSlot: { [weak self] cell in
                                 self?.makeSlot(from: cell, atlas: atlas)
                             })
                     } else {
                         Self.applyCellsAsRegions(
                             decoded, pipeline: pipeline, atlas: atlas,
+                            shadow: &self.cells, gridCols: gridCols,
                             makeSlot: { [weak self] cell in
                                 self?.makeSlot(from: cell, atlas: atlas)
                             })
@@ -1277,12 +1279,14 @@ final class MetalRenderer {
                         let coalesced = GraphemeClusterCoalescer.coalesce(decoded)
                         Self.applyCoalescedCellsAsRegions(
                             coalesced, pipeline: pipeline, atlas: atlas,
+                            shadow: &self.cells, gridCols: gridCols,
                             makeSlot: { [weak self] cell in
                                 self?.makeSlot(from: cell, atlas: atlas)
                             })
                     } else {
                         Self.applyCellsAsRegions(
                             decoded, pipeline: pipeline, atlas: atlas,
+                            shadow: &self.cells, gridCols: gridCols,
                             makeSlot: { [weak self] cell in
                                 self?.makeSlot(from: cell, atlas: atlas)
                             })
@@ -1638,12 +1642,14 @@ final class MetalRenderer {
             let coalesced = GraphemeClusterCoalescer.coalesce(decoded)
             Self.applyCoalescedCellsAsRegions(
                 coalesced, pipeline: pipeline, atlas: atlas,
+                shadow: &self.cells, gridCols: gridCols,
                 makeSlot: { [weak self] cell in
                     self?.makeSlot(from: cell, atlas: atlas)
                 })
         } else {
             Self.applyCellsAsRegions(
                 decoded, pipeline: pipeline, atlas: atlas,
+                shadow: &self.cells, gridCols: gridCols,
                 makeSlot: { [weak self] cell in
                     self?.makeSlot(from: cell, atlas: atlas)
                 })
@@ -1685,6 +1691,8 @@ final class MetalRenderer {
         _ decoded: [CellDeltaSwift],
         pipeline: GridPipeline,
         atlas: GlyphAtlas,
+        shadow: inout [CellSlot],
+        gridCols: Int,
         makeSlot: (CellDeltaSwift) -> CellSlot?
     ) {
         guard !decoded.isEmpty else { return }
@@ -1698,6 +1706,7 @@ final class MetalRenderer {
             resolved.append((row: Int(cell.row), col: Int(cell.col), slot: slot))
         }
         guard !resolved.isEmpty else { return }
+        Self.writeShadow(resolved, into: &shadow, gridCols: gridCols)
         resolved.sort { lhs, rhs in
             lhs.row != rhs.row ? lhs.row < rhs.row : lhs.col < rhs.col
         }
@@ -1761,6 +1770,8 @@ final class MetalRenderer {
         _ coalesced: [CoalescedCell],
         pipeline: GridPipeline,
         atlas: GlyphAtlas,
+        shadow: inout [CellSlot],
+        gridCols: Int,
         makeSlot: (CoalescedCell) -> CellSlot?
     ) {
         guard !coalesced.isEmpty else { return }
@@ -1794,6 +1805,7 @@ final class MetalRenderer {
             }
         }
         guard !resolved.isEmpty else { return }
+        Self.writeShadow(resolved, into: &shadow, gridCols: gridCols)
         resolved.sort { lhs, rhs in
             lhs.row != rhs.row ? lhs.row < rhs.row : lhs.col < rhs.col
         }
@@ -1831,6 +1843,26 @@ final class MetalRenderer {
                     String(describing: error))
             }
             runStart = runEnd
+        }
+    }
+
+    /// Mirror resolved (row,col,slot) entries into the CPU-side `cells`
+    /// shadow that `encodeTextUnderlineOverlay` (SGR `\e[4m`) and the IME
+    /// preedit-restore walk read. The apply path otherwise writes only GPU
+    /// textures, leaving the shadow blank (attrs=0) so underline never
+    /// renders. Bounds-guarded so a stale delta arriving mid-resize is
+    /// skipped, mirroring the tolerant `setRegion` catch above.
+    private static func writeShadow(
+        _ resolved: [(row: Int, col: Int, slot: CellSlot)],
+        into shadow: inout [CellSlot],
+        gridCols: Int
+    ) {
+        guard gridCols > 0 else { return }
+        for entry in resolved {
+            let idx = entry.row * gridCols + entry.col
+            if idx >= 0 && idx < shadow.count {
+                shadow[idx] = entry.slot
+            }
         }
     }
 
