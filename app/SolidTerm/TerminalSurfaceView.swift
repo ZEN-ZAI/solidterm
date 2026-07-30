@@ -108,6 +108,17 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     /// a keystroke).
     private var lastInputSourceID: String?
 
+    /// Cached backing-scale factor, compared in
+    /// `viewDidChangeBackingProperties`. A window moving to a display with
+    /// a different scale factor (Retina 2× → external 1×), or a scaled-
+    /// resolution change, alters the backing scale WITHOUT changing the
+    /// view's point size — so no resize fires and the glyph atlas +
+    /// `cellSizePx` (baked from the scale at `reloadFont`/`windowChanged`
+    /// time) would stay stale, rendering text ~2× too large / blurry.
+    /// Seeded on the first callback (`windowChanged` builds the initial
+    /// atlas); a later change triggers an atlas rebuild.
+    private var lastBackingScale: CGFloat = 0
+
     /// Observers for the host window's key-status changes, used to drive
     /// focus-event reporting (DECSET 1004): a TUI that enabled it expects
     /// `\e[I` when the terminal gains focus and `\e[O` when it loses it
@@ -165,6 +176,22 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     /// observer AND synchronously from `keyDown` when the cached
     /// input-source ID has rotated since the last keystroke.
     private func handleInputSourceChange() {
+        // Idempotence / re-entrancy guard — fixes a 100%-CPU main-thread
+        // hang. The `discardMarkedText()` below drives TSM/IMK
+        // (MyActivateTSMDocument → IMKInputSessionActivate), which re-posts
+        // `keyboardSelectionDidChangeNotification`. This observer runs on
+        // `.main`, so the re-post is re-scheduled as a fresh main-queue block
+        // rather than recursing — an unbounded loop that wedges the run loop
+        // (observed in the wild: a ~38h pegged-CPU hang). The re-post carries
+        // the SAME input source (activation doesn't rotate the selection), so
+        // bail when the ID hasn't actually changed. A genuine switch has
+        // `currentID != lastInputSourceID` and still reaches
+        // `discardMarkedText()` exactly once; this also dedups the synchronous
+        // keyDown path (see `:507`) against this notification backstop when a
+        // single switch happens to coincide with a keystroke.
+        let currentID = Self.currentInputSourceID()
+        guard currentID != lastInputSourceID else { return }
+
         if compositionState != nil {
             compositionState = nil
             renderer.invalidateCompositionRender()
@@ -181,7 +208,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         // Force `hasMarkedText` to flip back to false next read so
         // the keyDown gate stops suppressing direct send.
         insertTextFiredThisKeyDown = false
-        lastInputSourceID = Self.currentInputSourceID()
+        lastInputSourceID = currentID
     }
 
     /// Tear down any in-flight preedit WITHOUT committing it. Mirrors the
@@ -2187,6 +2214,16 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
         updateDrawableSize()
+        // Rebuild the atlas at the new backing scale when it actually
+        // changes (see `lastBackingScale`). Seed-on-first: the initial
+        // callback only records the scale — `windowChanged` already built
+        // the atlas — so we don't rebuild redundantly during setup.
+        let scale = window?.backingScaleFactor ?? metalLayer.contentsScale
+        if lastBackingScale != 0, scale != lastBackingScale {
+            _ = renderer.reloadFont()
+            propagateGridSizeToRenderer(viewSize: bounds.size)
+        }
+        lastBackingScale = scale
     }
 
     private func updateDrawableSize() {
