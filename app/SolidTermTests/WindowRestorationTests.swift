@@ -71,6 +71,7 @@ final class WindowRestorationTests: XCTestCase {
         let archiver = NSKeyedArchiver(requiringSecureCoding: true)
         archiver.encode("/Users/zen/proj" as NSString, forKey: RestoreCoderKeys.cwd)
         archiver.encode("Restored Title" as NSString, forKey: RestoreCoderKeys.titleOverride)
+        archiver.encode("claude --resume x" as NSString, forKey: RestoreCoderKeys.command)
         archiver.finishEncoding()
 
         let unarchiver = try NSKeyedUnarchiver(forReadingFrom: archiver.encodedData)
@@ -82,6 +83,68 @@ final class WindowRestorationTests: XCTestCase {
             unarchiver.decodeObject(of: NSString.self, forKey: RestoreCoderKeys.titleOverride)
                 as String?,
             "Restored Title")
+        XCTAssertEqual(
+            unarchiver.decodeObject(of: NSString.self, forKey: RestoreCoderKeys.command)
+                as String?,
+            "claude --resume x")
+    }
+
+    // MARK: - Command pre-fill
+
+    /// Run `body` with the pre-fill toggle forced to `enabled`, restoring
+    /// whatever the user actually had afterwards.
+    private func withPrefill(_ enabled: Bool, _ body: () -> Void) {
+        let key = RestoreSettings.prefillCommandKey
+        let saved = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let saved { UserDefaults.standard.set(saved, forKey: key) } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        UserDefaults.standard.set(enabled, forKey: key)
+        body()
+    }
+
+    func testPrefillSettingDefaultsOnWhenUnset() {
+        let key = RestoreSettings.prefillCommandKey
+        let saved = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let saved { UserDefaults.standard.set(saved, forKey: key) } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        UserDefaults.standard.removeObject(forKey: key)
+        XCTAssertTrue(RestoreSettings.prefillCommandEnabled, "unset → ON")
+    }
+
+    func testResolveCommandReturnsSanitizedCommandWhenEnabled() {
+        withPrefill(true) {
+            XCTAssertEqual(
+                WindowRestorerSupport.resolveCommand("  npm test  "), "npm test")
+        }
+    }
+
+    func testResolveCommandReturnsNilWhenDisabled() {
+        withPrefill(false) {
+            XCTAssertNil(WindowRestorerSupport.resolveCommand("npm test"))
+        }
+    }
+
+    /// Second gate: the journal is a plain JSON file on disk, so a command
+    /// that was tampered with after being recorded must still be refused
+    /// here — right before the bytes would reach the PTY.
+    func testResolveCommandRejectsInjectedNewlineEvenWhenEnabled() {
+        withPrefill(true) {
+            XCTAssertNil(WindowRestorerSupport.resolveCommand("npm test\nrm -rf ~"))
+            XCTAssertNil(WindowRestorerSupport.resolveCommand("ls \u{1B}[201~"))
+        }
+    }
+
+    func testResolveCommandRejectsNilAndEmpty() {
+        withPrefill(true) {
+            XCTAssertNil(WindowRestorerSupport.resolveCommand(nil))
+            XCTAssertNil(WindowRestorerSupport.resolveCommand(""))
+        }
     }
 
     // MARK: - Window wiring

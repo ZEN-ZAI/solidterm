@@ -334,6 +334,72 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         renderer.pendingInitialCwd = cwd
     }
 
+    // MARK: - Restored-command pre-fill
+
+    /// The command this window was running before it was restored, waiting
+    /// to be typed onto the fresh prompt. Cleared once fed, once the user
+    /// types, or once we give up waiting for the shell.
+    private var pendingPrefillCommand: String?
+    private var prefillWaitTicks = 0
+
+    /// Interval between "is the shell up yet?" checks.
+    private static let prefillPollInterval: DispatchTimeInterval = .milliseconds(250)
+    /// Give up after ~5s. A shell that hasn't spawned by then is not going
+    /// to accept a pre-fill sensibly.
+    private static let prefillMaxWaitTicks = 20
+    /// Extra settle time after the session exists, so zsh has drawn its
+    /// prompt and zle owns the line. Feeding earlier puts the text in front
+    /// of the prompt, where it looks like output instead of input.
+    private static let prefillSettleDelay: DispatchTimeInterval = .milliseconds(400)
+
+    /// Queue a restored command to appear at the prompt. Never executes it:
+    /// the payload is sanitised (no newline can survive
+    /// `SessionJournal.sanitizeCommand`) and fed without a trailing return,
+    /// so the user still has to press Enter.
+    func setPendingPrefill(_ command: String) {
+        let clean = SessionJournal.sanitizeCommand(command)
+        guard !clean.isEmpty else { return }
+        pendingPrefillCommand = clean
+        prefillWaitTicks = 0
+        schedulePrefill()
+    }
+
+    /// Drop a queued pre-fill because the user started typing. Whatever
+    /// they are doing now outranks a command from the previous run.
+    private func cancelPendingPrefill() {
+        pendingPrefillCommand = nil
+    }
+
+    private func schedulePrefill() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.prefillPollInterval) {
+            [weak self] in
+            guard let self, self.pendingPrefillCommand != nil else { return }
+            guard self.renderer.session != nil else {
+                self.prefillWaitTicks += 1
+                if self.prefillWaitTicks < Self.prefillMaxWaitTicks {
+                    self.schedulePrefill()
+                } else {
+                    self.pendingPrefillCommand = nil
+                }
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.prefillSettleDelay) {
+                [weak self] in
+                guard let self,
+                    let command = self.pendingPrefillCommand,
+                    let session = self.renderer.session
+                else { return }
+                self.pendingPrefillCommand = nil
+                session.scroll_to_bottom()
+                // Deliberately NOT wrapped in bracketed paste: at this point
+                // the shell has only just come up and may not have enabled
+                // DECSET 2004 yet, and the payload has no control bytes to
+                // protect anyway.
+                Self.feedChunked(command, into: session)
+            }
+        }
+    }
+
     // MARK: - Input — keyDown routing + NSTextInputClient (#19)
     //
     // Routing model (iTerm2-pattern, validated against spec/swift-app-
@@ -521,6 +587,9 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
 
     override func keyDown(with event: NSEvent) {
         insertTextFiredThisKeyDown = false
+        // The user beat the restore to the prompt — abandon the pre-fill
+        // rather than injecting it mid-typing.
+        cancelPendingPrefill()
 
         // Synchronous input-source-change check. macOS's
         // keyboardSelectionDidChangeNotification can land a few frames

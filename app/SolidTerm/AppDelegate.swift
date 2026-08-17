@@ -53,13 +53,102 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // adoptRestoredController. Deferring lets us count restored windows
         // first and open a fresh one ONLY when nothing was restored —
         // otherwise every launch would get a spurious extra empty window.
+        // Durable cwd/command journal — a second record alongside AppKit's
+        // saved state, sampled off the main thread (see SessionJournal).
+        SessionJournal.shared.startSampling()
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
+            self.restoreUnclaimedJournalWindows()
             if self.windowControllers.isEmpty {
                 self.openNewWindow()
             }
             NSApp.activate(ignoringOtherApps: true)
         }
+    }
+
+    /// Second-chance restore for windows AppKit did not bring back.
+    ///
+    /// `NSWindowRestoration` stays the primary path — it owns frames and
+    /// tab grouping — but it is best-effort: whatever it had not flushed
+    /// when the process died is gone. Journal entries whose id no window
+    /// claimed are reopened here. Runs inside the existing deferred block,
+    /// after restoration has had its turn, which is what makes the
+    /// claimed-set accurate and keeps the two from double-opening.
+    private func restoreUnclaimedJournalWindows() {
+        guard RestoreSettings.enabled else { return }
+        let claimed = Set(windowControllers.compactMap { $0.journalWindowID })
+        // Entries sharing a tabGroupID were tabs of one window, so they are
+        // re-tabbed together rather than scattered into standalone windows.
+        let ordered = SessionJournal.pendingGroups(
+            from: SessionJournal.restoreSnapshot(), claimed: claimed)
+
+        for group in ordered {
+            var groupLead: NSWindow?
+            for entry in group {
+                let controller = makeJournalController(for: entry)
+                guard let newWindow = controller.window else { continue }
+                if let lead = groupLead, lead.tabbingMode != .disallowed {
+                    lead.addTabbedWindow(newWindow, ordered: .above)
+                    newWindow.orderFront(nil)
+                } else {
+                    controller.showWindow(nil)
+                    groupLead = newWindow
+                }
+            }
+        }
+    }
+
+    private func makeJournalController(
+        for entry: SessionJournalEntry
+    ) -> TerminalWindowController {
+        let title = (entry.title.isEmpty || entry.title == "SolidTerm") ? nil : entry.title
+        let controller = TerminalWindowController(
+            initialCwd: WindowRestorerSupport.resolveCwd(entry.cwd),
+            restoredTitle: title,
+            prefillCommand: WindowRestorerSupport.resolveCommand(entry.command))
+        // Reuse the journal's id as the window identifier so the next
+        // launch reconciles against the same key instead of leaking a
+        // fresh UUID per restore.
+        controller.window?.identifier = NSUserInterfaceItemIdentifier(entry.id)
+        windowControllers.append(controller)
+        controller.window?.delegate = self
+        return controller
+    }
+
+    /// True once the app has committed to quitting.
+    ///
+    /// AppKit closes every window on the way out, which fires
+    /// `windowWillClose` for each — indistinguishable, without this flag,
+    /// from the user deliberately closing a tab. Treating those as
+    /// deliberate would unregister every window and leave an EMPTY journal
+    /// after a normal ⌘Q — the journal would then only ever help after a
+    /// crash and never after a clean quit. The flag keeps "app is quitting"
+    /// and "user closed this window" apart.
+    private var isTerminating = false
+
+    /// Fires before the windows are torn down, so this is where the
+    /// terminating flag has to be set. Flush here too: the journal should
+    /// reflect the final state, not whatever the 5s sampler last caught.
+    func applicationShouldTerminate(
+        _ sender: NSApplication
+    ) -> NSApplication.TerminateReply {
+        isTerminating = true
+        SessionJournal.shared.flushSynchronously()
+        return .terminateNow
+    }
+
+    /// Last chance to capture state before the process goes away.
+    /// Synchronous on purpose — returning before the write lands would
+    /// defeat the point.
+    func applicationWillTerminate(_ notification: Notification) {
+        isTerminating = true
+        SessionJournal.shared.flushSynchronously()
+    }
+
+    /// Cheap insurance: the user switching away is a good moment to make
+    /// sure what is on disk matches what is on screen.
+    func applicationDidResignActive(_ notification: Notification) {
+        SessionJournal.shared.flushNow()
     }
 
     /// macOS 12+ requires apps to opt into secure state restoration. Our
@@ -194,6 +283,14 @@ extension AppDelegate: NSWindowDelegate {
         // the floating search panel isn't a child window, so it won't be
         // torn down automatically and would ghost on screen.
         windowControllers.first { $0.window === closing }?.closeSearchPanel()
+        // Drop the journal entry too — a deliberately closed window must
+        // not come back on the next launch. Skipped while terminating:
+        // those closes are AppKit tearing down on quit, not the user
+        // dismissing a window, and unregistering them would wipe the very
+        // state we are quitting with (see `isTerminating`).
+        if !isTerminating, let id = closing.identifier?.rawValue {
+            SessionJournal.shared.unregister(windowID: id)
+        }
         windowControllers.removeAll { $0.window === closing }
     }
 }

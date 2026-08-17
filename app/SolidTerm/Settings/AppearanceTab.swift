@@ -55,6 +55,10 @@ struct AppearanceTab: View {
     /// Reopen windows/tabs on relaunch via NSWindowRestoration. Default
     /// on (unset reads as ON, matching RestoreSettings.enabled).
     @AppStorage(RestoreSettings.enabledKey) private var restoreWindows: Bool = true
+    /// Type the previously-running command back onto the restored prompt
+    /// (without executing it). Default on, matching
+    /// RestoreSettings.prefillCommandEnabled.
+    @AppStorage(RestoreSettings.prefillCommandKey) private var prefillCommand: Bool = true
 
     @ObservedObject private var themeManager = ThemeManager.shared
     @ObservedObject private var fontSettings = FontSettings.shared
@@ -96,14 +100,21 @@ struct AppearanceTab: View {
     private var restorationSection: some View {
         Section {
             Toggle("Reopen windows and tabs on relaunch", isOn: $restoreWindows)
+            Toggle("Restore the last command at the prompt", isOn: $prefillCommand)
+                .disabled(!restoreWindows)
         } header: {
             Text("Window restoration")
         } footer: {
             Text(
                 "When on, SolidTerm reopens your previous windows and tabs "
                     + "on launch, each shell starting in its last working "
-                    + "directory. Running programs and scrollback are not "
-                    + "restored.")
+                    + "directory. Directories are also journalled every few "
+                    + "seconds, so they survive a force quit or a crash. "
+                    + "Scrollback is not restored.\n\n"
+                    + "With the second option on, the command each window was "
+                    + "running is typed back onto the prompt but NOT run — "
+                    + "press Return to start it, or just keep typing to "
+                    + "discard it.")
         }
     }
 

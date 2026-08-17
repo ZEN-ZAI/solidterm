@@ -21,6 +21,17 @@ enum RestoreSettings {
     static var enabled: Bool {
         UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true
     }
+
+    /// Type the command that was running back onto the restored prompt —
+    /// WITHOUT a trailing newline, so nothing re-executes on its own.
+    static let prefillCommandKey = "solidterm.windowRestore.prefillCommand"
+
+    /// Default ON, same unset-reads-as-enabled convention as `enabled`.
+    /// Gated separately because re-surfacing a command line is a bigger
+    /// behavioural surprise than just landing in the right directory.
+    static var prefillCommandEnabled: Bool {
+        UserDefaults.standard.object(forKey: prefillCommandKey) as? Bool ?? true
+    }
 }
 
 /// NSCoder keys for the per-window restorable state.
@@ -29,6 +40,11 @@ enum RestoreCoderKeys {
     static let cwd = "solidterm.restore.cwd"
     /// A non-default window title (program-set), if any.
     static let titleOverride = "solidterm.restore.titleOverride"
+    /// The command that was running at encode time, sanitised by
+    /// `SessionJournal.sanitizeCommand`. Restored onto the prompt without
+    /// executing. Encoded here as well as in the journal so a plain
+    /// AppKit-only restore (journal missing / pruned) still gets it.
+    static let command = "solidterm.restore.command"
     // Reserved for a future manual tab-regroup fallback (encoded from day
     // one so enabling it needs no saved-state format migration). Not read
     // yet — AppKit-native tab restoration via the shared tabbingIdentifier
@@ -56,11 +72,24 @@ final class TerminalWindowRestorer: NSObject, NSWindowRestoration {
         let cwd = state.decodeObject(of: NSString.self, forKey: RestoreCoderKeys.cwd) as String?
         let title =
             state.decodeObject(of: NSString.self, forKey: RestoreCoderKeys.titleOverride) as String?
-        let resolvedCwd = WindowRestorerSupport.resolveCwd(cwd)
+        let command =
+            state.decodeObject(of: NSString.self, forKey: RestoreCoderKeys.command) as String?
+
+        // The journal is written every 5s off the main thread, whereas this
+        // encoded state is only as fresh as AppKit's last flush — so when
+        // both describe the same window, the journal wins.
+        let journalled = SessionJournal.restoreSnapshot()
+            .first { $0.id == identifier.rawValue }
+        let resolvedCwd =
+            WindowRestorerSupport.resolveCwd(journalled?.cwd)
+            ?? WindowRestorerSupport.resolveCwd(cwd)
+        let resolvedCommand = WindowRestorerSupport.resolveCommand(
+            journalled?.command ?? command)
 
         MainActor.assumeIsolated {
             let controller = TerminalWindowController(
-                initialCwd: resolvedCwd, restoredTitle: title)
+                initialCwd: resolvedCwd, restoredTitle: title,
+                prefillCommand: resolvedCommand)
             // Re-key to the persisted identifier so AppKit lands the saved
             // frame + tab-group membership on this window.
             controller.window?.identifier = identifier
@@ -80,5 +109,17 @@ enum WindowRestorerSupport {
         var isDir: ObjCBool = false
         let exists = FileManager.default.fileExists(atPath: cwd, isDirectory: &isDir)
         return (exists && isDir.boolValue) ? cwd : nil
+    }
+
+    /// A saved command is replayed only when the user has the toggle on AND
+    /// the text still passes `sanitizeCommand`. Re-sanitising here (it was
+    /// already checked at record time) is deliberate: this is the last gate
+    /// before bytes reach the PTY, and the journal is a plain JSON file a
+    /// user — or anything else with write access to Application Support —
+    /// can edit.
+    static func resolveCommand(_ command: String?) -> String? {
+        guard RestoreSettings.prefillCommandEnabled else { return nil }
+        let clean = SessionJournal.sanitizeCommand(command)
+        return clean.isEmpty ? nil : clean
     }
 }

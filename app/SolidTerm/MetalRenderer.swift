@@ -1135,21 +1135,12 @@ final class MetalRenderer {
         return Self.cwdForPid(pid)
     }
 
-    /// macOS `proc_pidinfo(PROC_PIDVNODEPATHINFO)` wrapper. The struct
-    /// is laid out as two `vnode_info_path` blocks (proc + cwd); we
-    /// only want the cwd path. Returns nil on any libproc failure.
+    /// macOS `proc_pidinfo(PROC_PIDVNODEPATHINFO)` cwd read. The
+    /// implementation moved to `ProcessSnapshot` so `SessionJournal`'s
+    /// off-main sampler can share it without depending on the renderer;
+    /// this stays as the renderer's spelling of the same call.
     private static func cwdForPid(_ pid: pid_t) -> String? {
-        var info = proc_vnodepathinfo()
-        let size = MemoryLayout<proc_vnodepathinfo>.size
-        let n = withUnsafeMutablePointer(to: &info) {
-            proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, $0, Int32(size))
-        }
-        guard n == Int32(size) else { return nil }
-        return withUnsafePointer(to: &info.pvi_cdir.vip_path) { ptr in
-            ptr.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) {
-                String(validatingUTF8: $0)
-            }
-        }
+        ProcessSnapshot.cwd(forPid: pid)
     }
 
     // The delegate is held strongly by the renderer; the link only retains

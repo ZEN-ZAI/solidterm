@@ -26,7 +26,10 @@ final class TerminalWindowController: NSWindowController, NSMenuItemValidation {
 
     private let wrapper: WindowContentWrapper
 
-    convenience init(initialCwd: String? = nil, restoredTitle: String? = nil) {
+    convenience init(
+        initialCwd: String? = nil, restoredTitle: String? = nil,
+        prefillCommand: String? = nil
+    ) {
         let contentRect = NSRect(
             origin: .zero,
             size: TerminalSurfaceView.gridContentSize(cols: 80, rows: 24))
@@ -34,6 +37,9 @@ final class TerminalWindowController: NSWindowController, NSMenuItemValidation {
         let surfaceView = TerminalSurfaceView(frame: contentRect)
         if let cwd = initialCwd, !cwd.isEmpty {
             surfaceView.setInitialCwd(cwd)
+        }
+        if let prefillCommand, !prefillCommand.isEmpty {
+            surfaceView.setPendingPrefill(prefillCommand)
         }
         var leadMeta = PaneViewController.PaneMetadata()
         leadMeta.title = "zsh"
@@ -99,6 +105,7 @@ final class TerminalWindowController: NSWindowController, NSMenuItemValidation {
         super.init(window: window)
         observeThemeReload()
         observeCwdChange()
+        ensureJournalRegistration()
     }
 
     /// Window-restoration state. The encoded cwd is captured live via
@@ -117,8 +124,90 @@ final class TerminalWindowController: NSWindowController, NSMenuItemValidation {
             // Only react to OUR window's cwd change (object = host window).
             if (note.object as? NSWindow) === window {
                 window.invalidateRestorableState()
+                // Same notification doubles as the journal's registration
+                // point: it fires on the first cwd after spawn, which is
+                // the earliest moment `child_pid()` is valid, and on every
+                // `cd` after that — so tab order and title stay fresh
+                // without a second observer.
+                self.registerWithJournal()
             }
         }
+    }
+
+    /// Stable key shared by `NSWindowRestoration` and the journal, so the
+    /// two can be reconciled at launch without a second identifier scheme.
+    var journalWindowID: String? { window?.identifier?.rawValue }
+
+    /// The id this window is currently journalled under. Tracked because
+    /// the identifier can change after init: `TerminalWindowRestorer` and
+    /// the journal-fallback path both re-key a freshly built controller to
+    /// the persisted identifier, so an early registration would otherwise
+    /// strand an entry under the throwaway UUID.
+    private var registeredJournalID: String?
+
+    /// Fast-retry budget before `ensureJournalRegistration` backs off.
+    private var journalRegistrationTicks = 0
+    private static let journalFastRetries = 20
+    private static let journalFastInterval: DispatchTimeInterval = .milliseconds(500)
+    private static let journalSlowInterval: DispatchTimeInterval = .seconds(5)
+
+    /// Keep trying to register until the PTY has actually spawned.
+    ///
+    /// Registration used to hang off the `cwdDidChange` notification alone,
+    /// but that fires exactly ONCE for a shell that never leaves its
+    /// starting directory — and the renderer DROPS it when `hostWindow` is
+    /// still nil, consuming the change without ever posting. A window that
+    /// lost that single event had no second chance, which is how live
+    /// windows kept ending up absent from the journal (observed: 4 windows
+    /// / 1 entry, then 2 windows / 1 entry).
+    ///
+    /// So this never gives up: it polls fast while the PTY is coming up,
+    /// then backs off to a cheap 5s tick for the window's lifetime. The
+    /// loop stops the moment registration succeeds, so a healthy window
+    /// costs a handful of checks and nothing after that. A permanently
+    /// unregistered window is silent data loss on the next crash; an idle
+    /// 5s timer is not worth trading for that.
+    private func ensureJournalRegistration() {
+        if registerWithJournal() { return }
+        journalRegistrationTicks += 1
+        let delay =
+            journalRegistrationTicks < Self.journalFastRetries
+            ? Self.journalFastInterval : Self.journalSlowInterval
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.ensureJournalRegistration()
+        }
+    }
+
+    /// Publish this window's shell pid to `SessionJournal`. Idempotent —
+    /// the journal keys on the window id and overwrites. Returns false
+    /// while the session has yet to spawn, so the caller can retry.
+    @discardableResult
+    private func registerWithJournal() -> Bool {
+        guard let window, let id = journalWindowID else { return false }
+        guard
+            let session = (leadPane.view as? TerminalSurfaceView)?
+                .rendererForTesting.session
+        else { return false }
+        let pid = pid_t(session.child_pid())
+        guard pid > 0 else { return false }
+
+        // The identifier was re-keyed since we last registered — drop the
+        // stale entry so the journal does not carry a phantom window.
+        if let previous = registeredJournalID, previous != id {
+            SessionJournal.shared.unregister(windowID: previous)
+        }
+        registeredJournalID = id
+
+        // Tab-group membership: the first tab's identifier names the group,
+        // and this window's position in it gives a stable restore order.
+        let tabs = window.tabbedWindows ?? [window]
+        let groupID = tabs.first?.identifier?.rawValue ?? id
+        let order = tabs.firstIndex(of: window) ?? 0
+
+        SessionJournal.shared.register(
+            windowID: id, pid: pid, order: order, tabGroupID: groupID,
+            title: window.title)
+        return true
     }
 
     /// Encode the per-window restorable state: the session's working
@@ -133,6 +222,15 @@ final class TerminalWindowController: NSWindowController, NSMenuItemValidation {
         }
         if let w = window, w.title != "SolidTerm", !w.title.isEmpty {
             coder.encode(w.title as NSString, forKey: RestoreCoderKeys.titleOverride)
+        }
+        // Read the command back from the journal's last sample rather than
+        // re-scanning the process table here — this runs on the main thread
+        // once per window per flush.
+        if let id = journalWindowID,
+            let command = SessionJournal.shared.lastEntry(forWindowID: id)?.command,
+            !command.isEmpty
+        {
+            coder.encode(command as NSString, forKey: RestoreCoderKeys.command)
         }
     }
 
