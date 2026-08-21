@@ -331,7 +331,16 @@ mod ffi {
 /// via the display-link/input path). Debug builds assert it; release builds
 /// compile the check out.
 pub struct TerminalSession {
-    inner: solidterm_engine::TerminalEngine,
+    /// `ManuallyDrop` so the custom `Drop` below can move the engine
+    /// out and hand it to `TerminalEngine::shutdown_detached`. Swift
+    /// releases its last reference on the main thread (window/tab
+    /// close → `NSWindow dealloc`), and an inline engine drop there
+    /// blocks in `wait4` on child exit — which deadlocked the whole
+    /// app when the child was itself write-blocked on a full PTY
+    /// (2026-08-22 hang; full cycle documented on
+    /// `shutdown_detached`). Deref is transparent, so every method
+    /// below uses `self.inner` unchanged.
+    inner: std::mem::ManuallyDrop<solidterm_engine::TerminalEngine>,
     pending_title: Option<String>,
     pending_cwd: Option<String>,
     /// I1 bell: latched on every `EngineEvent::Bell` seen by
@@ -352,6 +361,22 @@ pub struct TerminalSession {
     /// this session. Used by [`Self::debug_assert_owner`] to enforce the
     /// single-thread contract in debug builds; zero cost in release.
     owner_thread: std::thread::ThreadId,
+}
+
+impl Drop for TerminalSession {
+    /// Runs on whatever thread Swift releases the last reference —
+    /// in practice the main thread during window/tab teardown. Must
+    /// therefore never block: the engine (PTY, child process, reader
+    /// thread) is moved out and shipped to a detached teardown thread
+    /// that owns the SIGHUP → grace → SIGKILL escalation. See
+    /// `TerminalEngine::shutdown_detached` for the deadlock this
+    /// prevents.
+    fn drop(&mut self) {
+        // SAFETY: `Drop` runs at most once and nothing reads `inner`
+        // after it; this is the only `ManuallyDrop::take` call site.
+        let engine = unsafe { std::mem::ManuallyDrop::take(&mut self.inner) };
+        engine.shutdown_detached();
+    }
 }
 
 impl TerminalSession {
@@ -381,7 +406,7 @@ impl TerminalSession {
             }
         };
         Some(TerminalSession {
-            inner,
+            inner: std::mem::ManuallyDrop::new(inner),
             pending_title: None,
             pending_cwd: None,
             pending_bell: false,

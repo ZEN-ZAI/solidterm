@@ -225,8 +225,11 @@ pub struct TerminalEngine {
 
     /// alacritty's `Pty` — owns the master FD (for read+write), the
     /// child `std::process::Child`, and the SIGCHLD signal handler.
-    /// `Pty::Drop` sends SIGHUP to the child and waits, so we don't
-    /// write any process cleanup on this side.
+    /// `Pty::Drop` sends SIGHUP to the child and then **blocks** in
+    /// `child.wait()` — production teardown therefore goes through
+    /// [`TerminalEngine::shutdown_detached`], which moves this drop
+    /// onto a detached thread with a SIGKILL escalation. Inline drop
+    /// remains for tests only.
     pty: Pty,
 
     /// Background reader thread that pumps PTY output bytes into a
@@ -752,6 +755,124 @@ impl TerminalEngine {
         }
 
         Ok(total)
+    }
+
+    /// Grace window between SIGHUP and SIGKILL in
+    /// [`Self::shutdown_detached`]. Long enough for an interactive
+    /// shell's HUP path (kill jobs, save history — zsh at a prompt
+    /// exits in single-digit ms), short enough that a wedged child
+    /// never keeps a teardown thread around noticeably.
+    const SHUTDOWN_GRACE: std::time::Duration = std::time::Duration::from_millis(500);
+
+    /// Poll cadence of the grace loop in [`Self::shutdown_detached`].
+    const SHUTDOWN_POLL: std::time::Duration = std::time::Duration::from_millis(10);
+
+    /// Tear the engine down without ever blocking the calling thread
+    /// on child exit. This is the only teardown path the FFI layer
+    /// uses; dropping a `TerminalEngine` inline remains correct for
+    /// tests but must never happen on the app's main thread.
+    ///
+    /// Why: alacritty's `Pty::Drop` sends SIGHUP and then calls the
+    /// *blocking* `child.wait()`. Dropping inline on the main thread
+    /// can deadlock the whole app (observed + sampled 2026-08-22) via
+    /// a four-way cycle: the main thread parks in `wait4`; the dying
+    /// child parks in `write(2)` because the kernel PTY buffer is
+    /// full; the buffer is full because the reader thread is parked in
+    /// `send` on the full flood-cap channel (`PTY_CHANNEL_CAP`); and
+    /// the only drainer of that channel — `poll_output` on the main
+    /// thread's tick — is the thread parked in `wait4`.
+    ///
+    /// Containment per session: SIGHUP the child immediately, then
+    /// ship the whole engine to a detached teardown thread so the
+    /// caller returns in microseconds. On that thread, break the cycle
+    /// by draining the reader channel during a short grace window —
+    /// un-parking a send-blocked reader thread, emptying the kernel
+    /// PTY buffer, and letting the child's blocked `write(2)` complete
+    /// so it can act on the SIGHUP and exit cleanly. If the grace
+    /// expires, escalate to SIGKILL, which cannot be caught. Only then
+    /// does the engine drop, so `Pty::Drop`'s `wait()` is prompt and
+    /// `PtyReader::Drop`'s channel-disconnect + join always succeeds.
+    //
+    // unsafe_code allow: three bare `libc::kill` calls — the identical
+    // signalling `Pty::Drop` itself performs, minus its blocking wait.
+    // No pointers, no FFI types cross here.
+    #[allow(unsafe_code)]
+    pub fn shutdown_detached(self) {
+        /// Owns the engine through the grace dance. Its `Drop` is the
+        /// single point that escalates + drops, so every exit path —
+        /// grace expiry, early child exit, teardown-thread spawn
+        /// failure (the failed `spawn` drops the closure, and with it
+        /// this guard, inline) — ends in a prompt, non-blocking reap.
+        struct TeardownGuard {
+            engine: Option<TerminalEngine>,
+            pid: i32,
+            exited: bool,
+        }
+        impl Drop for TeardownGuard {
+            fn drop(&mut self) {
+                let Some(engine) = self.engine.take() else {
+                    return;
+                };
+                if !self.exited {
+                    // `exited` is the only arm in which the child has
+                    // been reaped (`next_child_event` → `try_wait`),
+                    // so here the pid is still our un-reaped child —
+                    // no recycled-pid hazard. SIGKILL cannot be caught
+                    // or ignored; a zombie ignores it harmlessly.
+                    unsafe { libc::kill(self.pid, libc::SIGKILL) };
+                }
+                // Now prompt: `Pty::Drop`'s `wait()` reaps a child
+                // that is already dead or dying, then
+                // `PtyReader::Drop` disconnects the channel (waking a
+                // send-parked reader thread) and joins it.
+                drop(engine);
+            }
+        }
+
+        // `child_pid` is a `u32` (std `Child::id`); kernel pids fit
+        // i32 — the same cast alacritty's `Pty::Drop` performs.
+        let pid = self.child_pid() as i32;
+        // Ask politely first — the same signal `Pty::Drop` would send,
+        // decoupled from its blocking wait.
+        unsafe { libc::kill(pid, libc::SIGHUP) };
+
+        let mut guard = TeardownGuard {
+            engine: Some(self),
+            pid,
+            exited: false,
+        };
+        let teardown = move || {
+            let deadline = std::time::Instant::now() + Self::SHUTDOWN_GRACE;
+            while std::time::Instant::now() < deadline {
+                let Some(engine) = guard.engine.as_mut() else {
+                    break;
+                };
+                // Drain so a send-parked reader un-parks and the child
+                // can flush its final writes (see method doc).
+                while engine.reader.try_recv().is_some() {}
+                if let Some(ChildEvent::Exited(_)) = engine.pty.next_child_event() {
+                    guard.exited = true;
+                    break;
+                }
+                std::thread::sleep(Self::SHUTDOWN_POLL);
+            }
+            drop(guard);
+        };
+
+        if let Err(err) = std::thread::Builder::new()
+            .name("solidterm-pty-teardown".to_string())
+            .spawn(teardown)
+        {
+            // pthread_create failure (RLIMIT_NPROC exhaustion). The
+            // failed `spawn` already dropped the closure — and thus
+            // the guard — inline above: SIGKILL + prompt reap, no
+            // grace. Correct, just not graceful; only record why.
+            tracing::warn!(
+                ?err,
+                "shutdown_detached: teardown thread spawn failed; \
+                 fell back to inline SIGKILL teardown"
+            );
+        }
     }
 
     /// Drain all `EngineEvent`s that have accumulated since the last
