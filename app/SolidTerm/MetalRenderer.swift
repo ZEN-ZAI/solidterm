@@ -76,6 +76,23 @@ final class MetalRenderer {
 
     private weak var attachedLayer: CAMetalLayer?
     private var displayLink: CAMetalDisplayLink?
+
+    /// `CACurrentMediaTime()` of the last `draw(update:)` tick. Read by
+    /// `pumpIfDisplayLinkStalled()` to tell a stopped display link
+    /// (display asleep, window fully occluded) from a healthy one.
+    private var lastDisplayLinkTick: CFTimeInterval = 0
+    /// Watchdog that keeps the engine draining while the display link
+    /// is stopped. See `startIdlePump()`.
+    private var idlePumpTimer: DispatchSourceTimer?
+    /// App Nap opt-out, held for as long as the watchdog is armed so
+    /// the OS can't throttle the pump's timer while the window is
+    /// occluded — the exact condition the pump exists to survive.
+    private var idlePumpActivity: NSObjectProtocol?
+    /// Set when the idle pump discarded a frame delta; consumed by
+    /// `draw(update:)`, which then repaints from a full-frame delta so
+    /// the discarded cells reappear.
+    private var pendingFullRepaint = false
+
     private var atlas: GlyphAtlas?
 
     /// M7-3: NotificationCenter observer for `FontSettings.didChange`.
@@ -487,6 +504,7 @@ final class MetalRenderer {
 
     deinit {
         displayLink?.invalidate()
+        stopIdlePump()
         if let observer = themeChangeObserver {
             NotificationCenter.default.removeObserver(observer)
         }
@@ -800,6 +818,7 @@ final class MetalRenderer {
         // are rare but possible (Spaces drag, multi-monitor).
         displayLink?.invalidate()
         displayLink = nil
+        stopIdlePump()
         // M7-3: drop the prior font observer so the next install
         // (below, after the new window is established) doesn't
         // stack a second handler on the same notification.
@@ -879,6 +898,7 @@ final class MetalRenderer {
         link.delegate = displayLinkDelegate
         link.add(to: .main, forMode: .common)
         displayLink = link
+        startIdlePump()
 
         // The mode-default seed at the top of this method (line 692)
         // overrode the file-theme palette that `init`'s
@@ -1149,7 +1169,94 @@ final class MetalRenderer {
         self?.draw(update: update)
     }
 
+    /// A live `CAMetalDisplayLink` ticks at >= 30 Hz (the `minimum` of
+    /// the `preferredFrameRateRange` set in `windowChanged`), so a gap
+    /// this wide means the link stopped rather than merely ran slow.
+    static let displayLinkStallThresholdSec: CFTimeInterval = 0.5
+
+    /// Watchdog poll interval. Cheap: one main-queue wakeup that
+    /// returns immediately while the link is healthy.
+    private static let idlePumpIntervalMs = 250
+
+    /// True when `now` is far enough past the last display-link tick
+    /// that the link must be treated as stopped. `lastTick == 0` (no
+    /// tick yet) counts as stalled, so the pump also covers the window
+    /// between session spawn and the first frame.
+    static func displayLinkStalled(
+        now: CFTimeInterval, lastTick: CFTimeInterval
+    ) -> Bool {
+        now - lastTick > displayLinkStallThresholdSec
+    }
+
+    /// Keep the engine draining while the display link is stopped.
+    ///
+    /// macOS stops `CAMetalDisplayLink` whenever the display sleeps or
+    /// the window is fully occluded. `poll_output` — the sole drain of
+    /// the PTY reader channel — is reached only through
+    /// `take_frame_delta`, which only `draw(update:)` calls, so a
+    /// stopped link means nothing drains: the bounded reader channel
+    /// (`pty.rs: PTY_CHANNEL_CAP = 512` chunks) fills, the reader
+    /// thread parks in `send`, the PTY master buffer backs up, and the
+    /// child blocks in `write()`. Everything running in the pane
+    /// freezes until the display returns — observed as a 7.6 h stall
+    /// of a long-running CLI across an overnight display sleep.
+    @MainActor
+    private func startIdlePump() {
+        stopIdlePump()
+        // App Nap throttles the timers of occluded apps, which would
+        // blunt this watchdog exactly when it is needed.
+        // `userInitiated` opts out of that; the
+        // `AllowingIdleSystemSleep` variant deliberately leaves the
+        // *system* free to sleep, since keeping the Mac awake is the
+        // user's call (caffeinate / Energy Saver), not the terminal's.
+        idlePumpActivity = ProcessInfo.processInfo.beginActivity(
+            options: .userInitiatedAllowingIdleSystemSleep,
+            reason: "drain PTY output while the display link is stopped")
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        let interval: DispatchTimeInterval = .milliseconds(
+            Self.idlePumpIntervalMs)
+        timer.schedule(deadline: .now() + interval, repeating: interval)
+        timer.setEventHandler { [weak self] in
+            // The source is bound to the main queue, so the handler is
+            // already main-isolated; `assumeIsolated` documents that
+            // without bubbling @MainActor into DispatchSource.
+            MainActor.assumeIsolated {
+                self?.pumpIfDisplayLinkStalled()
+            }
+        }
+        timer.resume()
+        idlePumpTimer = timer
+    }
+
+    /// Disarm the watchdog and release its App Nap opt-out. Callable
+    /// from the non-isolated `deinit`: both calls are thread-safe.
+    private func stopIdlePump() {
+        idlePumpTimer?.cancel()
+        idlePumpTimer = nil
+        if let activity = idlePumpActivity {
+            ProcessInfo.processInfo.endActivity(activity)
+            idlePumpActivity = nil
+        }
+    }
+
+    @MainActor
+    private func pumpIfDisplayLinkStalled() {
+        guard let session,
+            Self.displayLinkStalled(
+                now: CACurrentMediaTime(), lastTick: lastDisplayLinkTick)
+        else { return }
+        // Called for the side effect only: `take_frame_delta` runs
+        // `poll_output`, which drains the reader channel and writes
+        // capability-query replies back to the child. The delta is
+        // discarded — there is no drawable to paint while the link is
+        // down — so flag a full repaint for the next live tick. Same
+        // shape as the no-pipeline pump inside `draw(update:)`.
+        _ = session.take_frame_delta()
+        pendingFullRepaint = true
+    }
+
     private func draw(update: CAMetalDisplayLink.Update) {
+        lastDisplayLinkTick = CACurrentMediaTime()
         // 4.8: poll the engine for the latest title-changed event and
         // forward to the host window. Empty string is the
         // no-event-this-tick sentinel; we skip the assignment to avoid
@@ -1260,7 +1367,16 @@ final class MetalRenderer {
             // cell re-runs `makeSlot` and re-pins its glyph at the
             // post-eviction UV. Without this, the user sees garbled
             // text (typically Thai/CJK) until scroll forces a redraw.
-            if atlas.consumePendingEviction(),
+            // Both flags are consumed every frame — folding them into
+            // one `||` condition would short-circuit the second
+            // consumer and strand its flag. `pendingFullRepaint` is
+            // set by the idle pump, whose deltas were discarded while
+            // the display link was stopped; the same full-frame
+            // re-emit that fixes eviction restores those cells.
+            let atlasEvicted = atlas.consumePendingEviction()
+            let resumedFromIdlePump = pendingFullRepaint
+            pendingFullRepaint = false
+            if atlasEvicted || resumedFromIdlePump,
                 let session = session
             {
                 let frame = session.take_full_frame_delta()
