@@ -293,6 +293,10 @@ mod ffi {
         fn focus_events_enabled(self: &TerminalSession) -> bool;
 
         fn drain_latest_title(self: &mut TerminalSession) -> String;
+        // OSC 0/1/2 with an empty payload — the child handing the title
+        // back to us. True once per reset; the host then re-engages its
+        // own default (cwd basename).
+        fn drain_title_reset(self: &mut TerminalSession) -> bool;
         fn drain_latest_cwd(self: &mut TerminalSession) -> String;
         fn drain_bell(self: &mut TerminalSession) -> bool;
         fn child_pid(self: &TerminalSession) -> u32;
@@ -342,6 +346,11 @@ pub struct TerminalSession {
     /// below uses `self.inner` unchanged.
     inner: std::mem::ManuallyDrop<solidterm_engine::TerminalEngine>,
     pending_title: Option<String>,
+    /// Latched when the child hands the title back; cleared by
+    /// `drain_title_reset()` and by any later `TitleChanged` in the same
+    /// drain, so the host sees at most one of "new title" / "title
+    /// handed back" per tick.
+    pending_title_reset: bool,
     pending_cwd: Option<String>,
     /// I1 bell: latched on every `EngineEvent::Bell` seen by
     /// `drain_pending_events`; cleared by `drain_bell()`. We only need
@@ -408,6 +417,7 @@ impl TerminalSession {
         Some(TerminalSession {
             inner: std::mem::ManuallyDrop::new(inner),
             pending_title: None,
+            pending_title_reset: false,
             pending_cwd: None,
             pending_bell: false,
             pending_clipboard: None,
@@ -430,8 +440,28 @@ impl TerminalSession {
     fn drain_pending_events(&mut self) {
         for ev in self.inner.drain_events() {
             match ev {
+                // An *empty* OSC 0/2 payload (`\e]2;\a`) is how a child
+                // hands the title back — vte parses it as
+                // `set_title(Some(""))`, not `set_title(None)`, so it
+                // arrives here as a `TitleChanged` carrying "". Left as
+                // a title it is indistinguishable from "no title event
+                // this tick" at the Swift boundary (empty string is the
+                // no-event sentinel), which is why the host used to fall
+                // back on a timer. Route it to the reset latch instead.
+                solidterm_engine::events::EngineEvent::TitleChanged(s) if s.is_empty() => {
+                    self.pending_title = None;
+                    self.pending_title_reset = true;
+                }
                 solidterm_engine::events::EngineEvent::TitleChanged(s) => {
                     self.pending_title = Some(s);
+                    // A title supersedes an earlier reset in the same
+                    // drain, so the two latches stay mutually exclusive
+                    // and the host can read them in either order.
+                    self.pending_title_reset = false;
+                }
+                solidterm_engine::events::EngineEvent::TitleReset => {
+                    self.pending_title = None;
+                    self.pending_title_reset = true;
                 }
                 solidterm_engine::events::EngineEvent::CwdChanged(s) => {
                     self.pending_cwd = Some(s);
@@ -626,6 +656,19 @@ impl TerminalSession {
         self.debug_assert_owner();
         self.drain_pending_events();
         self.pending_title.take().unwrap_or_default()
+    }
+
+    /// True once per "the title is yours again" signal seen since the
+    /// last call: an empty OSC 0/2 payload, or alacritty's
+    /// `Event::ResetTitle` (`CSI 23 t` popping an empty title stack).
+    /// Lets the host keep an OSC title until the child actually gives it
+    /// back instead of timing it out.
+    pub fn drain_title_reset(&mut self) -> bool {
+        self.debug_assert_owner();
+        self.drain_pending_events();
+        let reset = self.pending_title_reset;
+        self.pending_title_reset = false;
+        reset
     }
 
     pub fn drain_latest_cwd(&mut self) -> String {
@@ -882,6 +925,80 @@ mod tests {
         SessionConfig,
     };
     use super::{decode_cells, decode_env, encode_cells, kinds, CellDeltaWire, SearchMatchWire};
+
+    /// A `/bin/cat` session: bytes written with `send_input` come back
+    /// on the read path, so escape sequences reach the parser exactly as
+    /// a real child would emit them.
+    fn cat_session() -> super::TerminalSession {
+        let config = SessionConfig {
+            rows: 24,
+            cols: 80,
+            pixel_w: 0,
+            pixel_h: 0,
+            command: "/bin/cat".to_string(),
+            cwd: "/tmp".to_string(),
+            env: b"TERM=xterm-256color\n".to_vec(),
+            scrollback_lines: 0,
+        };
+        super::TerminalSession::new(config).expect("/bin/cat spawn ok")
+    }
+
+    fn feed(session: &mut super::TerminalSession, payload: &str) {
+        session.send_input(InputEvent {
+            kind: kinds::INPUT_EVENT_KEY,
+            key: KeyEvent {
+                codepoint: 0,
+                keycode: 0,
+                text: payload.to_string(),
+                action: 0,
+            },
+            mouse: MouseEvent {
+                col: 0,
+                row: 0,
+                button: 0,
+                action: 0,
+            },
+            modifiers: 0,
+        });
+    }
+
+    /// `\e]2;<text>\a` claims the title; `\e]2;\a` hands it back. The
+    /// empty payload arrives from vte as `TitleChanged("")`, which is
+    /// the Swift boundary's "nothing happened" sentinel — the host can
+    /// only tell the two apart because we latch it as a reset here.
+    #[test]
+    fn empty_osc_2_latches_a_title_reset_not_an_empty_title() {
+        use std::time::{Duration, Instant};
+        let mut session = cat_session();
+
+        feed(&mut session, "\x1b]2;solidterm\x07\n");
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut title = String::new();
+        while Instant::now() < deadline && title.is_empty() {
+            let _ = session.take_frame_delta();
+            title = session.drain_latest_title();
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert_eq!(title, "solidterm");
+        assert!(
+            !session.drain_title_reset(),
+            "claiming a title is not handing it back"
+        );
+
+        feed(&mut session, "\x1b]2;\x07\n");
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut reset = false;
+        while Instant::now() < deadline && !reset {
+            let _ = session.take_frame_delta();
+            reset = session.drain_title_reset();
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert!(reset, "empty OSC 2 must surface as a title reset");
+        assert!(
+            session.drain_latest_title().is_empty(),
+            "the reset must not also land as a title"
+        );
+    }
 
     fn sample_cell(row: u16, col: u16, ch: u8) -> CellDeltaWire {
         let mut g = [0u8; 32];

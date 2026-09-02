@@ -36,6 +36,58 @@ final class WindowChromeTests: XCTestCase {
         return (window, view)
     }
 
+    // MARK: - OSC title ownership
+
+    // An OSC title used to expire after a 500 ms recency window, so
+    // anything that titled itself once and then got on with the job — a
+    // build, a shell hook titling at exec time — silently lost its title
+    // to the cwd-basename fallback mid-run ("the title reverts under
+    // load"). It is now sticky until the child hands it back, which the
+    // rules below pin. The wire side (which bytes produce a reset) is
+    // pinned in `bridge.rs::tests`.
+
+    func testOscTitleTakesOwnershipFromTheFallback() {
+        XCTAssertEqual(
+            MetalRenderer.nextTitleOwner(
+                sticky: nil, oscTitle: "building",
+                reset: false, altScreenExited: false),
+            "building")
+    }
+
+    func testOscTitleSurvivesTicksWithNoNewTitle() {
+        XCTAssertEqual(
+            MetalRenderer.nextTitleOwner(
+                sticky: "building", oscTitle: "",
+                reset: false, altScreenExited: false),
+            "building",
+            "a quiet child still owns its title — no timeout")
+    }
+
+    func testTitleResetHandsOwnershipBack() {
+        XCTAssertNil(
+            MetalRenderer.nextTitleOwner(
+                sticky: "building", oscTitle: "",
+                reset: true, altScreenExited: false))
+    }
+
+    func testLeavingAltScreenHandsOwnershipBack() {
+        XCTAssertNil(
+            MetalRenderer.nextTitleOwner(
+                sticky: "vim", oscTitle: "",
+                reset: false, altScreenExited: true),
+            "vim / htop / less quit without resetting; the alt-screen "
+                + "exit is what gives the title back")
+    }
+
+    func testNewTitleWinsOverAHandBackInTheSameTick() {
+        XCTAssertEqual(
+            MetalRenderer.nextTitleOwner(
+                sticky: "vim", oscTitle: "zsh",
+                reset: true, altScreenExited: true),
+            "zsh",
+            "the child re-titled, it did not walk away")
+    }
+
     // MARK: - MetalRenderer.resizeGrid
 
     func testResizeGridUpdatesInstanceVars() {

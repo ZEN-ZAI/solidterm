@@ -1009,42 +1009,36 @@ final class MetalRenderer {
     private func applyLatestTitleIfAny() -> Bool {
         guard let session else { return false }
         let oscTitle = session.drain_latest_title().toString()
-        // V3 fallback rule: OSC 2 is "recently sticky". Once the
-        // shell (or any running TUI — Claude Code's spinner, vim's
-        // status, etc.) has emitted *any* OSC 2 title within the
-        // last `oscTitleRecencyWindow` seconds, we surrender the
-        // title bar to the engine and don't overwrite it with our
-        // cwd-basename fallback. After silence longer than the
-        // window we let the fallback re-engage so the title doesn't
-        // stay stuck on vim's last status line after the user quits.
-        let now = CACurrentMediaTime()
-        if !oscTitle.isEmpty {
-            lastOscTitleTime = now
-        }
-        let oscRecent = (now - lastOscTitleTime) < Self.oscTitleRecencyWindow
-            && lastOscTitleTime > 0
+        // V3 fallback rule: an OSC title is *sticky* — it holds the
+        // title bar until the child gives it back, exactly like every
+        // other terminal. Ownership ends on one of two signals:
+        //
+        //  - `drain_title_reset()` — OSC 0/1/2 with an empty payload,
+        //    alacritty's `Event::ResetTitle`, i.e. "I'm done with it".
+        //  - leaving the alternate screen — vim / htop / less quitting
+        //    without bothering to reset. (A shell with a title hook
+        //    re-titles on its next prompt anyway; this covers the ones
+        //    without.)
+        //
+        // This replaces a 500 ms recency window that let the
+        // cwd-basename fallback overwrite a still-valid title after
+        // half a second of quiet. Anything that titles once and then
+        // works — `\e]2;building\a` before a long build, a shell hook
+        // titling at exec time, any TUI that isn't a spinner — lost its
+        // title mid-run, which read as "the title reverts under load".
+        let altScreen = session.is_alt_screen()
+        let altScreenExited = lastAltScreenForTitle && !altScreen
+        lastAltScreenForTitle = altScreen
+        stickyOscTitle = Self.nextTitleOwner(
+            sticky: stickyOscTitle,
+            oscTitle: oscTitle,
+            reset: session.drain_title_reset(),
+            altScreenExited: altScreenExited)
         let effective: String
         let subtitle: String
-        if !oscTitle.isEmpty {
-            effective = oscTitle
+        if let sticky = stickyOscTitle {
+            effective = sticky
             subtitle = lastCwd.isEmpty ? "" : Self.displayCwd(lastCwd)
-        } else if oscRecent {
-            // OSC 2 active but quiet this tick: leave the title alone
-            // and only refresh the subtitle if the cwd changed.
-            // Returning `false` here is intentional — no encode
-            // dirty-bit, no AppKit title-bar redraw.
-            if let window = hostWindow,
-                window.styleMask.contains(.titled),
-                window.isVisible,
-                window.standardWindowButton(.closeButton) != nil
-            {
-                let desired = lastCwd.isEmpty ? "" : Self.displayCwd(lastCwd)
-                if window.subtitle != desired {
-                    window.subtitle = desired
-                    return true
-                }
-            }
-            return false
         } else if !lastCwd.isEmpty {
             effective = (lastCwd as NSString).lastPathComponent.isEmpty
                 ? lastCwd
@@ -1075,6 +1069,25 @@ final class MetalRenderer {
             changed = true
         }
         return changed
+    }
+
+    /// Who owns the title bar after this tick: the OSC title to show,
+    /// or nil for the host's cwd-basename fallback.
+    ///
+    /// Pure so the rules can be pinned without a PTY. A title arriving
+    /// in the same tick as a hand-back wins — the child re-titled, it
+    /// did not walk away — though the FFI already keeps `reset` and a
+    /// non-empty `oscTitle` mutually exclusive per drain.
+    static func nextTitleOwner(
+        sticky: String?,
+        oscTitle: String,
+        reset: Bool,
+        altScreenExited: Bool
+    ) -> String? {
+        var owner = sticky
+        if reset || altScreenExited { owner = nil }
+        if !oscTitle.isEmpty { owner = oscTitle }
+        return owner
     }
 
     /// V3: render a cwd absolute path with `$HOME` collapsed to `~`
@@ -1128,19 +1141,17 @@ final class MetalRenderer {
 
     private var lastCwdProcPollTime: CFTimeInterval = 0
 
-    /// V3: timestamp of the most recent OSC 2 title we observed.
-    /// The cwd-basename fallback is dormant while OSC 2 has fired
-    /// within `oscTitleRecencyWindow` — this kills the Claude-spinner
-    /// blink — but re-engages after silence (e.g. user quits vim /
-    /// claude, returns to the shell), so the title doesn't stay
-    /// stuck at the last TUI value forever.
-    private var lastOscTitleTime: CFTimeInterval = 0
-    // 500ms catches Claude's ~16ms spinner ticks and vim's mode-line
-    // updates while keeping the post-exit revert snappy. The earlier
-    // 1.5s value lagged visibly when the user quit a TUI — title
-    // stayed stuck on the TUI's last value before the cwd basename
-    // re-engaged (regression report 2026-05-20 UX pass).
-    private static let oscTitleRecencyWindow: CFTimeInterval = 0.5
+    /// V3: the OSC title currently owning the title bar, or nil when
+    /// the cwd-basename fallback has it. Set by any non-empty OSC 0/2,
+    /// cleared by a title reset or by the child leaving the alternate
+    /// screen — see `applyLatestTitleIfAny` for why it is sticky rather
+    /// than time-limited.
+    private var stickyOscTitle: String?
+
+    /// Alt-screen state as of the last title tick, so the *transition*
+    /// out (TUI quit) can hand the title back. Alt-screen entry is not
+    /// a signal: plenty of TUIs title themselves after switching.
+    private var lastAltScreenForTitle = false
 
     /// Best-effort working directory for ⌘N / ⌘T inheritance.
     /// Prefers OSC 7 (`lastCwd`) when the shell has emitted it; falls

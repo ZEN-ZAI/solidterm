@@ -448,6 +448,10 @@ extension TerminalSessionRefMut {
         RustString(ptr: __swift_bridge__$TerminalSession$drain_latest_title(ptr))
     }
 
+    public func drain_title_reset() -> Bool {
+        __swift_bridge__$TerminalSession$drain_title_reset(ptr)
+    }
+
     public func drain_latest_cwd() -> RustString {
         RustString(ptr: __swift_bridge__$TerminalSession$drain_latest_cwd(ptr))
     }

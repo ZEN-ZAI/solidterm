@@ -3159,6 +3159,51 @@ mod tests {
     /// line to its stdout, where the parser sees the OSC sequence
     /// and Term fires `Event::Title("NextTerm")` through the
     /// `EventProxy`.
+    /// OSC 0/2 with an *empty* payload is how a child hands the title
+    /// back. vte parses it as `set_title(Some(""))` — **not**
+    /// `set_title(None)` / `Event::ResetTitle`, which only fires for
+    /// `CSI 23 t` against an empty title stack — so it surfaces here as
+    /// `TitleChanged("")`. The FFI keys its "the title is yours again"
+    /// latch off exactly that, so pin the wire fact.
+    #[test]
+    fn empty_osc_2_arrives_as_title_changed_with_empty_string() {
+        use crate::events::EngineEvent;
+        let mut engine =
+            TerminalEngine::new(cat_config()).expect("/bin/cat spawn should succeed on macOS");
+
+        engine
+            .feed_input(b"\x1b]2;solidterm\x07\x1b]2;\x07\n")
+            .expect("feed_input should write both OSC 2 sequences to /bin/cat");
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut seen: Vec<EngineEvent> = Vec::new();
+        while Instant::now() < deadline
+            && seen
+                .iter()
+                .filter(|e| matches!(e, EngineEvent::TitleChanged(_)))
+                .count()
+                < 2
+        {
+            let _ = engine.poll_output().expect("poll_output is infallible today");
+            seen.extend(engine.drain_events());
+            std::thread::sleep(Duration::from_millis(20));
+        }
+
+        let titles: Vec<_> = seen
+            .iter()
+            .filter(|e| {
+                matches!(e, EngineEvent::TitleChanged(_) | EngineEvent::TitleReset)
+            })
+            .collect();
+        assert_eq!(
+            titles.len(),
+            2,
+            "expected a TitleChanged then a TitleReset; got {titles:?}"
+        );
+        assert!(matches!(titles[0], EngineEvent::TitleChanged(t) if t == "solidterm"));
+        assert!(matches!(titles[1], EngineEvent::TitleChanged(t) if t.is_empty()));
+    }
+
     #[test]
     fn drain_events_emits_title_changed_after_osc_2() {
         use crate::events::EngineEvent;

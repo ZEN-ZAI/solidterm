@@ -55,6 +55,7 @@ uint8_t __swift_bridge__$TerminalSession$kitty_keyboard_flags(void* self);
 bool __swift_bridge__$TerminalSession$app_cursor_active(void* self);
 bool __swift_bridge__$TerminalSession$focus_events_enabled(void* self);
 void* __swift_bridge__$TerminalSession$drain_latest_title(void* self);
+bool __swift_bridge__$TerminalSession$drain_title_reset(void* self);
 void* __swift_bridge__$TerminalSession$drain_latest_cwd(void* self);
 bool __swift_bridge__$TerminalSession$drain_bell(void* self);
 uint32_t __swift_bridge__$TerminalSession$child_pid(void* self);
