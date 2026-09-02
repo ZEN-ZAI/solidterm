@@ -1047,6 +1047,12 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         // re-extends the selection to the clamped (in-view) cell. When
         // the user drags back inside the viewport, kill the timer.
         let pointInView = convert(event.locationInWindow, from: nil)
+        // Remembered for `autoScrollTick`: the timer fires between mouse
+        // events (and keeps firing while the user holds the pointer
+        // still outside the view), so it needs the last known pointer
+        // position to extend the selection to the cell the user is
+        // actually pointing at.
+        lastDragPointInWindow = event.locationInWindow
         let viewportTop = bounds.maxY
         let viewportBottom = bounds.minY
         let edgeHysteresisPt: CGFloat = 12.0
@@ -1137,30 +1143,34 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
 
     private func autoScrollTick(session: TerminalSession, direction: Int32) {
         session.scroll_lines(direction)
-        // Extend the selection toward the edge in the scroll direction —
-        // top of the viewport for upward scroll, bottom for downward.
-        let edgeRow: UInt16 = direction > 0
-            ? 0
-            : UInt16(max(0, renderer.viewportRows - 1))
-        // Column stays at last drag position; we don't have a fresh
-        // mouse event here, so use the engine's current end-of-
-        // selection by reading the span. Fallback to col 0.
-        let span = session.selection_span()
-        let edgeCol: UInt16
-        if span.len() == 5, let endCol = span.get(index: 3) {
-            // span = [start_row, start_col, end_row, end_col, is_block]
-            edgeCol = UInt16(clamping: endCol)
-        } else {
-            edgeCol = 0
-        }
-        session.update_selection(edgeRow, edgeCol)
+        // Extend to the cell the pointer is over. `pointToCell` clamps
+        // out-of-view points into the viewport, so a pointer held above
+        // the top edge lands on row 0 and one below the bottom on the
+        // last row — the edge the scroll is heading toward — while the
+        // column keeps tracking the pointer's x.
+        //
+        // Reading the column back out of `selection_span()` (what this
+        // used to do) took index 3, the *bottom* endpoint of the ordered
+        // span. On an upward drag that's the anchor, not the moving end,
+        // so every tick snapped the leading edge back to the anchor's
+        // column and the selection stopped following the pointer.
+        guard let dragPoint = lastDragPointInWindow,
+            let (row, col) = pointToCell(dragPoint)
+        else { return }
+        session.update_selection(row, col)
         let mode = pendingSelection?.mode ?? Self.SELECTION_MODE_SIMPLE
         syncPendingSelection(
             from: session,
-            fallback: (row: edgeRow, col: edgeCol),
+            fallback: (row: row, col: col),
             mode: mode)
+        needsDisplay = true
         renderer.markNeedsRedraw()
     }
+
+    /// I4: last pointer position seen by `mouseDragged`, in window
+    /// coordinates. Read by `autoScrollTick`, which fires on a timer
+    /// with no NSEvent of its own. Cleared on `mouseUp`.
+    private var lastDragPointInWindow: NSPoint?
 
     /// Read the engine's current selection span and store it into
     /// `pendingSelection`. When the engine has no span (empty `Vec`
@@ -1183,10 +1193,36 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         }
     }
 
+    /// Re-project the mirror's viewport rows from the engine's span.
+    ///
+    /// `pendingSelection` caches *viewport-relative* rows, so anything
+    /// that moves content under the viewport leaves it pointing at the
+    /// wrong screen rows and the tint stays glued to the old ones while
+    /// the text slides away. `scrollWheel` re-projects for user scrolls;
+    /// this covers the other source — output scrolling the grid on its
+    /// own (a streaming TUI mid-selection), which reaches no input
+    /// handler at all. Called once per encoded frame by the renderer's
+    /// selection-overlay encode.
+    ///
+    /// No-op unless the engine still has a span of its own: the mirror
+    /// exists precisely to outlive an engine selection dropped by a grid
+    /// write (see `pendingSelection`), so an empty span must leave it
+    /// alone rather than collapse it.
+    func reprojectSelectionMirror(from session: TerminalSession) {
+        guard let pending = pendingSelection else { return }
+        let span = session.selection_span()
+        guard span.count == 5 else { return }
+        pendingSelection = PendingSelection(
+            start: (row: UInt16(span[0]), col: UInt16(span[1])),
+            end: (row: UInt16(span[2]), col: UInt16(span[3])),
+            mode: pending.mode)
+    }
+
     override func mouseUp(with event: NSEvent) {
         defer { super.mouseUp(with: event) }
         // I4: kill any active drag-select auto-scroll timer.
         stopAutoScroll()
+        lastDragPointInWindow = nil
         // PG1 mouse reporting — if the click went through to the TUI,
         // the release does too. Selection logic skipped.
         if let session = renderer.session,

@@ -2327,6 +2327,11 @@ final class MetalRenderer {
         overlay: OverlayPipeline
     ) {
         guard let session else { return }
+        // Keep the mirror's viewport rows in step with the content
+        // before reading it: output that scrolled the grid since the
+        // last input event moved the selected cells without touching
+        // any mouse handler. See `reprojectSelectionMirror`.
+        hostView?.reprojectSelectionMirror(from: session)
         // Wire format: empty → no selection; 5 u32s otherwise per
         // bridge.rs::TerminalSession::selection_span.
         //

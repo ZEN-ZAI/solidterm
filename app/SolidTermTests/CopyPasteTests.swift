@@ -992,6 +992,67 @@ final class CopyPasteTests: XCTestCase {
 
     // MARK: - Helpers
 
+    /// The Swift mirror caches *viewport-relative* rows, so content
+    /// scrolled by output — not by any input handler — leaves it
+    /// pointing at stale screen rows and the tint stays glued to them
+    /// while the text slides away underneath. The renderer re-projects
+    /// the mirror from the engine's span once per encoded frame; this
+    /// pins that seam.
+    func testSelectionMirrorReprojectsAfterOutputScrollsTheGrid() throws {
+        let surface = Self.makeSurface()
+        let session = try XCTUnwrap(surface.rendererForTesting.session)
+
+        // Anchor a selection low enough on the 24-row grid that a few
+        // scrolled lines move it without pushing it off the top.
+        surface.setPendingSelectionForTesting(
+            startRow: 20, startCol: 0, endRow: 20, endCol: 4)
+        session.start_selection(TerminalSurfaceView.SELECTION_MODE_SIMPLE, 20, 0)
+        session.update_selection(20, 4)
+        XCTAssertEqual(
+            surface.swiftSelectionSpan?[0], 20,
+            "precondition: mirror starts on the pressed row")
+
+        // Fill the screen, then scroll it: the engine rotates its own
+        // selection with the content, the mirror knows nothing about it.
+        Self.feedAndWaitForFirstChar(session, payload: "hello\n", first: "h")
+        Self.driveOscPayload(session, payload: String(repeating: "x\n", count: 30))
+        let deadline = Date().addingTimeInterval(5.0)
+        var engineStartRow: UInt32?
+        while Date() < deadline {
+            _ = session.take_frame_delta()
+            let span = session.selection_span()
+            if span.count == 5, span[0] != 20 {
+                engineStartRow = span[0]
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        let rotatedRow = try XCTUnwrap(
+            engineStartRow, "engine selection never rotated with the content")
+
+        XCTAssertEqual(
+            surface.swiftSelectionSpan?[0], 20,
+            "mirror is stale until something re-projects it — the bug")
+        surface.reprojectSelectionMirror(from: session)
+        XCTAssertEqual(
+            surface.swiftSelectionSpan?[0], rotatedRow,
+            "re-projected mirror follows the content the engine moved")
+    }
+
+    /// A dropped engine selection must leave the mirror alone: the
+    /// mirror exists to outlive exactly that, so re-projection has to
+    /// no-op rather than collapse it.
+    func testSelectionMirrorReprojectionIgnoresClearedEngineSelection() throws {
+        let surface = Self.makeSurface()
+        let session = try XCTUnwrap(surface.rendererForTesting.session)
+        surface.setPendingSelectionForTesting(
+            startRow: 3, startCol: 1, endRow: 3, endCol: 7)
+        session.clear_selection()
+        surface.reprojectSelectionMirror(from: session)
+        let span = try XCTUnwrap(surface.swiftSelectionSpan)
+        XCTAssertEqual([span[0], span[1], span[2], span[3]], [3, 1, 3, 7])
+    }
+
     private static func makeSurface() -> TerminalSurfaceView {
         let surface = TerminalSurfaceView(frame: NSRect(x: 0, y: 0, width: 800, height: 480))
         // viewDidMoveToWindow drives the renderer's session bring-up;

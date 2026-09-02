@@ -285,7 +285,26 @@ pub struct TerminalEngine {
     /// upward) drag has to flip both sides so the cell under the cursor
     /// and the anchor cell both stay inside the range (see that method).
     /// `None` whenever no selection is active.
+    ///
+    /// **Staleness caveat.** The point is in alacritty's absolute
+    /// `Line` space, which shifts under us whenever the grid rotates
+    /// (`Term::scroll_up` on new output). alacritty rotates its own
+    /// `Term::selection` to compensate; this shadow copy gets no such
+    /// treatment, so it is only a *fallback* — [`Self::update_selection`]
+    /// prefers the anchor re-derived from the live selection via
+    /// [`Self::selection_anchor_is_start`].
     selection_anchor: Option<Point>,
+
+    /// Which end of the live selection's ordered range is the drag
+    /// anchor: `Some(true)` when the anchor is the earlier endpoint in
+    /// reading order (the user is dragging forward/down), `Some(false)`
+    /// when it is the later one (dragging backward/up). `None` until
+    /// the first [`Self::update_selection`] gives the drag a direction.
+    ///
+    /// Lets [`Self::update_selection`] recover the anchor cell from
+    /// `Selection::to_range` — which reads the *rotated* selection —
+    /// instead of the stale absolute point cached above.
+    selection_anchor_is_start: Option<bool>,
 
     /// Live fg/bg/cursor for OSC 10/11/12 color-query replies, shared
     /// with the `EventProxy` inside `term`. Updated by the Swift renderer
@@ -459,6 +478,7 @@ impl TerminalEngine {
             last_alt_screen: false,
             held_events: Mutex::new(VecDeque::new()),
             selection_anchor: None,
+            selection_anchor_is_start: None,
             theme_colors,
         })
     }
@@ -1346,6 +1366,7 @@ impl TerminalEngine {
             SelectionMode::Line => SelectionType::Lines,
         };
         self.selection_anchor = Some(point);
+        self.selection_anchor_is_start = None;
         self.term.selection = Some(Selection::new(ty, point, Side::Left));
     }
 
@@ -1372,15 +1393,29 @@ impl TerminalEngine {
     /// dragging before it → anchor `Right`, end `Left`. The anchor side
     /// lives in the private `region`, so we rebuild the selection through
     /// the public API rather than mutate it in place.
+    ///
+    /// **Anchor follows content, not the screen.** New output arriving
+    /// mid-drag rotates the grid (`Term::scroll_up`), which shifts every
+    /// absolute `Line` — alacritty rotates its own `Term::selection` to
+    /// keep it on the same cells, but our cached [`Self::selection_anchor`]
+    /// is a plain `Point` nothing rotates. Rebuilding from that stale
+    /// cache re-anchored the drag onto whatever text had since scrolled
+    /// into the old line, so the selection jumped away from the cell the
+    /// user pressed on. We therefore re-derive the anchor from the *live*
+    /// (already-rotated) selection — `to_range()`'s start or end
+    /// depending on [`Self::selection_anchor_is_start`] — and only fall
+    /// back to the cached point before the drag has a direction (the
+    /// first update after `start_selection`, where the anchor-only
+    /// selection is empty and `to_range` yields `None`).
     pub fn update_selection(&mut self, row: u16, col: u16) {
         // Compute the point first so the immutable `&self.term` read
         // inside `viewport_point` doesn't overlap the subsequent
         // `&mut self.term.selection` borrow on the assignment.
         let point = self.viewport_point(row, col);
-        let Some(anchor) = self.selection_anchor else {
+        let Some(ty) = self.term.selection.as_ref().map(|s| s.ty) else {
             return;
         };
-        let Some(ty) = self.term.selection.as_ref().map(|s| s.ty) else {
+        let Some(anchor) = self.live_selection_anchor().or(self.selection_anchor) else {
             return;
         };
         // Point ordering is (line, then column): `point < anchor` means
@@ -1394,6 +1429,28 @@ impl TerminalEngine {
         let mut selection = Selection::new(ty, anchor, anchor_side);
         selection.update(point, end_side);
         self.term.selection = Some(selection);
+        // Refresh the fallback with the anchor we actually used, and
+        // record which end of the ordered range it now sits on so the
+        // next update can re-derive it after a rotation.
+        self.selection_anchor = Some(anchor);
+        self.selection_anchor_is_start = Some(point >= anchor);
+    }
+
+    /// The drag anchor as it stands in the *live* selection, i.e. after
+    /// any grid rotation alacritty applied to `Term::selection`.
+    ///
+    /// `None` before the drag has a direction, or when the selection is
+    /// empty / fully scrolled out of the buffer (`to_range` yields
+    /// `None`) — callers fall back to [`Self::selection_anchor`].
+    ///
+    /// For `Word` / `Line` selections `to_range` reports the *expanded*
+    /// boundary rather than the pressed cell; re-anchoring there is
+    /// stable because the boundary cell still lies inside the same word
+    /// / line, so the next expansion reproduces the same range.
+    fn live_selection_anchor(&self) -> Option<Point> {
+        let anchor_is_start = self.selection_anchor_is_start?;
+        let range = self.term.selection.as_ref()?.to_range(&self.term)?;
+        Some(if anchor_is_start { range.start } else { range.end })
     }
 
     /// Clear any active selection. Idempotent.
@@ -1405,6 +1462,7 @@ impl TerminalEngine {
     pub fn clear_selection(&mut self) {
         self.term.selection = None;
         self.selection_anchor = None;
+        self.selection_anchor_is_start = None;
     }
 
     /// Snapshot the current selection's viewport-space span, if any.
@@ -4409,6 +4467,68 @@ mod tests {
         assert_eq!(span.end_row, 5);
         assert_eq!(span.start_col, 10);
         assert_eq!(span.end_col, 20);
+    }
+
+    /// Drag anchor must follow the *content*, not the screen row, when
+    /// new output scrolls the grid mid-drag (Claude CLI and friends
+    /// stream while the user is selecting). alacritty rotates its own
+    /// `Term::selection`; before the fix, `update_selection` rebuilt the
+    /// range from a cached absolute `Point` nothing rotated, so the
+    /// anchor snapped onto whatever text had scrolled into that line.
+    #[test]
+    fn selection_anchor_follows_content_scrolled_mid_drag() {
+        let mut engine = TerminalEngine::new(cat_config()).expect("/bin/cat spawn ok");
+        let mut payload = Vec::new();
+        for i in 0..40 {
+            payload.extend_from_slice(format!("line{i:02}\n").as_bytes());
+        }
+        engine.feed_input(&payload).expect("feed_input ok");
+        wait_for_row_text(&mut engine, "line39");
+
+        // Press at the row holding "line27", drag two rows down.
+        engine.start_selection(SelectionMode::Simple, 10, 0);
+        engine.update_selection(12, 5);
+        assert_eq!(
+            engine.selection_text().as_deref(),
+            Some("line27\nline28\nline29"),
+            "pre-scroll drag selects the pressed rows"
+        );
+
+        // Output arrives mid-drag: the grid rotates under the selection.
+        engine.feed_input(b"NEWA\nNEWB\nNEWC\n").expect("feed_input ok");
+        wait_for_row_text(&mut engine, "NEWC");
+
+        // The drag continues one row further down. The anchor must still
+        // be on "line27" — only the trailing edge moves.
+        engine.update_selection(13, 5);
+        let text = engine.selection_text().expect("selection still live");
+        assert!(
+            text.starts_with("line27\n"),
+            "anchor stayed on the pressed content across the scroll; got {text:?}"
+        );
+    }
+
+    /// Poll `poll_output` until some viewport row contains `needle`.
+    /// Panics after 5s. Needed over `drive_text` when the marker isn't
+    /// the grid's first cell.
+    fn wait_for_row_text(engine: &mut TerminalEngine, needle: &str) {
+        use alacritty_terminal::grid::Dimensions as _;
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline {
+            let _ = engine.poll_output().expect("poll_output infallible");
+            for r in 0..engine.term.screen_lines() {
+                #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+                let line = Line(r as i32);
+                let row: String = (0..engine.term.columns())
+                    .map(|c| engine.term.grid()[Point::new(line, Column(c))].c)
+                    .collect();
+                if row.contains(needle) {
+                    return;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        panic!("never saw {needle} in the viewport within 5s");
     }
 
     #[test]
