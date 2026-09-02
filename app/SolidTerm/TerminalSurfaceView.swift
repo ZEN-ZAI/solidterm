@@ -962,6 +962,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
             !modKeysHeld.contains(.option),
             MouseReporting.modeActive(session: session)
         {
+            mouseGestureOwner = .mouseReporting
             MouseReporting.sendButtonEvent(
                 session: session, event: event, row: row, col: col,
                 button: 0, pressed: true)
@@ -976,6 +977,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
             let hover = renderer.linkHover, hover.row == Int(row),
             let url = hoveredHyperlink
         {
+            mouseGestureOwner = .consumed
             NSWorkspace.shared.open(url)
             return
         }
@@ -987,9 +989,12 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
             let hover = renderer.linkHover, hover.row == Int(row),
             let path = hoveredPath
         {
+            mouseGestureOwner = .consumed
             launchEditor(forPath: path)
             return
         }
+        mouseGestureOwner = .selection
+
         // Reset keyboard-selection tracking on any new mouseDown — the
         // mouse is now the active selection driver. Subsequent
         // shift+arrow presses re-anchor against the cursor or the
@@ -1030,7 +1035,8 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         }
         // PG1: forward as button-held motion to TUIs that subscribed
         // to mode 1002 / 1003. Mode 1000 (clicks only) drops drags.
-        if MouseReporting.modeActive(session: session) {
+        switch mouseGestureOwner {
+        case .mouseReporting:
             let bits = session.mouse_mode_bits()
             let dragOn = (bits & 0x02) != 0 || (bits & 0x04) != 0
             if dragOn,
@@ -1041,6 +1047,12 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
                     row: row, col: col, button: 0)
             }
             return
+        case .consumed:
+            // ⌘-click already opened a link / file; the rest of the
+            // gesture belongs to nobody.
+            return
+        case .selection:
+            break
         }
         // I4 auto-scroll: when the drag goes off the top/bottom edge,
         // start a repeating timer that scrolls the viewport and
@@ -1172,6 +1184,29 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     /// with no NSEvent of its own. Cleared on `mouseUp`.
     private var lastDragPointInWindow: NSPoint?
 
+    /// Who owns the in-flight mouse gesture.
+    ///
+    /// Decided once, at `mouseDown`, and held for the whole press →
+    /// drag → release. `mouseDown` and `mouseUp` used to re-test the
+    /// modifier flags on each event while `mouseDragged` only tested
+    /// `MouseReporting.modeActive`, so the ⌥/⌘ override documented on
+    /// `mouseDown` half-worked over a TUI holding the mouse: the press
+    /// started a selection, every drag went to the TUI instead of
+    /// extending it, and the release auto-copied the 1-cell anchor.
+    /// Latching the owner also stops a modifier pressed or released
+    /// mid-drag from handing the rest of the gesture to the other side.
+    private enum MouseGestureOwner {
+        /// Our own selection machinery (the default, and what a
+        /// modifier-held press over a mouse-capturing TUI selects).
+        case selection
+        /// Forwarded to the child as xterm mouse sequences.
+        case mouseReporting
+        /// Spent on the press itself — ⌘-click opening a hyperlink or
+        /// a file path. Drag and release do nothing.
+        case consumed
+    }
+    private var mouseGestureOwner: MouseGestureOwner = .selection
+
     /// Read the engine's current selection span and store it into
     /// `pendingSelection`. When the engine has no span (empty `Vec`
     /// — Simple at anchor, no extension yet), fall back to the
@@ -1223,19 +1258,21 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         // I4: kill any active drag-select auto-scroll timer.
         stopAutoScroll()
         lastDragPointInWindow = nil
-        // PG1 mouse reporting — if the click went through to the TUI,
+        let owner = mouseGestureOwner
+        mouseGestureOwner = .selection
+        // PG1 mouse reporting — if the press went through to the TUI,
         // the release does too. Selection logic skipped.
-        if let session = renderer.session,
-            let (row, col) = pointToCell(event.locationInWindow),
-            MouseReporting.modeActive(session: session),
-            !event.modifierFlags.contains(.command),
-            !event.modifierFlags.contains(.option)
-        {
-            MouseReporting.sendButtonEvent(
-                session: session, event: event, row: row, col: col,
-                button: 0, pressed: false)
+        if owner == .mouseReporting {
+            if let session = renderer.session,
+                let (row, col) = pointToCell(event.locationInWindow)
+            {
+                MouseReporting.sendButtonEvent(
+                    session: session, event: event, row: row, col: col,
+                    button: 0, pressed: false)
+            }
             return
         }
+        if owner == .consumed { return }
         // I2 auto-copy on selection: when the user just finished a
         // drag-select (clickCount==1 + non-trivial distance from the
         // anchor) or any word/line select (clickCount ≥ 2), populate
