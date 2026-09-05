@@ -74,3 +74,17 @@ xcodebuild test  -scheme SolidTerm -destination 'platform=macOS'
 ## Pitfall
 
 Pin the build path via `xcodebuild -showBuildSettings | awk '/BUILT_PRODUCTS_DIR/{print $3}'` — never `find` DerivedData (non-deterministic across stale hashes).
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as local markdown under `.scratch/<feature-slug>/` in this repo (no GitHub Issues). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`, recorded as a `Status:` line in each issue file. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root (created lazily by `/domain-modeling`). See `docs/agents/domain.md`.
