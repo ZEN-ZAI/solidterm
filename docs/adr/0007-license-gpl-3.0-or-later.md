@@ -29,11 +29,14 @@ GPL-3.0-or-later for the whole repository: app, crates, scripts and themes.
 - `LICENSE` holds the verbatim GPL-3.0 text; `[workspace.package]` carries
   `license = "GPL-3.0-or-later"` and both crates inherit it. `publish = false`
   stays — the crates are workspace-internal, not crates.io products.
-- Every source file outside `app/SolidTerm/Generated/` opens with a two-line
-  SPDX header (`SPDX-License-Identifier: GPL-3.0-or-later` plus the copyright
-  line), enforced in CI by `scripts/check-license-headers.sh`. The generated
+- Every `.swift`, `.rs`, `.metal` and shell source outside
+  `app/SolidTerm/Generated/` opens with a two-line SPDX header
+  (`SPDX-License-Identifier: GPL-3.0-or-later` plus the copyright line),
+  enforced in CI by `scripts/check-license-headers.sh`. The generated
   swift-bridge shims are excluded because `build-rust.sh` rewrites them on
-  every build.
+  every build. Two hand-written files fall outside that extension set and
+  carry no header: `app/SolidTerm/SolidTerm-Bridging-Header.h` and
+  `.githooks/pre-commit`.
 - Bundled theme TOMLs are data, not source: each opens with a palette
   attribution comment naming its upstream and license instead of an SPDX
   header.

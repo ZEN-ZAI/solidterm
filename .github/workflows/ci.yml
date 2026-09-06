@@ -36,6 +36,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace --all-features
+      # Regenerating needs the toolchain and the extracted registry sources the
+      # test step above leaves behind, so the staleness check lives here rather
+      # than in custom-lints (ubuntu, deliberately toolchain-free).
+      - name: Third-party notices are current
+        run: |
+          ./scripts/gen-third-party-notices.sh "$RUNNER_TEMP/notices.md"
+          diff -u THIRD_PARTY_NOTICES.md "$RUNNER_TEMP/notices.md"
 
   ffi-drift:
     name: FFI / swift-bridge drift gate

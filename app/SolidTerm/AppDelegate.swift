@@ -259,8 +259,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// + copyright from Info.plist but defaults the credits pane to
     /// an empty box. We populate it with the project's one-line
     /// description + a credit to alacritty_terminal (the engine
-    /// solidterm builds on). `applicationName` falls back to
-    /// `CFBundleName`; everything else flows through the standard
+    /// solidterm builds on), followed by an "Acknowledgements" link to
+    /// the bundled THIRD_PARTY_NOTICES.md. `applicationName` falls back
+    /// to `CFBundleName`; everything else flows through the standard
     /// keys so the user gets the native macOS About chrome.
     @objc func showAboutPanel(_ sender: Any?) {
         let credits = NSMutableAttributedString(
@@ -271,6 +272,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .font: NSFont.systemFont(ofSize: 11),
                 .foregroundColor: NSColor.secondaryLabelColor,
             ])
+        // The notices file is a bundled resource (app/project.yml). A .link
+        // attribute makes the About panel's text view open it through
+        // NSWorkspace on click; without the resource we simply omit the line.
+        if let notices = Bundle.main.url(forResource: "THIRD_PARTY_NOTICES", withExtension: "md") {
+            credits.append(
+                NSAttributedString(
+                    string: "\n\nAcknowledgements",
+                    attributes: [
+                        .font: NSFont.systemFont(ofSize: 11),
+                        .link: notices,
+                    ]))
+        }
         NSApp.orderFrontStandardAboutPanel(options: [
             .credits: credits
         ])

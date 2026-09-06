@@ -1,6 +1,6 @@
 # 20 — Apply GPL-3.0-or-later: LICENSE, SPDX headers, notices, About
 
-Status: ready-for-agent
+Status: done — 2026-09-06
 Blocked by: 18, 19
 Spec: ../spec.md (D15); decision record: ../../choose-license/spec.md
 
@@ -95,3 +95,57 @@ cargo test --workspace && xcodebuild test -scheme SolidTerm -destination 'platfo
 ```
 
 ## Comments
+
+### 2026-09-06
+
+Landed in three commits:
+
+- `03c25fd` docs: license SolidTerm under GPL-3.0-or-later — verbatim 674-line
+  `LICENSE`, `license = "GPL-3.0-or-later"` on `[workspace.package]` with both
+  crates inheriting it (`publish = false` kept), README §License, ADR-0007.
+- `e47a739` chore: add SPDX headers and enforce them in CI — 148 source files
+  headed, `scripts/check-license-headers.sh` turned into a real check, 20 theme
+  TOMLs given palette attribution lines.
+- the commit carrying this note, `build: bundle the license and
+  third-party notices` (its SHA cannot be written here without changing it) —
+  generator, `THIRD_PARTY_NOTICES.md`, CI staleness gate, bundled resources,
+  About-panel link.
+
+Final tallies: 273 passed (Rust), Executed 482 tests with 3 skipped and 0
+failures (Swift). Both suites were green before each of the three commits.
+
+Judgement calls, all made against the tree rather than this ticket's text:
+
+- The file counts here (121: 82 Swift / 21 Rust / 17 shell) were stale. The
+  tree has 148 needing headers: 106 Swift, 25 Rust, 16 shell, 1 Metal.
+- "Theme upstreams are all MIT" was wrong for two. `moonlight` and
+  `tokyo-night` are attributed to their original MIT VSCode themes, not the
+  nvim ports (moonlight.nvim is GPL-2.0, tokyonight.nvim Apache-2.0). `light`
+  and `dark` are not SolidTerm originals: `light` is Atom One Light, and
+  `dark`'s ANSI ramp comes from Catppuccin Mocha. Six themes are originals.
+- "The Apache text once" could not be honoured literally. Seven of the vendored
+  Apache-2.0 files differ in real bytes — indentation, `http` vs `https`, and
+  whether the appendix carrying alacritty's copyright line is present. The
+  generator dedupes by content hash and ships each distinct text verbatim
+  rather than drop a copyright notice.
+- The staleness check went in the `rust-test` CI job, not `custom-lints`, which
+  is ubuntu and deliberately toolchain-free — the escape hatch this ticket
+  offers. It needs both the toolchain and the extracted registry sources that
+  the test step above it leaves behind.
+- `SolidTerm-Bridging-Header.h` and `.githooks/pre-commit` get no header: they
+  fall outside the extension set this ticket enumerates. ADR-0007 says so
+  explicitly rather than overclaiming.
+- The `## Verify` block's `awk '/BUILT_PRODUCTS_DIR/{print $3}'` matches a
+  second settings line and yields a broken path; `$1=="BUILT_PRODUCTS_DIR"`
+  with `exit` is what actually works. Both resources were confirmed in
+  `SolidTerm.app/Contents/Resources/`.
+
+Review (fixed point `b6b9caf`) found four real defects, all fixed before the
+final commit: `paste -sd', '` cycled its delimiter list and mangled every
+"Same text shipped by" attribution; a malformed palette line would have
+silently dropped a theme from a legal document, so it now fails loudly;
+XcodeGen named the new resource group after the checkout directory, which is
+pinned to `Legal` in `app/project.yml`; and ADR-0007's header claim was
+narrowed to what CI actually enforces. Style-only findings were left alone.
+No test was added for the About-panel link — this ticket adds no tests, and
+the bundled-resource check in `## Verify` covers the regression it would catch.
