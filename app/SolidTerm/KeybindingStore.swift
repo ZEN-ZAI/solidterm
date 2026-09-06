@@ -97,12 +97,10 @@ public final class KeybindingStore: ObservableObject {
 
     /// Active effective bindings — defaults overlaid by user file
     /// minus disabled keys.
-    @Published public private(set) var effective:
-        [KeybindingAction: String] = [:]
+    @Published public private(set) var effective: [KeybindingAction: String] = [:]
     /// Diagnostics emitted during the most recent load. UI surfaces
     /// these as warning chips per spec/keyboard-system.md §Conflict.
-    @Published public private(set) var diagnostics:
-        [KeybindingDiagnostic] = []
+    @Published public private(set) var diagnostics: [KeybindingDiagnostic] = []
 
     private let fileURL: URL
     private static let chordSeparator = " "
@@ -206,8 +204,9 @@ public final class KeybindingStore: ObservableObject {
                 KeybindingsFile.self, from: data)
         } catch {
             diag.append(.malformedFile(reason: error.localizedDescription))
-            NSLog("KeybindingStore: malformed keybindings.json — falling "
-                + "back to defaults. Reason: \(error)")
+            NSLog(
+                "KeybindingStore: malformed keybindings.json — falling "
+                    + "back to defaults. Reason: \(error)")
             self.effective = table
             self.diagnostics = diag
             return
@@ -223,29 +222,33 @@ public final class KeybindingStore: ObservableObject {
             let normalizedKey = Self.normalizeKey(entry.key)
             // Chord (space-separated) — decode but skip runtime
             if normalizedKey.contains(Self.chordSeparator) {
-                diag.append(.chordUnsupported(
-                    key: entry.key, action: entry.action))
+                diag.append(
+                    .chordUnsupported(
+                        key: entry.key, action: entry.action))
                 continue
             }
             // Unknown action — warn + skip
             guard let action = KeybindingAction(rawValue: entry.action)
             else {
-                diag.append(.unknownAction(
-                    action: entry.action, key: entry.key))
+                diag.append(
+                    .unknownAction(
+                        action: entry.action, key: entry.key))
                 continue
             }
             // Reserved key — warn + skip
             if Self.isReserved(normalizedKey) {
-                diag.append(.reservedKey(
-                    key: entry.key, action: entry.action))
+                diag.append(
+                    .reservedKey(
+                        key: entry.key, action: entry.action))
                 continue
             }
             // Duplicate-key → last-wins; emit diagnostic
             if let prev = lastForKey[normalizedKey] {
-                diag.append(.duplicateKey(
-                    key: normalizedKey,
-                    kept: action.rawValue,
-                    dropped: prev.rawValue))
+                diag.append(
+                    .duplicateKey(
+                        key: normalizedKey,
+                        kept: action.rawValue,
+                        dropped: prev.rawValue))
             }
             // User binding overrides default for this action. If
             // another action currently holds this key, evict it; if
@@ -378,8 +381,10 @@ extension KeybindingStore {
     public static func parseToMenuKey(
         _ normalized: String
     ) -> (String, NSEvent.ModifierFlags) {
-        let parts = normalized.split(separator: "+",
-            omittingEmptySubsequences: true).map(String.init)
+        let parts = normalized.split(
+            separator: "+",
+            omittingEmptySubsequences: true
+        ).map(String.init)
         guard let key = parts.last else { return ("", []) }
         let mods = Set(parts.dropLast())
         var mask: NSEvent.ModifierFlags = []

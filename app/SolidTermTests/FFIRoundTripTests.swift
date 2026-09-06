@@ -4,6 +4,7 @@
 // static lib + generated Swift shims correctly.
 
 import XCTest
+
 @testable import SolidTerm
 
 final class FFIRoundTripTests: XCTestCase {

@@ -105,9 +105,12 @@ final class MetalRendererSGRColorTests: XCTestCase {
         // Literal decode would be (0, 0, 0, 1). Verify theme value.
         // zenzai-v2 bg `#0f0f12` is dim — pin against 0.003 (linear of
         // 0x0f ≈ 0.0056) rather than the prior 0.005.
-        XCTAssertGreaterThan(slot.bgColorLinear.x, 0.003, "bg.R should be theme #0f, not literal 0x00")
-        XCTAssertGreaterThan(slot.bgColorLinear.y, 0.003, "bg.G should be theme #0f, not literal 0x00")
-        XCTAssertGreaterThan(slot.bgColorLinear.z, 0.003, "bg.B should be theme #12, not literal 0x00")
+        XCTAssertGreaterThan(
+            slot.bgColorLinear.x, 0.003, "bg.R should be theme #0f, not literal 0x00")
+        XCTAssertGreaterThan(
+            slot.bgColorLinear.y, 0.003, "bg.G should be theme #0f, not literal 0x00")
+        XCTAssertGreaterThan(
+            slot.bgColorLinear.z, 0.003, "bg.B should be theme #12, not literal 0x00")
     }
 
     // MARK: - sRGB LUT integrity

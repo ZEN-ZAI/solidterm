@@ -70,13 +70,14 @@ public enum GraphemeClusterCoalescer {
                 let next = cells[j]
                 // Adjacency: same row, next.col == prev.col + prev.width.
                 guard next.row == primary.row,
-                      prevCol &+ UInt16(prevWidth) == next.col
+                    prevCol &+ UInt16(prevWidth) == next.col
                 else { break }
                 guard let bHead = firstScalar(of: next.grapheme) else { break }
-                guard candidate(
-                    headScalar: headScalar,
-                    tailScalar: tailScalar,
-                    bHead: bHead)
+                guard
+                    candidate(
+                        headScalar: headScalar,
+                        tailScalar: tailScalar,
+                        bHead: bHead)
                 else { break }
 
                 let nextGrapheme = decodeGrapheme(next.grapheme)
@@ -93,11 +94,12 @@ public enum GraphemeClusterCoalescer {
                     break
                 }
             }
-            out.append(CoalescedCell(
-                row: primary.row, col: primary.col, grapheme: grapheme,
-                fg: primary.fg, bg: primary.bg, attrs: primary.attrs,
-                width: primary.width == 0 ? 1 : primary.width,
-                cellSpan: span))
+            out.append(
+                CoalescedCell(
+                    row: primary.row, col: primary.col, grapheme: grapheme,
+                    fg: primary.fg, bg: primary.bg, attrs: primary.attrs,
+                    width: primary.width == 0 ? 1 : primary.width,
+                    cellSpan: span))
             i = j
         }
         return out
@@ -124,7 +126,8 @@ public enum GraphemeClusterCoalescer {
         // RI onto an already-formed flag — Unicode flags are exactly 2
         // RIs).
         if (0x1F1E6...0x1F1FF).contains(tailScalar),
-           (0x1F1E6...0x1F1FF).contains(bHead) {
+            (0x1F1E6...0x1F1FF).contains(bHead)
+        {
             return true
         }
 
@@ -176,7 +179,8 @@ public enum GraphemeClusterCoalescer {
     static func shouldMerge(headScalar: UInt32, joined: String) -> Bool {
         if isOneCluster(joined) { return true }
         if (0x0E01...0x0E2E).contains(headScalar),
-           isThaiVisualCluster(joined) {
+            isThaiVisualCluster(joined)
+        {
             return true
         }
         return false
@@ -195,12 +199,10 @@ public enum GraphemeClusterCoalescer {
             }
             let v = scalar.value
             let isMark =
-                (0x0E30...0x0E3A).contains(v) ||
-                (0x0E47...0x0E4E).contains(v) ||
-                v == 0x0E33
+                (0x0E30...0x0E3A).contains(v) || (0x0E47...0x0E4E).contains(v) || v == 0x0E33
             if !isMark { return false }
         }
-        return !first   // must have at least 2 scalars total
+        return !first  // must have at least 2 scalars total
     }
 
     /// Authoritative cluster check via Swift's UAX #29 implementation.

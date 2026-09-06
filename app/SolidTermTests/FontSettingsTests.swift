@@ -108,7 +108,8 @@ final class FontSettingsTests: XCTestCase {
 
     func testDidChangePostedOnSizeChange() {
         let s = FontSettings(defaults: defaults)
-        let exp = expectation(forNotification: FontSettings.didChange,
+        let exp = expectation(
+            forNotification: FontSettings.didChange,
             object: s, handler: nil)
         s.increaseSize()
         wait(for: [exp], timeout: 0.5)
@@ -116,7 +117,8 @@ final class FontSettingsTests: XCTestCase {
 
     func testDidChangePostedOnFamilyChange() {
         let s = FontSettings(defaults: defaults)
-        let exp = expectation(forNotification: FontSettings.didChange,
+        let exp = expectation(
+            forNotification: FontSettings.didChange,
             object: s, handler: nil)
         s.setFamily("Monaco")
         wait(for: [exp], timeout: 0.5)

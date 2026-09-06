@@ -1,6 +1,7 @@
 // Implements spec/cross-cell-shaping.md test matrix.
 
 import XCTest
+
 @testable import SolidTerm
 
 final class GraphemeClusterCoalescerTests: XCTestCase {
@@ -82,8 +83,8 @@ final class GraphemeClusterCoalescerTests: XCTestCase {
         // extended grapheme cluster.
         let input = [
             cell(0, 0, "ก"),
-            cell(0, 1, "\u{0E37}"),   // SARA UEE
-            cell(0, 2, "\u{0E48}"),   // MAI EK
+            cell(0, 1, "\u{0E37}"),  // SARA UEE
+            cell(0, 2, "\u{0E48}"),  // MAI EK
         ]
         let out = GraphemeClusterCoalescer.coalesce(input)
         XCTAssertEqual(out.count, 1)
@@ -129,7 +130,7 @@ final class GraphemeClusterCoalescerTests: XCTestCase {
         // in its own cell).
         let input = [
             cell(0, 0, "\u{1F468}\u{200D}", width: 2),  // 👨 + ZWJ
-            cell(0, 2, "\u{1F469}", width: 2),          // 👩
+            cell(0, 2, "\u{1F469}", width: 2),  // 👩
         ]
         let out = GraphemeClusterCoalescer.coalesce(input)
         XCTAssertEqual(out.count, 1)
@@ -143,8 +144,8 @@ final class GraphemeClusterCoalescerTests: XCTestCase {
         // ⚠ + VS16 — pictographic variation selector continuing into
         // a separate cell. Cluster check should fold them.
         let input = [
-            cell(0, 0, "\u{26A0}"),       // ⚠
-            cell(0, 1, "\u{FE0F}"),       // VS16
+            cell(0, 0, "\u{26A0}"),  // ⚠
+            cell(0, 1, "\u{FE0F}"),  // VS16
         ]
         let out = GraphemeClusterCoalescer.coalesce(input)
         XCTAssertEqual(out.count, 1)
@@ -226,7 +227,7 @@ final class GraphemeClusterCoalescerTests: XCTestCase {
         // screen fires (ZWJ-spill rule), but isOneCluster rejects.
         // Verify we DO NOT coalesce.
         let input = [
-            cell(0, 0, "A\u{200D}"),   // A + ZWJ
+            cell(0, 0, "A\u{200D}"),  // A + ZWJ
             cell(0, 1, "B"),
         ]
         let out = GraphemeClusterCoalescer.coalesce(input)

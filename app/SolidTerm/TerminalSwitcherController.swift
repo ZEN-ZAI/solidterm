@@ -71,7 +71,7 @@ final class TerminalSwitcherController: NSObject {
                 ctx.timingFunction = CAMediaTimingFunction(
                     controlPoints:
                         Theme.Motion.easeOut.0, Theme.Motion.easeOut.1,
-                        Theme.Motion.easeOut.2, Theme.Motion.easeOut.3)
+                    Theme.Motion.easeOut.2, Theme.Motion.easeOut.3)
                 p.animator().setFrame(target, display: true)
                 p.animator().alphaValue = 1
             }
@@ -91,24 +91,26 @@ final class TerminalSwitcherController: NSObject {
         isDismissing = true
 
         if animated, !Self.reduceMotion() {
-            NSAnimationContext.runAnimationGroup({ ctx in
-                ctx.duration = Theme.Motion.fast
-                ctx.timingFunction = CAMediaTimingFunction(
-                    controlPoints:
-                        Theme.Motion.easeIn.0, Theme.Motion.easeIn.1,
+            NSAnimationContext.runAnimationGroup(
+                { ctx in
+                    ctx.duration = Theme.Motion.fast
+                    ctx.timingFunction = CAMediaTimingFunction(
+                        controlPoints:
+                            Theme.Motion.easeIn.0, Theme.Motion.easeIn.1,
                         Theme.Motion.easeIn.2, Theme.Motion.easeIn.3)
-                p.animator().alphaValue = 0
-            }, completionHandler: { [weak self, weak p] in
-                // If present() flipped isDismissing back to false while the
-                // fade-out was in flight, the user re-opened the switcher —
-                // bail without orderOut (same guard as SearchPanelController).
-                guard let self, self.isDismissing else { return }
-                p?.orderOut(nil)
-                p?.alphaValue = 1
-                self.isDismissing = false
-                self.model.entries = []  // release window references
-                self.restoreFocusToTerminal()
-            })
+                    p.animator().alphaValue = 0
+                },
+                completionHandler: { [weak self, weak p] in
+                    // If present() flipped isDismissing back to false while the
+                    // fade-out was in flight, the user re-opened the switcher —
+                    // bail without orderOut (same guard as SearchPanelController).
+                    guard let self, self.isDismissing else { return }
+                    p?.orderOut(nil)
+                    p?.alphaValue = 1
+                    self.isDismissing = false
+                    self.model.entries = []  // release window references
+                    self.restoreFocusToTerminal()
+                })
         } else {
             p.orderOut(nil)
             p.alphaValue = 1
@@ -134,9 +136,10 @@ final class TerminalSwitcherController: NSObject {
         // just ran — so fall back to any live terminal window. Otherwise
         // the app is left with NO key window (dead keyboard), the exact
         // failure the ⌘F focus-restore guards against.
-        let target = anchor
+        let target =
+            anchor
             ?? (NSApp.delegate as? AppDelegate)?.allWindowControllers
-                .lazy.compactMap(\.window).first(where: \.isVisible)
+            .lazy.compactMap(\.window).first(where: \.isVisible)
         guard let target else { return }
         let key = NSApp.keyWindow
         if key == nil || key === panel {

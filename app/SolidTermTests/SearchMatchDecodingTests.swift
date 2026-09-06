@@ -18,8 +18,7 @@ final class SearchMatchDecodingTests: XCTestCase {
         XCTAssertThrowsError(
             try SearchMatchDecoding.decode([UInt8](repeating: 0, count: 7))
         ) { err in
-            guard case SearchMatchDecoding.DecodeError.malformedPayload(7)
-                = err
+            guard case SearchMatchDecoding.DecodeError.malformedPayload(7) = err
             else {
                 return XCTFail("wrong error: \(err)")
             }
@@ -30,8 +29,8 @@ final class SearchMatchDecodingTests: XCTestCase {
         // line = -3, col = 5, len = 7
         let bytes: [UInt8] = [
             0xFD, 0xFF, 0xFF, 0xFF,  // i32 -3 (little-endian)
-            0x05, 0x00,              // u16 5
-            0x07, 0x00,              // u16 7
+            0x05, 0x00,  // u16 5
+            0x07, 0x00,  // u16 7
         ]
         let out = try SearchMatchDecoding.decode(bytes)
         XCTAssertEqual(out, [SearchMatchSwift(line: -3, col: 5, len: 7)])
@@ -45,9 +44,11 @@ final class SearchMatchDecodingTests: XCTestCase {
             0x01, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x04, 0x00,
         ]
         let out = try SearchMatchDecoding.decode(bytes)
-        XCTAssertEqual(out, [
-            SearchMatchSwift(line: 0, col: 0, len: 3),
-            SearchMatchSwift(line: 1, col: 10, len: 4),
-        ])
+        XCTAssertEqual(
+            out,
+            [
+                SearchMatchSwift(line: 0, col: 0, len: 3),
+                SearchMatchSwift(line: 1, col: 10, len: 4),
+            ])
     }
 }

@@ -19,9 +19,12 @@ enum PixelVerify {
         _ host: NSHostingView<V>,
         file: StaticString = #file, line: UInt = #line
     ) throws -> NSBitmapImageRep {
-        guard let rep = host.bitmapImageRepForCachingDisplay(
-            in: host.bounds) else {
-            XCTFail("bitmapImageRepForCachingDisplay nil",
+        guard
+            let rep = host.bitmapImageRepForCachingDisplay(
+                in: host.bounds)
+        else {
+            XCTFail(
+                "bitmapImageRepForCachingDisplay nil",
                 file: file, line: line)
             throw NSError(
                 domain: "PixelVerify", code: 1, userInfo: nil)
@@ -53,19 +56,24 @@ enum PixelVerify {
         file: StaticString = #file, line: UInt = #line
     ) throws {
         guard let color = rep.colorAt(x: x, y: y),
-            let srgb = color.usingColorSpace(.sRGB) else {
-            XCTFail("colorAt nil at \(label)",
+            let srgb = color.usingColorSpace(.sRGB)
+        else {
+            XCTFail(
+                "colorAt nil at \(label)",
                 file: file, line: line)
             return
         }
         let r = Int(round(srgb.redComponent * 255))
         let g = Int(round(srgb.greenComponent * 255))
         let b = Int(round(srgb.blueComponent * 255))
-        XCTAssertEqual(r, expected.0, accuracy: 3,
+        XCTAssertEqual(
+            r, expected.0, accuracy: 3,
             "\(label) R", file: file, line: line)
-        XCTAssertEqual(g, expected.1, accuracy: 3,
+        XCTAssertEqual(
+            g, expected.1, accuracy: 3,
             "\(label) G", file: file, line: line)
-        XCTAssertEqual(b, expected.2, accuracy: 3,
+        XCTAssertEqual(
+            b, expected.2, accuracy: 3,
             "\(label) B", file: file, line: line)
     }
 

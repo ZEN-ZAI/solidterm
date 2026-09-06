@@ -12,7 +12,8 @@ final class PlainLinkDetectorTests: XCTestCase {
     // MARK: - URLs
 
     func testHttpsURLDetected() {
-        let hit = d.detect(in: "Visit https://example.com for info", hoveredCol: 6, terminalCols: cols)
+        let hit = d.detect(
+            in: "Visit https://example.com for info", hoveredCol: 6, terminalCols: cols)
         guard case .url(let url)? = hit?.kind else { return XCTFail("expected .url") }
         XCTAssertEqual(url.absoluteString, "https://example.com")
         XCTAssertEqual(hit?.startCol, 6)
@@ -27,18 +28,21 @@ final class PlainLinkDetectorTests: XCTestCase {
 
     func testColumnOutsideURLReturnsNil() {
         // col 0 = 'S' of "See", not inside the URL.
-        XCTAssertNil(d.detect(in: "See https://example.com here", hoveredCol: 0, terminalCols: cols))
+        XCTAssertNil(
+            d.detect(in: "See https://example.com here", hoveredCol: 0, terminalCols: cols))
     }
 
     func testFtpSchemeRejected() {
-        XCTAssertNil(d.detect(in: "ftp://example.com/file", hoveredCol: 0, terminalCols: cols),
+        XCTAssertNil(
+            d.detect(in: "ftp://example.com/file", hoveredCol: 0, terminalCols: cols),
             "ftp is outside the scheme allowlist")
     }
 
     func testFileSchemeRejected() {
         // file:// must NOT become a one-click hyperlink (disclosure risk);
         // local files go through the existence-gated path branch instead.
-        XCTAssertNil(d.detect(in: "open file:///etc/hosts now", hoveredCol: 5, terminalCols: cols),
+        XCTAssertNil(
+            d.detect(in: "open file:///etc/hosts now", hoveredCol: 5, terminalCols: cols),
             "file:// URLs are not promoted to clickable hyperlinks")
     }
 
@@ -109,7 +113,8 @@ final class PlainLinkDetectorTests: XCTestCase {
     }
 
     func testNonExistentPathReturnsNil() {
-        XCTAssertNil(d.detect(in: "/definitely/not/here/xyz123", hoveredCol: 0, terminalCols: cols),
+        XCTAssertNil(
+            d.detect(in: "/definitely/not/here/xyz123", hoveredCol: 0, terminalCols: cols),
             "non-existent paths must not be clickable")
     }
 
@@ -135,6 +140,7 @@ final class PlainLinkDetectorTests: XCTestCase {
     }
 
     func testOversizedRowReturnsNil() {
-        XCTAssertNil(d.detect(in: String(repeating: "a", count: 4097), hoveredCol: 0, terminalCols: 80))
+        XCTAssertNil(
+            d.detect(in: String(repeating: "a", count: 4097), hoveredCol: 0, terminalCols: 80))
     }
 }

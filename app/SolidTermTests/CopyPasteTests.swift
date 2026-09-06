@@ -141,7 +141,8 @@ final class CopyPasteTests: XCTestCase {
     /// should back up to byte 3 (end of first codepoint).
     func testPasteChunkEnd_walksBackFromMultibyteSplit() {
         let bytes = Array("ก่อน".utf8)
-        XCTAssertEqual(bytes.count, 12,
+        XCTAssertEqual(
+            bytes.count, 12,
             "Thai 4-codepoint string should be 12 UTF-8 bytes")
         // chunkSize=5 → naive end=5, walk back to 3 (codepoint boundary).
         let end = TerminalSurfaceView.pasteChunkEnd(
@@ -176,7 +177,8 @@ final class CopyPasteTests: XCTestCase {
         // to 0 (offset) → fallback returns naive 2.
         let end = TerminalSurfaceView.pasteChunkEnd(
             bytes: bytes, offset: 0, chunkSize: 2)
-        XCTAssertEqual(end, 2,
+        XCTAssertEqual(
+            end, 2,
             "single oversized codepoint must not collapse the chunk window")
     }
 

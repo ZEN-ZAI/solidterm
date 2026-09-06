@@ -22,9 +22,11 @@ final class SearchPanelE2ETests: XCTestCase {
         guard let panel = controller.panelForTest else {
             return XCTFail("panel not constructed")
         }
-        XCTAssertTrue(panel.canBecomeKey,
+        XCTAssertTrue(
+            panel.canBecomeKey,
             "SearchPanel must override canBecomeKey to true")
-        XCTAssertFalse(panel.canBecomeMain,
+        XCTAssertFalse(
+            panel.canBecomeMain,
             "search panel must not steal main-window status")
     }
 

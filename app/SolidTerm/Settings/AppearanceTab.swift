@@ -132,8 +132,9 @@ struct AppearanceTab: View {
                         Text(
                             scrollbackLines == 0
                                 ? "Default (100,000)"
-                                : "\(scrollbackLines.formatted())")
-                            .monospacedDigit()
+                                : "\(scrollbackLines.formatted())"
+                        )
+                        .monospacedDigit()
                     }
                 }
             }
@@ -141,7 +142,8 @@ struct AppearanceTab: View {
             Text("Scrollback")
         } footer: {
             Text(
-                "Number of history lines kept per session. Takes effect on the next window or tab. 0 = engine default.")
+                "Number of history lines kept per session. Takes effect on the next window or tab. 0 = engine default."
+            )
         }
     }
 
@@ -169,7 +171,8 @@ struct AppearanceTab: View {
                     Button("Cancel", role: .cancel) {}
                 } message: {
                     Text(
-                        "Theme, font, keybindings, and all other preferences will be restored to defaults. Open windows are unaffected; the next window pickup the cleared values.")
+                        "Theme, font, keybindings, and all other preferences will be restored to defaults. Open windows are unaffected; the next window pickup the cleared values."
+                    )
                 }
             }
         }
@@ -254,8 +257,9 @@ struct AppearanceTab: View {
             FontPreviewView(
                 family: fontSettings.family,
                 size: fontSettings.size,
-                ligatures: fontSettings.ligatures)
-                .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                ligatures: fontSettings.ligatures
+            )
+            .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
         }
     }
 
@@ -299,7 +303,8 @@ struct AppearanceTab: View {
             Text("Theme")
         } footer: {
             Text(
-                "Themes live in ~/.config/solidterm/themes/*.toml — edit any file and the change applies live.")
+                "Themes live in ~/.config/solidterm/themes/*.toml — edit any file and the change applies live."
+            )
         }
     }
 
@@ -310,8 +315,9 @@ struct AppearanceTab: View {
         LabeledContent("Preview") {
             ThemeSwatchesView(
                 file: themeFiles.current,
-                mode: themeManager.mode)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                mode: themeManager.mode
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -324,7 +330,8 @@ struct AppearanceTab: View {
             Text("Command markers")
         } footer: {
             Text(
-                "Slim left-margin accent at each shell prompt, color-coded by exit status (running / success / error). Requires shell integration (OSC 133).")
+                "Slim left-margin accent at each shell prompt, color-coded by exit status (running / success / error). Requires shell integration (OSC 133)."
+            )
         }
     }
 
@@ -354,7 +361,8 @@ struct AppearanceTab: View {
             Text("File-path click")
         } footer: {
             Text(
-                "Hold ⌘ and click a file path in the terminal to open it. Detection is filesystem-confirmed — paths only highlight when the file exists.")
+                "Hold ⌘ and click a file path in the terminal to open it. Detection is filesystem-confirmed — paths only highlight when the file exists."
+            )
         }
     }
 }

@@ -103,7 +103,8 @@ final class TabsE2ETests: XCTestCase {
         RunLoop.current.run(until: Date().addingTimeInterval(0.05))
 
         let afterWindowCount = NSApp.windows.count
-        XCTAssertGreaterThan(afterWindowCount, beforeWindowCount,
+        XCTAssertGreaterThan(
+            afterWindowCount, beforeWindowCount,
             "openNewTab must create at least one new NSWindow")
         // The newest window should be a TerminalWindowController-owned
         // NSWindow with the M7-5 tabbing-mode-preferred contract.
@@ -146,7 +147,8 @@ final class TabsE2ETests: XCTestCase {
 
         let tabs = aw.tabbedWindows ?? []
         XCTAssertEqual(tabs.count, 2)
-        XCTAssertTrue(tabs[1] === bw,
+        XCTAssertTrue(
+            tabs[1] === bw,
             "second tab in group must be bw")
     }
 
@@ -169,12 +171,14 @@ final class TabsE2ETests: XCTestCase {
     func testEachTab_hasOwnLeadPane() {
         let a = makeController()
         let b = makeController()
-        XCTAssertFalse(a.paneSplitter === b.paneSplitter,
+        XCTAssertFalse(
+            a.paneSplitter === b.paneSplitter,
             "each tab must have its own splitter")
         XCTAssertEqual(a.paneSplitter.panes.count, 1)
         XCTAssertEqual(b.paneSplitter.panes.count, 1)
-        XCTAssertFalse(a.paneSplitter.panes[0]
-            === b.paneSplitter.panes[0],
+        XCTAssertFalse(
+            a.paneSplitter.panes[0]
+                === b.paneSplitter.panes[0],
             "each tab's lead pane must be a distinct PaneViewController")
     }
 
@@ -198,7 +202,8 @@ final class TabsE2ETests: XCTestCase {
 
         XCTAssertEqual(aw.title, "Tab Alpha")
         XCTAssertEqual(bw.title, "Tab Bravo")
-        XCTAssertNotEqual(aw.title, bw.title,
+        XCTAssertNotEqual(
+            aw.title, bw.title,
             "tab titles must not bleed between siblings")
     }
 

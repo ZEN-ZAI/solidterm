@@ -235,7 +235,8 @@ enum InputEventEncoder {
         // to the unmodified case: a held modifier keeps the legacy CSI
         // path (xterm uses CSI-with-param for modified cursor keys, and
         // shift+arrow is intercepted upstream for selection anyway).
-        let hasMod = mods.contains(.shift) || mods.contains(.control)
+        let hasMod =
+            mods.contains(.shift) || mods.contains(.control)
             || mods.contains(.option) || mods.contains(.command)
         if appCursor && !hasMod {
             switch keyCode {

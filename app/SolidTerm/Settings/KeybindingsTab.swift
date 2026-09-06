@@ -75,7 +75,8 @@ struct KeybindingsTab: View {
             Text(category.rawValue)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(
-                    Color(linear: Theme.Color.textSecondaryLinear))
+                    Color(linear: Theme.Color.textSecondaryLinear)
+                )
                 .textCase(.uppercase)
                 .padding(.horizontal, Theme.Spacing.three)
                 .padding(.top, Theme.Spacing.two)
@@ -96,11 +97,13 @@ struct KeybindingsTab: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(
                     Color(linear: Theme.Color.textPrimaryLinear))
-            Text("Customize keyboard shortcuts. Stored in "
-                + "~/.solidterm/keybindings.json.")
-                .font(.system(size: 12))
-                .foregroundColor(
-                    Color(linear: Theme.Color.textSecondaryLinear))
+            Text(
+                "Customize keyboard shortcuts. Stored in "
+                    + "~/.solidterm/keybindings.json."
+            )
+            .font(.system(size: 12))
+            .foregroundColor(
+                Color(linear: Theme.Color.textSecondaryLinear))
             // S4: search across title / raw / shortcut / category.
             HStack(spacing: Theme.Spacing.half) {
                 Image(systemName: "magnifyingglass")
@@ -120,7 +123,8 @@ struct KeybindingsTab: View {
                 Text("Reserved: \(rk) is reserved for a future binding.")
                     .font(.system(size: 11))
                     .foregroundColor(
-                        Color(linear: Theme.Color.accentWarningLinear))
+                        Color(linear: Theme.Color.accentWarningLinear)
+                    )
                     .accessibilityIdentifier("settings.keybindings.reservedToast")
             }
         }
@@ -178,7 +182,8 @@ struct KeybindingsTab: View {
                 Text(displayKey(for: action))
                     .font(.system(size: 12, design: .monospaced))
                     .foregroundColor(
-                        Color(linear: Theme.Color.textSecondaryLinear))
+                        Color(linear: Theme.Color.textSecondaryLinear)
+                    )
                     .frame(minWidth: 100, alignment: .trailing)
                 Button("Change…") { capturingAction = action }
                     .buttonStyle(.bordered)
@@ -241,8 +246,9 @@ struct KeybindingsTab: View {
             $0.action == action.rawValue
                 || KeybindingStore.normalizeKey($0.key) == normalized
         }
-        current.bindings.append(.init(
-            key: normalized, action: action.rawValue))
+        current.bindings.append(
+            .init(
+                key: normalized, action: action.rawValue))
         try? store.save(
             bindings: current.bindings, disabled: current.disabled)
     }

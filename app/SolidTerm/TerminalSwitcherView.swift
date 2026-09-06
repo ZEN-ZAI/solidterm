@@ -50,7 +50,8 @@ final class TerminalSwitcherModel: ObservableObject {
     var filtered: [TerminalSwitcherEntry] {
         let q = query.trimmingCharacters(in: .whitespaces)
         if q.isEmpty { return entries }
-        return entries
+        return
+            entries
             .compactMap { e in FuzzyMatch.score(q, e.searchText).map { (e, $0) } }
             .sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0.id < $1.0.id }
             .map(\.0)
@@ -60,7 +61,10 @@ final class TerminalSwitcherModel: ObservableObject {
     /// list. No-op on an empty list.
     func moveSelection(_ delta: Int) {
         let n = filtered.count
-        guard n > 0 else { selectedIndex = 0; return }
+        guard n > 0 else {
+            selectedIndex = 0
+            return
+        }
         selectedIndex = ((selectedIndex + delta) % n + n) % n
     }
 
@@ -137,13 +141,14 @@ struct TerminalSwitcherView: View {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(items.enumerated()), id: \.element.id) { idx, entry in
                             TerminalSwitcherRow(
-                                entry: entry, isSelected: idx == model.selectedIndex)
-                                .id(idx)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    model.selectedIndex = idx
-                                    model.activateSelected()
-                                }
+                                entry: entry, isSelected: idx == model.selectedIndex
+                            )
+                            .id(idx)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                model.selectedIndex = idx
+                                model.activateSelected()
+                            }
                         }
                     }
                 }

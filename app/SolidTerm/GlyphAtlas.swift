@@ -430,9 +430,10 @@ final class GlyphAtlas {
                 fontHash: resolvedFontHash,
                 glyphId: UInt32(glyphId),
                 pxSize: UInt16(
-                    round(min(
-                        CTFontGetSize(resolvedFont) * 100,
-                        Double(UInt16.max)))),
+                    round(
+                        min(
+                            CTFontGetSize(resolvedFont) * 100,
+                            Double(UInt16.max)))),
                 contentsScale: UInt8(contentsScale))
             accessCounter &+= 1
             if var cached = colorEntries[key] {
@@ -771,7 +772,7 @@ final class GlyphAtlas {
             ctx.setAllowsAntialiasing(true)
             ctx.scaleBy(x: contentsScale, y: contentsScale)
             let attrs: [NSAttributedString.Key: Any] = [
-                .font: coveringFont,
+                .font: coveringFont
             ]
             let attrString = NSAttributedString(
                 string: cluster, attributes: attrs)
@@ -923,7 +924,8 @@ final class GlyphAtlas {
         return (
             bbox,
             CGFloat(cellSizePx.x) / contentsScale,
-            CGFloat(cellSizePx.y) / contentsScale)
+            CGFloat(cellSizePx.y) / contentsScale
+        )
     }
 
     /// Test-only: synthetic insert that wires a fake `AtlasEntry` into
@@ -1741,8 +1743,7 @@ final class GlyphAtlas {
         width w: UInt32, height h: UInt32
     ) -> SIMD2<UInt32>? {
         for i in 0..<colorFreeRects.count
-        where colorFreeRects[i].sizePx.x >= w && colorFreeRects[i].sizePx.y >= h
-        {
+        where colorFreeRects[i].sizePx.x >= w && colorFreeRects[i].sizePx.y >= h {
             let rect = colorFreeRects.remove(at: i)
             return rect.originPx
         }
@@ -1787,7 +1788,8 @@ final class GlyphAtlas {
         let bytes =
             UInt64(entry.sizePx.x) * UInt64(entry.sizePx.y)
             * Self.colorBytesPerPixel
-        colorBytesAllocated = colorBytesAllocated >= bytes
+        colorBytesAllocated =
+            colorBytesAllocated >= bytes
             ? colorBytesAllocated - bytes : 0
         pendingEviction = true
         return true

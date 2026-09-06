@@ -378,8 +378,8 @@ final class TerminalWindowController: NSWindowController, NSMenuItemValidation {
         case .nextTab:
             window?.selectNextTab(nil)
         case .selectTab1, .selectTab2, .selectTab3, .selectTab4,
-             .selectTab5, .selectTab6, .selectTab7, .selectTab8,
-             .selectTab9:
+            .selectTab5, .selectTab6, .selectTab7, .selectTab8,
+            .selectTab9:
             if let n = action.tabIndex {
                 selectTab(byIndex: n)
             }

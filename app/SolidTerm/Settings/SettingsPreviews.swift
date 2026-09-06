@@ -46,7 +46,8 @@ final class FontPreviewNSView: NSView {
     }
 
     func update(family: String, size: CGFloat, ligatures: Bool) {
-        let changed = family != self.family
+        let changed =
+            family != self.family
             || size != self.fontSize
             || ligatures != self.ligatures
         guard changed else { return }
@@ -145,7 +146,8 @@ struct ThemeSwatchesView: View {
         return (
             bg: palette.defaultBgLinear,
             fg: palette.defaultFgLinear,
-            cursor: Theme.Color.cursorDefaultLinear(for: resolved))
+            cursor: Theme.Color.cursorDefaultLinear(for: resolved)
+        )
     }
 
     /// Engine's compile-time 16-color matcha palette, mirrored from

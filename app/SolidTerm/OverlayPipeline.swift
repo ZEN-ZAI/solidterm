@@ -140,9 +140,9 @@ func easedBlinkAlpha(elapsed: CFTimeInterval, period: CFTimeInterval) -> Float {
     let t = (elapsed / period).truncatingRemainder(dividingBy: 1.0)
     // Boundaries expressed as fractions of the period so the curve
     // scales linearly with `period` adjustments.
-    let visibleEnd = 0.2222   // 200 ms / 900 ms
-    let fadeOutEnd = 0.5      // 450 ms / 900 ms
-    let hiddenEnd = 0.7222    // 650 ms / 900 ms
+    let visibleEnd = 0.2222  // 200 ms / 900 ms
+    let fadeOutEnd = 0.5  // 450 ms / 900 ms
+    let hiddenEnd = 0.7222  // 650 ms / 900 ms
     if t < visibleEnd { return 1.0 }
     if t < fadeOutEnd {
         let local = Float((t - visibleEnd) / (fadeOutEnd - visibleEnd))

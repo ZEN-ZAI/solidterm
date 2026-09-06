@@ -167,9 +167,9 @@ public final class ThemeFileStore: ObservableObject {
         self.themesDir =
             themesDir
             ?? FileManager.default
-                .homeDirectoryForCurrentUser
-                .appendingPathComponent(
-                    ".config/solidterm/themes", isDirectory: true)
+            .homeDirectoryForCurrentUser
+            .appendingPathComponent(
+                ".config/solidterm/themes", isDirectory: true)
         ensureSeeded()
         // CRITICAL: pass `notify: false` here. Posting the didChange
         // notification re-enters `ThemeFileStore.shared` via observers
@@ -200,10 +200,11 @@ public final class ThemeFileStore: ObservableObject {
     /// and on every directory-change event.
     public func reload(notify: Bool = true) {
         let fm = FileManager.default
-        guard let contents = try? fm.contentsOfDirectory(
-            at: themesDir,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles])
+        guard
+            let contents = try? fm.contentsOfDirectory(
+                at: themesDir,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles])
         else {
             available = [:]
             return
@@ -238,8 +239,9 @@ public final class ThemeFileStore: ObservableObject {
         let fm = FileManager.default
         try? fm.createDirectory(
             at: themesDir, withIntermediateDirectories: true)
-        guard let bundled = Bundle.main.urls(
-            forResourcesWithExtension: "toml", subdirectory: "Themes")
+        guard
+            let bundled = Bundle.main.urls(
+                forResourcesWithExtension: "toml", subdirectory: "Themes")
         else { return }
         for src in bundled {
             let dst = themesDir.appendingPathComponent(src.lastPathComponent)

@@ -219,10 +219,12 @@ final class InputEventEncodingTests: XCTestCase {
     func testPlainReturnFallsThroughToCharacters() {
         // Without shift, Return takes the NSEvent.characters path so
         // the standard `\r` byte reaches the PTY unchanged.
-        XCTAssertNil(InputEventEncoder.ansiEscapeForSpecialKey(
-            keyCode: 0x24, modifiers: []))
-        XCTAssertNil(InputEventEncoder.ansiEscapeForSpecialKey(
-            keyCode: 0x4C, modifiers: []))
+        XCTAssertNil(
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x24, modifiers: []))
+        XCTAssertNil(
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x4C, modifiers: []))
     }
 
     // MARK: - Kitty keyboard protocol: modified Enter → CSI u
@@ -253,10 +255,12 @@ final class InputEventEncodingTests: XCTestCase {
     func testPlainEnterUnderKittyStaysBareCR() {
         // Kitty exempts *unmodified* Enter from CSI u — it must fall
         // through to NSEvent.characters (`\r`), never `\e[13;1u`.
-        XCTAssertNil(InputEventEncoder.ansiEscapeForSpecialKey(
-            keyCode: 0x24, modifiers: [], kittyFlags: 0x01))
-        XCTAssertNil(InputEventEncoder.ansiEscapeForSpecialKey(
-            keyCode: 0x4C, modifiers: [], kittyFlags: 0x01))
+        XCTAssertNil(
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x24, modifiers: [], kittyFlags: 0x01))
+        XCTAssertNil(
+            InputEventEncoder.ansiEscapeForSpecialKey(
+                keyCode: 0x4C, modifiers: [], kittyFlags: 0x01))
     }
 
     func testShiftEnterWithoutKittyKeepsEscCR() {

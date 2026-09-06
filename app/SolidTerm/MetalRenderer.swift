@@ -588,7 +588,8 @@ final class MetalRenderer {
                 self.cells = Self.makeBlankGrid(
                     cols: gridCols, rows: gridRows, palette: resolvedPalette)
                 try? gridPipeline?.setGrid(
-                    self.cells, atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
+                    self.cells, atlasSize: GlyphAtlas.atlasSize,
+                    colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
             }
         }
         // Keep the engine's OSC 10/11/12 reply colors in lockstep with the
@@ -674,7 +675,7 @@ final class MetalRenderer {
     private static func cursorEqual(_ a: CursorState?, _ b: CursorState?) -> Bool {
         switch (a, b) {
         case (nil, nil): return true
-        case let (l?, r?):
+        case (let l?, let r?):
             return l.row == r.row && l.col == r.col
                 && l.shape == r.shape && l.blink == r.blink
                 && l.hidden == r.hidden
@@ -774,7 +775,8 @@ final class MetalRenderer {
                 rows: gridRows)
             // No frameSlot needed: fresh pipeline — these textures have never been submitted; in-flight buffers retain the old set.
             try newPipeline.setGrid(
-                self.cells, atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
+                self.cells, atlasSize: GlyphAtlas.atlasSize,
+                colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
             self.atlas = newAtlas
             self.gridPipeline = newPipeline
             // Keep the window size fixed; reflow the cell grid against
@@ -785,7 +787,8 @@ final class MetalRenderer {
             // forward to `resizeGrid`, which propagates through to
             // alacritty via the FFI.
             let viewSize = window.contentRect(
-                forFrameRect: window.frame).size
+                forFrameRect: window.frame
+            ).size
             let cellW = newAtlas.cellSizePt.width
             let cellH = newAtlas.cellSizePt.height
             if cellW > 0, cellH > 0 {
@@ -868,7 +871,9 @@ final class MetalRenderer {
             self.cells = Self.makeBlankGrid(
                 cols: gridCols, rows: gridRows, palette: resolvedPalette)
             // No frameSlot needed: fresh pipeline — textures are new and unsubmitted; in-flight buffers retain the old set.
-            try pipeline.setGrid(self.cells, atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
+            try pipeline.setGrid(
+                self.cells, atlasSize: GlyphAtlas.atlasSize,
+                colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
             self.atlas = atlas
             self.gridPipeline = pipeline
         } catch {
@@ -976,7 +981,9 @@ final class MetalRenderer {
         // un-touched area of the viewport.
         do {
             // No frameSlot needed: fresh pipeline — textures have never been submitted; in-flight buffers continue sampling the old pipeline's set.
-            try newPipeline.setGrid(cells, atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
+            try newPipeline.setGrid(
+                cells, atlasSize: GlyphAtlas.atlasSize,
+                colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
         } catch {
             NSLog(
                 "MetalRenderer.resizeGrid: setGrid after rebuild failed: %@",
@@ -1040,7 +1047,8 @@ final class MetalRenderer {
             effective = sticky
             subtitle = lastCwd.isEmpty ? "" : Self.displayCwd(lastCwd)
         } else if !lastCwd.isEmpty {
-            effective = (lastCwd as NSString).lastPathComponent.isEmpty
+            effective =
+                (lastCwd as NSString).lastPathComponent.isEmpty
                 ? lastCwd
                 : (lastCwd as NSString).lastPathComponent
             subtitle = Self.displayCwd(lastCwd)
@@ -1350,7 +1358,8 @@ final class MetalRenderer {
         // observable here so we can decide whether to encode.
         let hadPendingCells = !pendingCellWrites.isEmpty
         let compositionWasInvalidated = compositionInvalidated
-        let compositionActive = (hostView?.activeComposition != nil)
+        let compositionActive =
+            (hostView?.activeComposition != nil)
             || !preeditPaintedCells.isEmpty
 
         // Apply engine-driven cell writes + keystroke-spike + composition
@@ -1416,7 +1425,8 @@ final class MetalRenderer {
             }
             for (index, slot) in pendingCellWrites {
                 try? pipeline.setCell(
-                    at: index, slot: slot, atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
+                    at: index, slot: slot, atlasSize: GlyphAtlas.atlasSize,
+                    colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
             }
             pendingCellWrites.removeAll(keepingCapacity: true)
             applyCompositionStateIfNeeded(pipeline: pipeline, atlas: atlas)
@@ -1438,7 +1448,8 @@ final class MetalRenderer {
         // A blinking, visible cursor is animation work — we must encode
         // every tick during blink (the eased curve from V2 will smooth
         // this, but the simple binary fallback already requires it).
-        let blinkAnimating = (lastCursor?.blink ?? false)
+        let blinkAnimating =
+            (lastCursor?.blink ?? false)
             && !(lastCursor?.hidden ?? true)
 
         let pendingKeystrokeFrame = !pendingKeystrokeTimes.isEmpty
@@ -1465,7 +1476,8 @@ final class MetalRenderer {
             return true
         }()
 
-        let needsEncode = !hasPresented
+        let needsEncode =
+            !hasPresented
             || pendingRedraw
             || frameHadCells
             || hadPendingCells
@@ -1510,8 +1522,7 @@ final class MetalRenderer {
             // M5.5-3: cell grid is shifted right by the 24pt gutter.
             // `gridOriginPx` is in pixels (drawable space), so multiply
             // by the layer's contentsScale (Retina 2× or 1× external).
-            let gutterPx = Float(Theme.Gutter.widthPt) *
-                Float(layer.contentsScale)
+            let gutterPx = Float(Theme.Gutter.widthPt) * Float(layer.contentsScale)
             let gridOriginPx = SIMD2<Float>(gutterPx, 0)
 
             // Cursor visibility fix: resolve the block-cursor reverse-video
@@ -1776,7 +1787,8 @@ final class MetalRenderer {
         // translate alacritty-absolute match lines into viewport rows
         // every frame (so highlights track content as the user scrolls
         // without re-running search).
-        let scrollChanged = self.lastScrollTop != Int(frame.scroll_top)
+        let scrollChanged =
+            self.lastScrollTop != Int(frame.scroll_top)
             || self.lastScrollTotal != Int(frame.scroll_total)
         self.lastScrollTop = Int(frame.scroll_top)
         self.lastScrollTotal = Int(frame.scroll_total)
@@ -1856,7 +1868,8 @@ final class MetalRenderer {
             do {
                 try pipeline.setRegion(
                     rect: rect, slots: slots,
-                    atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
+                    atlasSize: GlyphAtlas.atlasSize,
+                    colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
             } catch {
                 // Bounds errors from a misbehaving Rust producer are
                 // logged but non-fatal — drop the run and continue;
@@ -1900,8 +1913,10 @@ final class MetalRenderer {
         resolved.reserveCapacity(coalesced.count)
         for cell in coalesced {
             guard let primary = makeSlot(cell) else { continue }
-            resolved.append((
-                row: Int(cell.row), col: Int(cell.col), slot: primary))
+            resolved.append(
+                (
+                    row: Int(cell.row), col: Int(cell.col), slot: primary
+                ))
             // Emit cellSpan-1 continuation cells. Each carries the
             // primary's bg so the cluster row paints a contiguous
             // background; foreground is irrelevant (no glyph). The
@@ -1915,10 +1930,12 @@ final class MetalRenderer {
                     bgColorLinear: primary.bgColorLinear,
                     attrs: primary.attrs)
                 for k in 1..<Int(span) {
-                    resolved.append((
-                        row: Int(cell.row),
-                        col: Int(cell.col) + k,
-                        slot: continuation))
+                    resolved.append(
+                        (
+                            row: Int(cell.row),
+                            col: Int(cell.col) + k,
+                            slot: continuation
+                        ))
                 }
             }
         }
@@ -1952,7 +1969,8 @@ final class MetalRenderer {
             do {
                 try pipeline.setRegion(
                     rect: rect, slots: slots,
-                    atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
+                    atlasSize: GlyphAtlas.atlasSize,
+                    colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
             } catch {
                 NSLog(
                     "MetalRenderer.applyCoalescedCellsAsRegions: setRegion "
@@ -2228,7 +2246,8 @@ final class MetalRenderer {
             return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
         }
         if clusterString.unicodeScalars.count == 1,
-           scalar.value == 0x20, cell.cellSpan <= 1 {
+            scalar.value == 0x20, cell.cellSpan <= 1
+        {
             return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
         }
 
@@ -2478,7 +2497,8 @@ final class MetalRenderer {
         // `blinkOriginTime` on resume so the cursor enters at the
         // visible-steady phase rather than mid-fade.
         let timeSinceKey = now - lastKeystrokeTime
-        let typingActive = lastKeystrokeTime > 0
+        let typingActive =
+            lastKeystrokeTime > 0
             && timeSinceKey < Self.blinkPauseAfterKeystrokeSec
         // UX6: re-anchor `blinkOriginTime` only on the typing → idle
         // transition. Continuously anchoring during typing made `elapsed`
@@ -2607,7 +2627,8 @@ final class MetalRenderer {
                     col: col, row: row, width: 1, height: 1)
                 try? pipeline.setRegion(
                     rect: rect, slots: [restoredSlot],
-                    atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
+                    atlasSize: GlyphAtlas.atlasSize,
+                    colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
             }
             preeditPaintedCells.removeAll(keepingCapacity: true)
         }
@@ -2871,7 +2892,8 @@ final class MetalRenderer {
             }
         }
 
-        let widthPx: Float = hovering
+        let widthPx: Float =
+            hovering
             ? Self.scrollbarHoverWidthPx
             : Self.scrollbarRestingWidthPx
 
@@ -3091,7 +3113,8 @@ final class MetalRenderer {
         // accepted.
         let scrollback = UserDefaults.standard.integer(
             forKey: ScrollbackSettings.userDefaultsKey)
-        let scrollbackLines = scrollback > 0
+        let scrollbackLines =
+            scrollback > 0
             ? UInt32(clamping: scrollback)
             : 0
         let config = SessionConfig(

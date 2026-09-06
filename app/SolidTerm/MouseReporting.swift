@@ -52,7 +52,8 @@ enum MouseReporting {
             motion: false,
             modifiers: event.modifierFlags,
             release: !pressed && !sgr)
-        let payload = sgr
+        let payload =
+            sgr
             ? sgrFormat(cb: cb, row: row, col: col, pressed: pressed)
             : legacyFormat(cb: cb, row: row, col: col)
         send(session: session, payload: payload)
@@ -77,7 +78,8 @@ enum MouseReporting {
             motion: true,
             modifiers: event.modifierFlags,
             release: false)
-        let payload = sgr
+        let payload =
+            sgr
             ? sgrFormat(cb: cb, row: row, col: col, pressed: true)
             : legacyFormat(cb: cb, row: row, col: col)
         send(session: session, payload: payload)

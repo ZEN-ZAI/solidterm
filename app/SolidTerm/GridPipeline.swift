@@ -183,7 +183,8 @@ final class GridPipeline {
                 let originUV = entry.uvOrigin(atlasSize: normSize)
                 uvBytes[uvBase + 0] = unitToShort(originUV.x)
                 uvBytes[uvBase + 1] = unitToShort(originUV.y)
-                selectorBytes[i] = packSelector(atlasIndex: entry.atlasIndex, cellSpan: entry.cellSpan)
+                selectorBytes[i] = packSelector(
+                    atlasIndex: entry.atlasIndex, cellSpan: entry.cellSpan)
             }
             // Blank cells leave `(0, 0)` UV + packed selector 0. With
             // cellSpan=0 in the high byte the shader treats them as
@@ -279,7 +280,8 @@ final class GridPipeline {
                 let originUV = entry.uvOrigin(atlasSize: normSize)
                 uvBytes[uvBase + 0] = unitToShort(originUV.x)
                 uvBytes[uvBase + 1] = unitToShort(originUV.y)
-                selectorBytes[i] = packSelector(atlasIndex: entry.atlasIndex, cellSpan: entry.cellSpan)
+                selectorBytes[i] = packSelector(
+                    atlasIndex: entry.atlasIndex, cellSpan: entry.cellSpan)
             }
             // Blank cells leave (0, 0) UV + packed selector 0.
         }

@@ -16,37 +16,42 @@ final class MouseReportingTests: XCTestCase {
     /// Left-click press at (row=2, col=5). SGR form:
     ///   `\e[<0;6;3M` — cb=0 (left), col=col+1, row=row+1, M=press.
     func testSGR_leftClickPress_emitsCanonicalForm() {
-        let s = sgr(button: 0, motion: false, mods: [], release: false,
-                    row: 2, col: 5)
+        let s = sgr(
+            button: 0, motion: false, mods: [], release: false,
+            row: 2, col: 5)
         XCTAssertEqual(s, "\u{1B}[<0;6;3M")
     }
 
     /// Same coordinates, release. SGR uses lowercase `m`.
     func testSGR_leftClickRelease_usesLowercaseM() {
-        let s = sgr(button: 0, motion: false, mods: [], release: false,
-                    row: 2, col: 5, pressed: false)
+        let s = sgr(
+            button: 0, motion: false, mods: [], release: false,
+            row: 2, col: 5, pressed: false)
         XCTAssertEqual(s, "\u{1B}[<0;6;3m")
     }
 
     /// Right-click (button 2) with Shift held. Cb = 2 | 0x04 = 6.
     func testSGR_rightClickWithShift_setsShiftBit() {
-        let s = sgr(button: 2, motion: false, mods: [.shift], release: false,
-                    row: 0, col: 0)
+        let s = sgr(
+            button: 2, motion: false, mods: [.shift], release: false,
+            row: 0, col: 0)
         XCTAssertEqual(s, "\u{1B}[<6;1;1M")
     }
 
     /// Drag (left-button motion). Cb = 0 | 0x20 = 32.
     func testSGR_leftDrag_setsMotionBit() {
-        let s = sgr(button: 0, motion: true, mods: [], release: false,
-                    row: 10, col: 7)
+        let s = sgr(
+            button: 0, motion: true, mods: [], release: false,
+            row: 10, col: 7)
         XCTAssertEqual(s, "\u{1B}[<32;8;11M")
     }
 
     /// Wheel-up (button 64). Cb stays 64; xterm doesn't OR the
     /// motion bit on wheel events. Coordinates 1-based.
     func testSGR_wheelUp_keepsButtonCode() {
-        let s = sgr(button: 64, motion: false, mods: [], release: false,
-                    row: 0, col: 0)
+        let s = sgr(
+            button: 64, motion: false, mods: [], release: false,
+            row: 0, col: 0)
         XCTAssertEqual(s, "\u{1B}[<64;1;1M")
     }
 
@@ -56,8 +61,9 @@ final class MouseReportingTests: XCTestCase {
     /// bytes get +32 (cb) or +33 (col/row) offsets — 1-based with
     /// the additional ASCII-printable offset.
     func testLegacy_leftClickPress_emitsCSI_M_form() {
-        let s = legacy(button: 0, motion: false, mods: [], release: false,
-                       row: 2, col: 5)
+        let s = legacy(
+            button: 0, motion: false, mods: [], release: false,
+            row: 2, col: 5)
         // ESC [ M Cb Cx Cy → ESC [ M 32 38 35
         let expected: [UInt8] = [
             0x1B, UInt8(ascii: "["), UInt8(ascii: "M"),
@@ -70,8 +76,9 @@ final class MouseReportingTests: XCTestCase {
     /// code) — the host has to infer which button from the prior
     /// press event. SGR avoids this ambiguity.
     func testLegacy_release_collapsesButtonTo3() {
-        let s = legacy(button: 0, motion: false, mods: [], release: true,
-                       row: 0, col: 0)
+        let s = legacy(
+            button: 0, motion: false, mods: [], release: true,
+            row: 0, col: 0)
         // cb=3+32=35, cx=0+33=33, cy=0+33=33
         let expected: [UInt8] = [
             0x1B, UInt8(ascii: "["), UInt8(ascii: "M"),

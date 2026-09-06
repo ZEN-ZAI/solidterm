@@ -166,9 +166,9 @@ public enum KeybindingAction: String, CaseIterable, Hashable {
         case .openSettings: return .app
         case .newWindow, .closeWindow, .switchTerminal: return .window
         case .newTab, .closeTab, .prevTab, .nextTab,
-             .selectTab1, .selectTab2, .selectTab3,
-             .selectTab4, .selectTab5, .selectTab6,
-             .selectTab7, .selectTab8, .selectTab9:
+            .selectTab1, .selectTab2, .selectTab3,
+            .selectTab4, .selectTab5, .selectTab6,
+            .selectTab7, .selectTab8, .selectTab9:
             return .tabs
         case .increaseFontSize, .decreaseFontSize, .resetFontSize:
             return .font

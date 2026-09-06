@@ -70,12 +70,14 @@ final class ToastOverlay {
 
     private func dismiss() {
         guard let panel else { return }
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.2
-            panel.animator().alphaValue = 0
-        }, completionHandler: { [weak panel] in
-            panel?.orderOut(nil)
-        })
+        NSAnimationContext.runAnimationGroup(
+            { ctx in
+                ctx.duration = 0.2
+                panel.animator().alphaValue = 0
+            },
+            completionHandler: { [weak panel] in
+                panel?.orderOut(nil)
+            })
     }
 
     private func ensurePanel() -> NSPanel {

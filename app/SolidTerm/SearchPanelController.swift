@@ -107,7 +107,7 @@ public final class SearchPanelController: NSObject {
                 ctx.timingFunction = CAMediaTimingFunction(
                     controlPoints:
                         Theme.Motion.easeOut.0, Theme.Motion.easeOut.1,
-                        Theme.Motion.easeOut.2, Theme.Motion.easeOut.3)
+                    Theme.Motion.easeOut.2, Theme.Motion.easeOut.3)
                 p.animator().setFrame(target, display: true)
                 p.animator().alphaValue = 1
             }
@@ -154,33 +154,35 @@ public final class SearchPanelController: NSObject {
 
         let reduce = Self.reduceMotion()
         if animated, !reduce {
-            NSAnimationContext.runAnimationGroup({ ctx in
-                ctx.duration = Theme.Motion.fast
-                ctx.timingFunction = CAMediaTimingFunction(
-                    controlPoints:
-                        Theme.Motion.easeIn.0, Theme.Motion.easeIn.1,
+            NSAnimationContext.runAnimationGroup(
+                { ctx in
+                    ctx.duration = Theme.Motion.fast
+                    ctx.timingFunction = CAMediaTimingFunction(
+                        controlPoints:
+                            Theme.Motion.easeIn.0, Theme.Motion.easeIn.1,
                         Theme.Motion.easeIn.2, Theme.Motion.easeIn.3)
-                p.animator().alphaValue = 0
-            }, completionHandler: { [weak self, weak p] in
-                // If `present()` reset `isDismissing` to false while
-                // our fade-out was in flight, the user has re-opened
-                // the panel with ⌘F and a fresh fade-in is already
-                // animating. Bail without `orderOut` — otherwise we
-                // re-hide the panel the user just asked to see and
-                // the second ⌘F appears to "not open" (reproduced
-                // 2026-05-19).
-                guard let self, self.isDismissing else {
-                    // Still keep the visual state consistent for the
-                    // panel handle the previous flow grabbed — but
-                    // don't touch the panel because it may have been
-                    // re-presented with its own animator's alpha.
-                    return
-                }
-                p?.orderOut(nil)
-                p?.alphaValue = 1
-                self.isDismissing = false
-                self.restoreFocusToTerminal()
-            })
+                    p.animator().alphaValue = 0
+                },
+                completionHandler: { [weak self, weak p] in
+                    // If `present()` reset `isDismissing` to false while
+                    // our fade-out was in flight, the user has re-opened
+                    // the panel with ⌘F and a fresh fade-in is already
+                    // animating. Bail without `orderOut` — otherwise we
+                    // re-hide the panel the user just asked to see and
+                    // the second ⌘F appears to "not open" (reproduced
+                    // 2026-05-19).
+                    guard let self, self.isDismissing else {
+                        // Still keep the visual state consistent for the
+                        // panel handle the previous flow grabbed — but
+                        // don't touch the panel because it may have been
+                        // re-presented with its own animator's alpha.
+                        return
+                    }
+                    p?.orderOut(nil)
+                    p?.alphaValue = 1
+                    self.isDismissing = false
+                    self.restoreFocusToTerminal()
+                })
         } else {
             p.orderOut(nil)
             p.alphaValue = 1

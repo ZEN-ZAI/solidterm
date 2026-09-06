@@ -48,7 +48,8 @@ struct SearchPanelView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 14, weight: .regular))
                 .foregroundColor(
-                    Color(linear: Theme.Color.textTertiaryLinear))
+                    Color(linear: Theme.Color.textTertiaryLinear)
+                )
                 .accessibilityHidden(true)
 
             SearchPanelSearchField(
@@ -69,8 +70,10 @@ struct SearchPanelView: View {
                 model.onSearch()
             }) {
                 Text(".*")
-                    .font(.system(
-                        size: 12, weight: .medium, design: .monospaced))
+                    .font(
+                        .system(
+                            size: 12, weight: .medium, design: .monospaced)
+                    )
                     .padding(.horizontal, Theme.Spacing.one)
                     .padding(.vertical, 2)
                     .background(
@@ -89,7 +92,8 @@ struct SearchPanelView: View {
             Text(model.parseError != nil ? "regex error" : model.counterText)
                 .font(.system(size: 11))
                 .foregroundColor(
-                    Color(linear: Theme.Color.textTertiaryLinear))
+                    Color(linear: Theme.Color.textTertiaryLinear)
+                )
                 .frame(minWidth: 56, alignment: .trailing)
                 .accessibilityIdentifier("searchPanel.counter")
 

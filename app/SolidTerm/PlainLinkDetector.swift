@@ -161,12 +161,12 @@ final class PlainLinkDetector {
     }
 }
 
-private extension Character {
+extension Character {
     /// Approximates alacritty's display-width oracle: true for the East
     /// Asian Wide / Fullwidth ranges and most emoji (two terminal cells).
     /// A miss only shifts the hover underline by a cell — URL/path hit
     /// detection is unaffected since those are ASCII.
-    var isWideTerminalCharacter: Bool {
+    fileprivate var isWideTerminalCharacter: Bool {
         for s in unicodeScalars {
             let v = s.value
             switch v {

@@ -133,7 +133,8 @@ public final class FontSettings: ObservableObject {
         // font — which is variable-width and would visibly break the
         // grid. Detect that case by checking the resolved PostScript
         // name + falling back through a monospace cascade.
-        let resolvedName = CTFontCopyName(primary, kCTFontPostScriptNameKey)
+        let resolvedName =
+            CTFontCopyName(primary, kCTFontPostScriptNameKey)
             as String? ?? ""
         if resolvedName == family
             || resolvedName.lowercased().contains("menlo")

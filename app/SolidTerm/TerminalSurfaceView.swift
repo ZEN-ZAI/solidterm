@@ -1075,7 +1075,8 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
             // viewport edge — slow near the edge (60 ms / line) so
             // the user can stop precisely, fast when dragged far
             // outside (30 ms / line). Boundary at 30pt outside.
-            let distPastEdge: CGFloat = aboveTop
+            let distPastEdge: CGFloat =
+                aboveTop
                 ? pointInView.y - viewportTop
                 : viewportBottom - pointInView.y
             let intervalMs: Int = distPastEdge > 30 ? 30 : 60
@@ -1652,7 +1653,8 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
             while scrubbed.contains("\u{1B}[200~")
                 || scrubbed.contains("\u{1B}[201~")
             {
-                scrubbed = scrubbed
+                scrubbed =
+                    scrubbed
                     .replacingOccurrences(of: "\u{1B}[200~", with: "")
                     .replacingOccurrences(of: "\u{1B}[201~", with: "")
             }
@@ -1702,8 +1704,9 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     /// about. Anything else (PDF, text, archives) gets shell-quoted
     /// as a path so the TUI can read or open it via its own tools.
     static func isImageFile(_ url: URL) -> Bool {
-        guard let type = try? url.resourceValues(forKeys: [.contentTypeKey])
-            .contentType
+        guard
+            let type = try? url.resourceValues(forKeys: [.contentTypeKey])
+                .contentType
         else { return false }
         return type.conforms(to: .image)
     }
@@ -1752,7 +1755,8 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
                 UInt16(clamping: prev.get(index: 0) ?? 0),
                 UInt16(clamping: prev.get(index: 1) ?? 0),
                 UInt16(clamping: prev.get(index: 2) ?? 0),
-                UInt16(clamping: prev.get(index: 3) ?? 0))
+                UInt16(clamping: prev.get(index: 3) ?? 0)
+            )
         } else {
             stashed = nil
         }
@@ -2294,7 +2298,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
 
     private func scheduleDebouncedResize(targetSize: NSSize) {
         pendingResizeSize = targetSize
-        if let _ = pendingResizeTimer { return }  // timer in flight
+        if pendingResizeTimer != nil { return }  // timer in flight
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + .milliseconds(50))
         timer.setEventHandler { [weak self] in
@@ -2376,7 +2380,6 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
             width: max(1, size.width * scale),
             height: max(1, size.height * scale))
     }
-
 
     // MARK: - M6-2 ⌘+hover / ⌘+click file-path open
     // MARK: - M7-1 ⌘+hover / ⌘+click OSC 8 hyperlink open
@@ -2476,7 +2479,8 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         // file paths in `hoveredPath` (opened in the configured editor) —
         // the same fields the OSC 8 branch and `mouseDown` already use.
         let detectionEnabled =
-            UserDefaults.standard.object(forKey: AppearanceTab.Keys.detectionEnabled) as? Bool ?? true
+            UserDefaults.standard.object(forKey: AppearanceTab.Keys.detectionEnabled) as? Bool
+            ?? true
         if detectionEnabled {
             let rowText = session.row_text(row).toString()
             if let link = PlainLinkDetector.shared.detect(

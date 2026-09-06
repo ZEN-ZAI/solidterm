@@ -133,7 +133,8 @@ final class TerminalSurfaceViewTests: XCTestCase {
     /// 80 cols of cells.
     @MainActor
     func testGridContentSizeIncludesGutter() {
-        let cols = 80, rows = 24
+        let cols = 80
+        let rows = 24
         let size = TerminalSurfaceView.gridContentSize(cols: cols, rows: rows)
         // Mirror gridContentSize's own font resolution so the test
         // tracks the active default (JetBrainsMono-Regular at 14pt).
@@ -167,10 +168,12 @@ final class TerminalSurfaceViewTests: XCTestCase {
         // to re-baseline the regression-pin comment.
         XCTAssertEqual(
             gutterPt, 0, accuracy: 0.5,
-            "B14: stripes-off (58d0b97) reclaimed the gutter — widthPt is 0 until chrome rework lands")
+            "B14: stripes-off (58d0b97) reclaimed the gutter — widthPt is 0 until chrome rework lands"
+        )
         XCTAssertEqual(
             gutterPt + 5 * cellWidthPt, gutterPt + 42, accuracy: 0.5,
-            "col=5 cursor view-x = gutter + 5 × cellWidth (formula holds regardless of gutter value)")
+            "col=5 cursor view-x = gutter + 5 × cellWidth (formula holds regardless of gutter value)"
+        )
     }
 
 }

@@ -54,8 +54,11 @@ final class WindowRestorationTests: XCTestCase {
         let key = RestoreSettings.enabledKey
         let saved = UserDefaults.standard.object(forKey: key)
         defer {
-            if let saved { UserDefaults.standard.set(saved, forKey: key) }
-            else { UserDefaults.standard.removeObject(forKey: key) }
+            if let saved {
+                UserDefaults.standard.set(saved, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
         }
         UserDefaults.standard.removeObject(forKey: key)
         XCTAssertTrue(RestoreSettings.enabled, "unset → ON")
@@ -97,7 +100,9 @@ final class WindowRestorationTests: XCTestCase {
         let key = RestoreSettings.prefillCommandKey
         let saved = UserDefaults.standard.object(forKey: key)
         defer {
-            if let saved { UserDefaults.standard.set(saved, forKey: key) } else {
+            if let saved {
+                UserDefaults.standard.set(saved, forKey: key)
+            } else {
                 UserDefaults.standard.removeObject(forKey: key)
             }
         }
@@ -109,7 +114,9 @@ final class WindowRestorationTests: XCTestCase {
         let key = RestoreSettings.prefillCommandKey
         let saved = UserDefaults.standard.object(forKey: key)
         defer {
-            if let saved { UserDefaults.standard.set(saved, forKey: key) } else {
+            if let saved {
+                UserDefaults.standard.set(saved, forKey: key)
+            } else {
                 UserDefaults.standard.removeObject(forKey: key)
             }
         }

@@ -16,7 +16,8 @@ enum ScrollbackSettings {
     /// preserved.
     static func resetAll() {
         let defaults = UserDefaults.standard
-        let domain = defaults.persistentDomain(forName: Bundle.main.bundleIdentifier ?? "")
+        let domain =
+            defaults.persistentDomain(forName: Bundle.main.bundleIdentifier ?? "")
             ?? [:]
         for key in domain.keys {
             if key.hasPrefix("solidterm.")

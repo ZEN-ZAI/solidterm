@@ -24,7 +24,8 @@ final class SettingsWindowE2ETests: XCTestCase {
     func testSettingsWindowExposesAllConfiguredTabs() {
         let projectRoot = URL(fileURLWithPath: NSTemporaryDirectory())
         let tabs = SettingsTab.defaults(projectRoot: projectRoot)
-        XCTAssertEqual(tabs.count, 2,
+        XCTAssertEqual(
+            tabs.count, 2,
             "SolidTerm exposes Appearance + Keybindings only")
         let ids = tabs.map(\.id)
         XCTAssertEqual(ids, ["appearance", "keybindings"])
