@@ -52,6 +52,5 @@ If your output contradicts an existing ADR, surface it explicitly rather than si
 
 ## Project note
 
-Design decisions live in `docs/adr/`. Older code comments cite `spec/…`,
-`decisions/…`, `research/…` sections of a retired pre-1.0 design archive;
-code and tests are authoritative (ticket 19 retires those citations).
+Design decisions live in `docs/adr/`. Code and tests are authoritative for
+everything an ADR does not cover.

@@ -10,9 +10,8 @@ A native macOS terminal emulator. Minimal, fast, solid. Terminal only.
 - **Terminal engine**: `alacritty_terminal` 0.26+ wrapped in `solidterm-engine`
 - **Min macOS**: 14 (Sonoma)
 
-Design decisions live in `docs/adr/`. Older code comments cite `spec/…`,
-`decisions/…`, `research/…` sections of a retired pre-1.0 design archive;
-code and tests are authoritative.
+Design decisions live in `docs/adr/`. Code and tests are authoritative for
+everything an ADR does not cover.
 
 ## Repo layout
 
