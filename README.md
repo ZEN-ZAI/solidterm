@@ -45,4 +45,5 @@ open ~/Library/Developer/Xcode/DerivedData/SolidTerm-*/Build/Products/Debug/Soli
 
 ## License
 
-GPL-3.0-or-later — see `LICENSE`.
+GPL-3.0-or-later — see `LICENSE`. Third-party components are listed in
+`THIRD_PARTY_NOTICES.md`.

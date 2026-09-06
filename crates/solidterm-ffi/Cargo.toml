@@ -4,6 +4,7 @@ description = "swift-bridge FFI surface — the only crate Swift links against"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 
 # Cross-language ABI version (ADR-0006). Bump on
