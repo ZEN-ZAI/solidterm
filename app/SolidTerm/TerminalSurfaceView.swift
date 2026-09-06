@@ -326,6 +326,16 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     /// renderer without exposing it on the wider public surface.
     var rendererForTesting: MetalRenderer { renderer }
 
+    /// Test seam: when non-nil, receives the exact payload
+    /// `performDragOperation` hands to the session, alongside the real
+    /// PTY write rather than instead of it. Nil in production, so the
+    /// drop path is byte-for-byte what it was; `DragDropTests` sets it
+    /// to assert the composed string without waiting on a shell echo.
+    /// Declared here rather than beside the drop handler because a
+    /// stored property cannot live in the extension ticket 13 moves
+    /// that section into.
+    var dropPayloadSink: ((String) -> Void)?
+
     /// Used by `TerminalWindowController` to plumb the source window's
     /// cwd into the renderer's pending-session slot. Called before
     /// `windowChanged` fires (which spawns the PTY); the renderer
@@ -1691,6 +1701,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
         let payload = items.map { Self.shellQuote($0.path) }
             .joined(separator: " ")
         session.scroll_to_bottom()
+        dropPayloadSink?(payload)
         // Drag-drop payloads can be large (many paths × long names).
         // Use the same chunked feeder as paste so the main thread
         // doesn't stall on a PTY-buffer-full `write_all`.
