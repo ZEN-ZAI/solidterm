@@ -1,5 +1,7 @@
 # Release runbook
 
+Status: target state, not yet implemented — current release path is `scripts/build-release-dmg.sh`.
+
 Concrete checklist for cutting a SolidTerm release. Reference source: `vault/research/15-release-engineering.md`.
 
 This doc is the on-call playbook — step-by-step with no interpretation needed. Anything marked `❗` requires human verification.
@@ -53,7 +55,7 @@ git push origin v1.0.0-beta.1
 Sparkle maps pre-release semver (`-beta.N`, `-rc.N`) to the `beta` channel via `<sparkle:channel>` in the appcast; stable users never see it unless they opt in with:
 
 ```bash
-defaults write dev.solidterm.app SUChannel beta
+defaults write com.zenzai.SolidTerm SUChannel beta
 ```
 
 ## Rollback procedure
@@ -70,9 +72,9 @@ If a released DMG is found to crash or ship a regression:
 
 If `notarytool submit` times out or errors:
 
-- `xcrun notarytool history --keychain-profile NEXTTERM_NOTARY` — list recent submissions
-- `xcrun notarytool info <submission-id> --keychain-profile NEXTTERM_NOTARY` — detail
-- `xcrun notarytool log <submission-id> --keychain-profile NEXTTERM_NOTARY` — reason for rejection
+- `xcrun notarytool history --keychain-profile SOLIDTERM_NOTARY` — list recent submissions
+- `xcrun notarytool info <submission-id> --keychain-profile SOLIDTERM_NOTARY` — detail
+- `xcrun notarytool log <submission-id> --keychain-profile SOLIDTERM_NOTARY` — reason for rejection
 - Most common rejections: missing entitlement justification, unsigned nested binary, `allow-unsigned-executable-memory` without reason
 
 ## Secrets checklist (GitHub Actions)

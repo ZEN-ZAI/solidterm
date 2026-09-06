@@ -1,12 +1,12 @@
 # Contributing to SolidTerm
 
-Short version: SolidTerm is a solo project in its early phase. Drive-by PRs are welcome but may be declined if they don't fit the roadmap in `vault/ROADMAP.md`. Documentation / test / fixture contributions are the easiest to land.
+Short version: SolidTerm is a solo project in its early phase. Drive-by PRs are welcome but may be declined if they don't fit what's planned in `.scratch/` (see `docs/agents/issue-tracker.md`). Documentation / test / fixture contributions are the easiest to land.
 
 ## Before you start
 
 1. Read `AGENTS.md` — conventions for humans and AI agents
 2. Read `CLAUDE.md` — project orientation
-3. Skim `vault/decisions/` — committed architecture decisions
+3. Skim `docs/adr/` — committed architecture decisions
 4. For non-trivial changes, open an issue first to sanity-check the approach
 
 ## Setup
@@ -52,12 +52,12 @@ Commit the regenerated `.xcodeproj` in the **same commit** as the YAML change so
 
 ## Proposing a decision
 
-Architectural changes go through a lightweight ADR:
+Architectural changes go through a lightweight ADR in `docs/adr/` (format per `docs/agents/domain.md`):
 
-1. Copy the template: `cp vault/decisions/_template.md vault/decisions/NN-your-decision.md` (where `NN` is the next chronological number — never renumber existing files)
+1. Add `docs/adr/NNNN-your-decision.md`, where `NNNN` is the next chronological number — never renumber existing files
 2. Fill in title / status `proposed` / context / decision / consequences
-3. Open a PR linking the new decision
-4. Once merged, update status to `decided`
+3. Open a PR linking the new ADR
+4. Once merged, update status to `accepted`
 
 ## Proposing a change
 
@@ -71,12 +71,7 @@ For code / spec changes:
 
 ## Scope
 
-See `vault/ROADMAP.md` for phase scope. In short:
-
-- **Phase 0** (now): scaffold, Metal spike
-- **Phase 1** (weeks 1-16): MVP → daily-driver
-- **Phase 2** (months 5-6): beta → 1.0
-- **Phase 3+**: bridge, plugins, ecosystem
+Planned work lives in `.scratch/<feature-slug>/` — one spec plus one file per ticket, per `docs/agents/issue-tracker.md`. `CLAUDE.md` lists what SolidTerm covers today.
 
 Features not yet in scope (e.g. Linux port, plugin marketplace) need a discussion issue + decision before implementation.
 

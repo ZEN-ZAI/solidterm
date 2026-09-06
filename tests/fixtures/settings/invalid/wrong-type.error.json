@@ -1,7 +1,0 @@
-{
-  "kind": "TypeMismatch",
-  "errors": [
-    { "path": "model", "expected": "string", "actual": "integer" },
-    { "path": "alwaysThinkingEnabled", "expected": "bool", "actual": "string" }
-  ]
-}

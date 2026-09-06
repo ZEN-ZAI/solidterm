@@ -1,6 +1,6 @@
 # Security disclosure policy
 
-SolidTerm is a native macOS terminal that handles shell sessions, Claude Code interactions, and credentials in flight. Security reports are taken seriously; this document tells you how to disclose responsibly.
+SolidTerm is a native macOS terminal: it spawns shells on a PTY, parses whatever bytes they emit, and writes to the system clipboard on their behalf. Security reports are taken seriously; this document tells you how to disclose responsibly.
 
 ## Reporting a vulnerability
 
@@ -11,7 +11,7 @@ Email the maintainer directly: `zen.kiattikhunnawong@gmail.com` with subject `[S
 Include in the report:
 - Affected SolidTerm version (output of `defaults read /Applications/SolidTerm.app/Contents/Info.plist CFBundleShortVersionString`)
 - macOS version
-- Vulnerability class (e.g. credential exposure, sandbox escape, code-injection via OSC sequence)
+- Vulnerability class (e.g. code injection via an OSC sequence, clipboard write the user never asked for)
 - Reproduction steps + observed behavior + expected behavior
 - Proof-of-concept payload if applicable (avoid testing against systems you don't own)
 - Suggested fix if you have one (optional)
@@ -22,18 +22,15 @@ You'll receive an acknowledgment within 72 hours. Coordinated disclosure timelin
 
 In-scope vulnerability classes:
 
-- **Credential exposure** — secrets in environment variables, Keychain entries, or session files leaking to logs / unauthenticated processes / other panes
-- **Code injection** — OSC / DCS / CSI sequences that escape parsing into shell-executable code
-- **Sandbox escape** — JavaScript-style runtime escapes from the SwiftUI host into arbitrary process exec
-- **Data integrity** — terminal output rewriting, scrollback poisoning, permission-prompt spoofing
-- **Hook abuse** — `.claude/settings.json` hook scripts running with privileges they shouldn't have
-- **FFI memory safety** — bridge.rs `unsafe` blocks (deliberately scoped per `feedback_directive_precision_flagging_not_authorizing`'s wider `unsafe_code = "warn"` policy)
+- **OSC injection** — OSC 7 (cwd), OSC 8 (hyperlinks), OSC 52 (clipboard) or OSC 133 (prompt markers) escaping the parser into shell-executable code, or forging state the user is asked to trust
+- **PTY / shell integration** — the shell-integration snippets (`solidterm.zsh` / `.bash` / `.fish`) or the PTY spawn path letting untrusted output run commands, alter the environment, or survive the session
+- **Clipboard writes** — remote or scrollback content writing the system pasteboard without user intent (OSC 52 is the obvious vector; selection sync is the subtle one)
+- **Theme / keybinding file parsing** — a malicious TOML theme or keybinding file causing anything worse than a parse error
 
 Out-of-scope (SolidTerm doesn't own these):
 - macOS itself, Apple Silicon firmware, Metal driver
 - `alacritty_terminal` upstream parser (report to alacritty/alacritty)
 - `swift-bridge` (report to chinedufn/swift-bridge)
-- The `claude` CLI itself (report to Anthropic)
 - Third-party shells / TUIs the user happens to run inside SolidTerm
 
 ## Beta-release security posture
@@ -51,7 +48,7 @@ Until then: only run SolidTerm beta builds on a Mac you control + only install D
 Per `decisions/03-telemetry.md`:
 - No analytics SDKs (Mixpanel, Sentry, Rollbar, etc.)
 - No usage tracking, crash uploads, anonymous metrics, or UUIDs
-- No outbound network calls except those the user initiates (e.g. running `claude` which talks to Anthropic, or `curl` in their shell)
+- No outbound network calls except those the user initiates from their own shell (e.g. `curl`)
 - The CI gate `scripts/check-no-analytics.sh` enforces this on every commit
 
 Found a network call you can't account for? That's a security report — please send one.

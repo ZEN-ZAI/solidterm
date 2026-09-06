@@ -24,7 +24,7 @@ labels: bug
 
 <!--
 Smallest reliable recipe.
-If it involves Claude Code sessions, include the session ID (safe to share — we'll redact if needed).
+If it involves a specific TUI (vim, htop, claude, …), name it and the terminal size.
 -->
 
 ## Logs / output

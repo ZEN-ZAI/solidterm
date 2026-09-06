@@ -22,7 +22,6 @@ Drop sections that don't apply.
   - [ ] No new outbound network endpoint (or decisions/03-telemetry.md updated)
   - [ ] No perf regression >5% (or explicit // PERF-REGRESSION: comment)
   - [ ] No new dep introduced (or justified below)
-  - [ ] No copy of code from codeaashu/claude-code leaked source
 -->
 
 ## Tests

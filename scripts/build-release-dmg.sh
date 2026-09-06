@@ -12,7 +12,7 @@
 # Phase 2 deferrals (intentional, NOT missing functionality):
 # - No `codesign --sign "Developer ID Application"` — ad-hoc signing only.
 # - No `notarytool` submit — Gatekeeper will warn on first launch; users
-#   right-click → Open to bypass. Documented in docs/BETA.md (M6-7).
+#   right-click → Open to bypass.
 # - No homebrew tap — direct DMG download for M6 beta.
 # - No CI release workflow — invoke this script manually.
 #

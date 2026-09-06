@@ -1,6 +1,0 @@
-{"type":"system","subtype":"init","cwd":"/tmp/nextterm-fixture","session_id":"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee","model":"claude-opus-4-7","permissionMode":"default","tools":["Read"],"agents":[],"plugins":[],"mcp_servers":[],"claude_code_version":"2.1.119"}
-{"type":"user","message":{"role":"user","content":"Tell me a joke"},"session_id":"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"}
-{"type":"rate_limit_event","kind":"5h","reset":"2026-04-25T20:00:00Z","utilization":0.85,"model":"claude-opus-4-7","session_id":"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"}
-{"type":"assistant","message":{"id":"msg_01","model":"claude-opus-4-7","role":"assistant","content":[{"type":"text","text":"Why don't terminals tell jokes? They're afraid of the punch line — it might segfault."}],"usage":{"input_tokens":12,"output_tokens":22,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"session_id":"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"}
-{"type":"rate_limit_event","kind":"5h","reset":"2026-04-25T20:00:00Z","utilization":0.99,"model":"claude-opus-4-7","session_id":"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"}
-{"type":"result","subtype":"success","is_error":false,"duration_ms":1800,"num_turns":1,"session_id":"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee","total_cost_usd":0.018,"usage":{"input_tokens":12,"output_tokens":22}}

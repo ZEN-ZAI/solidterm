@@ -8,9 +8,6 @@ Inputs for NextTerm's tests at every tier. Spec: `vault/spec/test-fixtures.md`.
 font-corpus/     ← script + grapheme edge cases (.txt + .json expected)
 vttest/          ← VT100/220/420 corpus (mirrored from xterm upstream)
 osc-sequences/   ← real captures of OSC-emitting shells (.bin)
-stream-json/     ← Claude Code session recordings (.jsonl, redacted)
-claude-md/       ← CLAUDE.md hierarchy discovery test cases
-settings/        ← valid + invalid settings.json samples
 ```
 
 ## Refresh policy
@@ -22,9 +19,6 @@ settings/        ← valid + invalid settings.json samples
 | `font-corpus/` | `scripts/regen-font-corpus.sh` after intentional renderer change. Tests fail until `cargo insta accept` reviews the diff. |
 | `vttest/` | Re-fetch from upstream (Thomas Dickey vttest); commit the diff with provenance note in this README. |
 | `osc-sequences/` | `scripts/capture-osc.sh <program>` — produces `.bin` + `.meta.json`. Re-run when shell or program updates. |
-| `stream-json/` | Captured from real Claude sessions; scrub via `scripts/redact-fixtures.sh` before committing. |
-| `claude-md/` | Edit by hand; `expected.md` updated alongside. |
-| `settings/` | Edit by hand; `.error.json` documents expected validation error per invalid sample. |
 
 ## Capture provenance discipline
 
@@ -35,7 +29,6 @@ Anything captured (vs. hand-crafted) carries a `<file>.meta.json`:
   "captured_at": "2026-04-25T15:00:00+07:00",
   "macos_version": "14.7.1",
   "shell": "zsh 5.9 (arm64-apple-darwin23.6.0)",
-  "claude_code_version": "2.1.119",
   "redacted": true,
   "source_repo": null
 }
