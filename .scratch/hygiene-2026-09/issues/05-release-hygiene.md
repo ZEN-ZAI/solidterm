@@ -1,6 +1,6 @@
 # 05 — Tag v0.4.12, harden build-release-dmg.sh, backfill CHANGELOG
 
-Status: ready-for-agent
+Status: done — 2026-09-06
 Blocked by: 01
 Spec: ../spec.md (D6, D7)
 
@@ -32,3 +32,36 @@ bash -n scripts/build-release-dmg.sh
 ## Notes
 
 Do not push the tag in this ticket; ticket 17 pushes with approval.
+
+## Comments
+
+### 2026-09-06
+
+One commit: `build(release): tag v0.4.12, guard the DMG script, backfill CHANGELOG` (this commit).
+
+All three steps landed together. The annotated tag `v0.4.12` was created locally at `502ff17` with
+the dictated message; `git tag -l` lists `v0.1.0 v0.4.12` and `git describe --tags 502ff17` answers
+`v0.4.12`. `scripts/build-release-dmg.sh` gained the dirty-tree refusal, the already-tagged refusal,
+the `SolidTermGitCommit` stamp with the re-sign after it, and the post-DMG annotated tag plus the
+printed push command; the header comment now describes all four. `CHANGELOG.md` gained
+`## [0.4.12] — 2026-08-17` built from the 58 commits in `v0.1.0..502ff17`, and `## [Unreleased]`
+holds the five entries the ticket lists.
+
+Judgement calls: one commit rather than three, because the tag, the script and the changelog section
+are one release-hygiene statement and neither of the first two is meaningful alone. A third link ref
+for `[Unreleased]` was added beyond the "two tags" the ticket asks for — Keep a Changelog compares
+`[Unreleased]` to `HEAD`, and omitting it would leave the heading unlinked. The Ctrl-C entry was
+moved byte-for-byte rather than reworded, since the ticket says move. Commits with no user-visible
+effect were left out of the section, including a feature that was reverted before the tag. The
+already-tagged guard cannot fire in this checkout (the dirty-tree guard precedes it and the tree is
+dirty mid-ticket), so it was exercised against a throwaway clean repo under `$TMPDIR`: it printed
+`refusing: tag v0.4.12 already exists` and exited 1.
+
+Not done here: `## [0.1.0]` is byte-identical to before — ticket 18 rewrites it. Nothing was pushed
+and the tag was not pushed; ticket 17 does that with approval. `MARKETING_VERSION` stays `0.1.0`,
+since D6 makes the version argument the single source.
+
+Gates before the commit: `cargo test --workspace --all-features -j 8` → 273 passed, 0 failed, with
+fmt, clippy `-D warnings`, ffi-drift and the three lint scripts all exit 0; `xcodebuild test -scheme
+SolidTerm -destination 'platform=macOS'` → `** TEST SUCCEEDED **`, Executed 446 tests, 2 skipped,
+0 failures.
