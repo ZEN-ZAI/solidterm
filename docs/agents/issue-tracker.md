@@ -9,6 +9,7 @@ Issues and specs (you may know a spec as a PRD) for this repo live as markdown f
 - Implementation issues are one file per ticket at `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` — never a single combined tickets file
 - Triage state is recorded as a `Status:` line near the top of each issue file (see `triage-labels.md` for the role strings)
 - Comments and conversation history append to the bottom of the file under a `## Comments` heading
+- A ticket is closed by flipping its `Status:` line to `done — YYYY-MM-DD` in the last commit of its work, with a dated note under `## Comments` naming the commits
 
 ## When a skill says "publish to the issue tracker"
 
