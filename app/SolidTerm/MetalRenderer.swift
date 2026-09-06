@@ -199,14 +199,14 @@ final class MetalRenderer {
     /// switched to a sine-eased curve (`easedBlinkAlpha`) with steady
     /// dwell phases — calm pulse instead of a strobe.
     private var blinkOriginTime: CFTimeInterval?
-    private static let blinkPeriodSec: CFTimeInterval = 0.9
+    static let blinkPeriodSec: CFTimeInterval = 0.9
 
     /// V2 pause-on-type: timestamp of the most recent keystroke. While
     /// `now - lastKeystrokeTime < blinkPauseAfterKeystrokeSec` the
     /// cursor holds solid at alpha=1.0 (no fade) so the user sees a
     /// stable insertion point during active typing.
     private var lastKeystrokeTime: CFTimeInterval = 0
-    private static let blinkPauseAfterKeystrokeSec: CFTimeInterval = 0.5
+    static let blinkPauseAfterKeystrokeSec: CFTimeInterval = 0.5
     /// UX6: tracks the previous frame's `typingActive` so the cursor
     /// encode can detect the typing → idle transition and re-anchor
     /// `blinkOriginTime` once at the boundary instead of every frame
@@ -2063,7 +2063,7 @@ final class MetalRenderer {
     /// Active cursor color (file-backed theme wins over the static
     /// `Theme.Color.cursorDefaultLinear`). Refreshed by
     /// `refreshClearColor`.
-    private var resolvedCursor: SIMD4<Float> = Theme.Color.cursorDefaultLinear
+    var resolvedCursor: SIMD4<Float> = Theme.Color.cursorDefaultLinear
 
     /// Active selection-bg color. File-backed theme wins.
     var resolvedSelection: SIMD4<Float> = Theme.Color.selectionBgLinear
@@ -2490,7 +2490,7 @@ final class MetalRenderer {
     /// cell + colour + alpha to reverse-video the glyph, and this helper
     /// mutates `blinkOriginTime` / `wasTypingLastFrame`, so it must run
     /// exactly once per tick. Returns `nil` when nothing should draw.
-    private func computeCursorBlockState() -> CursorBlockState? {
+    func computeCursorBlockState() -> CursorBlockState? {
         guard let cursor = lastCursor, !cursor.hidden else { return nil }
         // UX3: don't draw the cursor while the user is scrolled into
         // history (display_offset > 0). It's misleading there — the

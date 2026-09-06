@@ -25,6 +25,7 @@
 		369ED42432F426075C6D3817 /* GraphemeClusterCoalescer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01B8863623E795A4E0714FE3 /* GraphemeClusterCoalescer.swift */; };
 		36E52D18F5F1FA35788777F1 /* TerminalWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17F80BE14C89277D4C8613F7 /* TerminalWindowController.swift */; };
 		389AF065C1B367665973D490 /* FontSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEEDEF47704D4FDA33D6A922 /* FontSettings.swift */; };
+		3AD74DDED57DC33BCF3228A6 /* MetalRendererFontSizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F63B4601C5A4F9EC538F29C /* MetalRendererFontSizeTests.swift */; };
 		3FB8A5225E908F81EF2EB6AE /* ThemeTOMLLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C172052716A0A95D3EB3E8A /* ThemeTOMLLoader.swift */; };
 		4B01A0409DCD45E246A21082 /* Themes in Resources */ = {isa = PBXBuildFile; fileRef = 78CBA8FC329051C52C53A906 /* Themes */; };
 		4B8ED2968C249A5E3B29693E /* TerminalSwitcherController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A680DC57DAF2CB49637100B /* TerminalSwitcherController.swift */; };
@@ -62,6 +63,7 @@
 		8E101E017F2158A41220D190 /* OverlayPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F543A2506A75348153C361B4 /* OverlayPipelineTests.swift */; };
 		8E6188B5C09E0A3AB9C236C1 /* PaneViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358F0428163C9D26BD46DD74 /* PaneViewController.swift */; };
 		8F5FB8B34A4CB08590F0F6EA /* SearchPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A86146A304300689E08C46A5 /* SearchPanelView.swift */; };
+		95F7C526B5F0D719CCBFE99B /* CursorBlockStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39A6B19211BABBB29E77B096 /* CursorBlockStateTests.swift */; };
 		99C230154DF00D2EE8FEA9C4 /* KeybindingAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D367F34E25D01295004E86E /* KeybindingAction.swift */; };
 		9B9E098941563CD37768409C /* GlyphAtlas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68E5B5706A44FAE0D773E905 /* GlyphAtlas.swift */; };
 		9D6A991FF2089CF7F036F23A /* SwiftBridgeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2404C2119939C8C3DCFF9E27 /* SwiftBridgeCore.swift */; };
@@ -133,10 +135,12 @@
 		2C42F67A91AB40AB73466A66 /* MetalRendererSGRColorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalRendererSGRColorTests.swift; sourceTree = "<group>"; };
 		2D4F902E2D59283EBFA01828 /* KeybindingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeybindingsTab.swift; sourceTree = "<group>"; };
 		2E060FD9B450126FEAD7CA51 /* ThemeSwitchE2ETests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeSwitchE2ETests.swift; sourceTree = "<group>"; };
+		2F63B4601C5A4F9EC538F29C /* MetalRendererFontSizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalRendererFontSizeTests.swift; sourceTree = "<group>"; };
 		302DE3BC47803D95BC096426 /* PlainLinkDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlainLinkDetector.swift; sourceTree = "<group>"; };
 		305A624CBCB434FA3DF1D616 /* SolidTermApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SolidTermApp.swift; sourceTree = "<group>"; };
 		330C73C524F3ECF7AE7EA2E0 /* Shell */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Shell; path = SolidTerm/Resources/Shell; sourceTree = SOURCE_ROOT; };
 		358F0428163C9D26BD46DD74 /* PaneViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaneViewController.swift; sourceTree = "<group>"; };
+		39A6B19211BABBB29E77B096 /* CursorBlockStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorBlockStateTests.swift; sourceTree = "<group>"; };
 		3D7A7DB439FFBF1A64164C4C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		40B0EF5A927DE691813693B8 /* ScrollbackSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollbackSettings.swift; sourceTree = "<group>"; };
 		4185D399FEF940DCA11B8D7F /* LatencyMeasurementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatencyMeasurementTests.swift; sourceTree = "<group>"; };
@@ -272,6 +276,7 @@
 				67A68C1C8BA8009CA511E534 /* BoxDrawingTests.swift */,
 				09923077759D4E43EACEC626 /* CellPipelineTests.swift */,
 				DC2D9B931F329D2396842F51 /* CopyPasteTests.swift */,
+				39A6B19211BABBB29E77B096 /* CursorBlockStateTests.swift */,
 				A5782FF6346419AD0C8E5984 /* DisplayLinkIdlePumpTests.swift */,
 				44FC4D973C6C003417310B7C /* FFIDataTypeTests.swift */,
 				0FBA59483CBF79E90D753DA6 /* FFIRoundTripTests.swift */,
@@ -287,6 +292,7 @@
 				F024D3776FDCB0DEDC721C97 /* InputEventEncodingTests.swift */,
 				4185D399FEF940DCA11B8D7F /* LatencyMeasurementTests.swift */,
 				466BF176A1F2A895B02CF7B5 /* MetalOffscreenHarness.swift */,
+				2F63B4601C5A4F9EC538F29C /* MetalRendererFontSizeTests.swift */,
 				C1CD2451515F8899CC987209 /* MetalRendererFontTests.swift */,
 				2C42F67A91AB40AB73466A66 /* MetalRendererSGRColorTests.swift */,
 				47204B623B520FC856F2165D /* MouseReportingTests.swift */,
@@ -563,6 +569,7 @@
 				5C0A948E8FFBAC6B167D6330 /* BoxDrawingTests.swift in Sources */,
 				5ECDD128882280AFA24A3227 /* CellPipelineTests.swift in Sources */,
 				B56BDE998055F2BE1B27EE1F /* CopyPasteTests.swift in Sources */,
+				95F7C526B5F0D719CCBFE99B /* CursorBlockStateTests.swift in Sources */,
 				B4AB0FEFF86E228D35A15348 /* DisplayLinkIdlePumpTests.swift in Sources */,
 				A89428AB4017177A9B181ACB /* FFIDataTypeTests.swift in Sources */,
 				1697A2E02D22A72D647380DE /* FFIRoundTripTests.swift in Sources */,
@@ -578,6 +585,7 @@
 				526614FCE376E3E9B1591DE6 /* InputEventEncodingTests.swift in Sources */,
 				7BC0E013B26BF7339BF5D969 /* LatencyMeasurementTests.swift in Sources */,
 				BCC263660D8195DEF6DB77B2 /* MetalOffscreenHarness.swift in Sources */,
+				3AD74DDED57DC33BCF3228A6 /* MetalRendererFontSizeTests.swift in Sources */,
 				2B7008FD8095A610C1ADCD91 /* MetalRendererFontTests.swift in Sources */,
 				33480B5D738F2301D09F5B78 /* MetalRendererSGRColorTests.swift in Sources */,
 				15CCD05AE48D8DAAF2960A55 /* MouseReportingTests.swift in Sources */,
