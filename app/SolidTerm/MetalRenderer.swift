@@ -11,6 +11,15 @@
 // `recordKeystroke` continues to drive a single cell from
 // `randomGlyphs` so the latency harness has a guaranteed visible
 // state-change per keystroke (memory: feedback_meaningful_latency_measurement).
+//
+// The renderer is split by method cluster across sibling files: the font
+// and theme-colour plumbing in MetalRenderer+Font.swift, the title / cwd
+// drains in +TitleCwd.swift, the frame-delta application and the cell-slot
+// builders in +FrameDelta.swift, the eight overlay encoders and the
+// composition painting in +Overlays.swift. What stays here: the class
+// declaration, every property, init / deinit, attach, `windowChanged`,
+// `resizeGrid`, the display link + idle pump, `draw`, the latency
+// bookkeeping and the session / blank-grid factories.
 
 import AppKit
 import CoreText
@@ -41,7 +50,7 @@ final class MetalRenderer {
     /// rebuild `GridPipeline` without a separate format-source.
     /// Defaults to `.bgra8Unorm_srgb` — what `TerminalSurfaceView`
     /// pins on its `CAMetalLayer` (`makeBackingLayer`).
-    private var attachedPixelFormat: MTLPixelFormat = .bgra8Unorm_srgb
+    var attachedPixelFormat: MTLPixelFormat = .bgra8Unorm_srgb
 
     /// Counter for `resizeGrid` invocations that actually rebuilt the
     /// pipeline (skipped early-returns don't tick). Test-only seam so
@@ -54,27 +63,27 @@ final class MetalRenderer {
     /// `feedback_meaningful_latency_measurement`). Pre-rasterized into
     /// the atlas during `windowChanged` so the keystroke path is
     /// allocation-free.
-    private static let randomGlyphs: [Unicode.Scalar] = {
+    static let randomGlyphs: [Unicode.Scalar] = {
         let upper = (0..<26).compactMap { Unicode.Scalar(0x41 + $0) }
         let digits = (0..<10).compactMap { Unicode.Scalar(0x30 + $0) }
         return upper + digits
     }()
 
-    private let device: MTLDevice
-    private let commandQueue: MTLCommandQueue
+    let device: MTLDevice
+    let commandQueue: MTLCommandQueue
     /// Reserved for the Stage-0 single-cell overlay path (cursor, IME
     /// underline, selection accents) at task 4.7 / 4.9. Not used by the
     /// current grid renderer; kept so adding the overlay pass doesn't
     /// require re-introducing the pipeline state.
     private let cellPipeline: CellPipeline
-    private var gridPipeline: GridPipeline?
+    var gridPipeline: GridPipeline?
     /// Stage-2 overlay pipeline for cursor (4.7), selection (4.5), and
     /// IME marked-text underline (4.9). Constructed lazily once the
     /// device + pixel format are known; the pipeline shape is
     /// kind-discriminated per spec/metal-renderer.md §Stage 2.
     private var overlayPipeline: OverlayPipeline?
 
-    private weak var attachedLayer: CAMetalLayer?
+    weak var attachedLayer: CAMetalLayer?
     private var displayLink: CAMetalDisplayLink?
 
     /// The renderer's clock. Every timestamp the renderer stamps into
@@ -106,21 +115,21 @@ final class MetalRenderer {
     /// the discarded cells reappear.
     private(set) var pendingFullRepaint = false
 
-    private var atlas: GlyphAtlas?
+    var atlas: GlyphAtlas?
 
     /// M7-3: NotificationCenter observer for `FontSettings.didChange`.
     /// Owned so the observer can be removed in `windowChanged` when
     /// re-installing for a new window. Strong-ref because the
     /// notification token holds the closure; the renderer outlives
     /// the observer lifetime by tying to `windowChanged` teardown.
-    private var fontObserver: NSObjectProtocol?
+    var fontObserver: NSObjectProtocol?
 
     /// M7-3: set whenever the atlas needs a fresh build because the
     /// font family or size changed. Read by `draw(update:)`'s prologue
     /// (consumed and cleared) so the rebuild lands on a frame boundary
     /// rather than mid-encode. Test seam: tests assert this transitions
     /// to `true` on `FontSettings.didChange`.
-    private(set) var atlasDirty: Bool = false
+    var atlasDirty: Bool = false
 
     /// Per-window font-size override. `nil` means "follow the global
     /// `FontSettings.shared.size`" — that's the default for new windows.
@@ -129,26 +138,15 @@ final class MetalRenderer {
     /// global Settings → Appearance picker no longer affects this
     /// window's size (family changes still apply). Reset by
     /// `resetFontSize()` (returns the window to global default).
-    private var fontSizeOverride: CGFloat?
+    var fontSizeOverride: CGFloat?
 
     /// Resolved font size for this renderer — the override if set,
     /// otherwise the global default. Read by `makeEffectiveFont()`
     /// and `reloadFont()` instead of going straight to
     /// `FontSettings.shared.size`.
     @MainActor
-    private var effectiveFontSize: CGFloat {
+    var effectiveFontSize: CGFloat {
         fontSizeOverride ?? FontSettings.shared.size
-    }
-
-    /// Build the `CTFont` this renderer should rasterize against —
-    /// global family + per-window-resolved size. Replaces direct
-    /// `FontSettings.shared.makeCTFont()` calls so the override can
-    /// take effect.
-    @MainActor
-    private func makeEffectiveFont() -> CTFont {
-        FontSettings.makeCTFont(
-            family: FontSettings.shared.family,
-            size: effectiveFontSize)
     }
 
     /// Last-seen cursor state from the engine. Updated each frame
@@ -164,7 +162,7 @@ final class MetalRenderer {
     /// — the controller owns both objects; avoiding the retain cycle
     /// is cheap insurance. Set via `attachHostView(_:)` from the view's
     /// `init` after `attach(layer:)`.
-    private weak var hostView: TerminalSurfaceView?
+    weak var hostView: TerminalSurfaceView?
 
     /// 4.9: cells we painted as preedit on the most recent frame.
     /// When composition clears (commit / unmark), the underlying real
@@ -173,11 +171,11 @@ final class MetalRenderer {
     /// indices here and force a `setRegion` repaint of those cells
     /// from the cached `cells` shadow array on the first post-clear
     /// frame. Empty when no composition is active.
-    private var preeditPaintedCells: [(row: Int, col: Int)] = []
+    var preeditPaintedCells: [(row: Int, col: Int)] = []
     /// 4.9: set when `invalidateCompositionRender` fires. Read by the
     /// next `draw(update:)` to ensure preedit cells get repainted from
     /// the underlying state.
-    private var compositionInvalidated: Bool = false
+    var compositionInvalidated: Bool = false
 
     /// 4.5: read-only view of the last-seen cursor for the keyboard
     /// selection extender. Returns a default-zero `CursorState`
@@ -198,36 +196,36 @@ final class MetalRenderer {
     /// not from app-launch time. V2 raised the period to 900 ms and
     /// switched to a sine-eased curve (`easedBlinkAlpha`) with steady
     /// dwell phases — calm pulse instead of a strobe.
-    private var blinkOriginTime: CFTimeInterval?
+    var blinkOriginTime: CFTimeInterval?
     static let blinkPeriodSec: CFTimeInterval = 0.9
 
     /// V2 pause-on-type: timestamp of the most recent keystroke. While
     /// `now - lastKeystrokeTime < blinkPauseAfterKeystrokeSec` the
     /// cursor holds solid at alpha=1.0 (no fade) so the user sees a
     /// stable insertion point during active typing.
-    private var lastKeystrokeTime: CFTimeInterval = 0
+    var lastKeystrokeTime: CFTimeInterval = 0
     static let blinkPauseAfterKeystrokeSec: CFTimeInterval = 0.5
     /// UX6: tracks the previous frame's `typingActive` so the cursor
     /// encode can detect the typing → idle transition and re-anchor
     /// `blinkOriginTime` once at the boundary instead of every frame
     /// during typing.
-    private var wasTypingLastFrame: Bool = false
+    var wasTypingLastFrame: Bool = false
 
     /// V1 scrollbar fade: timestamp of the last `scroll_top` /
     /// `scroll_total` change observed in `applyFrameDelta`. The thumb
     /// is fully opaque for the first `scrollbarHoldSec`, then fades to
     /// the resting alpha over the next `scrollbarFadeSec`.
-    private var lastScrollActivityTime: CFTimeInterval = 0
-    private static let scrollbarHoldSec: CFTimeInterval = 0.8
-    private static let scrollbarFadeSec: CFTimeInterval = 0.8
-    private static let scrollbarRestingAlpha: Float = 0.25
+    var lastScrollActivityTime: CFTimeInterval = 0
+    static let scrollbarHoldSec: CFTimeInterval = 0.8
+    static let scrollbarFadeSec: CFTimeInterval = 0.8
+    static let scrollbarRestingAlpha: Float = 0.25
     // UX4: bump 6→8pt resting and 9→12pt hover so the visual target
     // matches the 16pt hit zone. Matches macOS-style "overlay
     // scroller" proportions (Safari/Finder use 9pt → 15pt; we sit
     // between that and the original Alacritty-style hairline).
-    private static let scrollbarHoverWidthPx: Float = 12.0
-    private static let scrollbarRestingWidthPx: Float = 8.0
-    private static let scrollbarHoverHitWidthPt: Float = 16.0
+    static let scrollbarHoverWidthPx: Float = 12.0
+    static let scrollbarRestingWidthPx: Float = 8.0
+    static let scrollbarHoverHitWidthPt: Float = 16.0
 
     /// V1 scrollbar hover: latest mouse-in-view location in surface
     /// points, set by `TerminalSurfaceView.mouseMoved`. Nil when the
@@ -244,7 +242,7 @@ final class MetalRenderer {
     /// scroll-to-bottom, theme switch, link-hover, search-match list
     /// changes, …). Reset to false at the bottom of `draw(update:)`
     /// after a successful encode.
-    private var pendingRedraw: Bool = true
+    var pendingRedraw: Bool = true
 
     /// P1: true once we've committed at least one drawable. Pre-first-
     /// frame ticks must always encode — even when nothing's "dirty" —
@@ -298,7 +296,7 @@ final class MetalRenderer {
     /// and re-capture the working directory for window restoration.
     static let cwdDidChange = Notification.Name("com.zenzai.SolidTerm.cwdDidChange")
 
-    private weak var hostWindow: NSWindow?
+    weak var hostWindow: NSWindow?
 
     /// Cell height in points (logical pixels divided by backing scale).
     /// Read by `TerminalSurfaceView.scrollWheel(with:)` so the trackpad
@@ -414,16 +412,7 @@ final class MetalRenderer {
     /// from its completion handler. Fresh-pipeline `setGrid` paths
     /// (reloadFont/windowChanged/resizeGrid) need no slot — their textures
     /// have never been submitted, and in-flight buffers retain the old set.
-    private let frameSlot = DispatchSemaphore(value: 1)
-
-    /// Out-of-tick mutators of the live cell textures (theme repaint):
-    /// wait → mutate → signal immediately. No GPU work is submitted while
-    /// the slot is held here; the next draw tick re-acquires it.
-    private func withCellTextureSlot<T>(_ body: () throws -> T) rethrows -> T {
-        frameSlot.wait()
-        defer { frameSlot.signal() }
-        return try body()
-    }
+    let frameSlot = DispatchSemaphore(value: 1)
 
     var clearColor: MTLClearColor = TerminalSurfaceView.defaultClearColor
 
@@ -450,7 +439,7 @@ final class MetalRenderer {
     /// of `ทำ`, `ห้`, `ก่อ`, `กืน` 2026-05-16). Setting
     /// `SOLIDTERM_SHAPING=0` disables the coalescer and restores the
     /// v0.1.6 single-cell path for diagnosis.
-    private let useShaping: Bool = {
+    let useShaping: Bool = {
         let env = ProcessInfo.processInfo.environment
         return env["SOLIDTERM_SHAPING"] != "0"
     }()
@@ -542,114 +531,6 @@ final class MetalRenderer {
     private var themeChangeObserver: NSObjectProtocol?
     private var themeFileObserver: NSObjectProtocol?
 
-    /// M6-4a: re-resolve `clearColor` against the current theme mode.
-    /// Called from the `themeDidChange` observer + on demand by tests.
-    /// The `CAMetalDisplayLink` re-renders every vsync so the next
-    /// frame picks up the new clear color without any additional
-    /// invalidation hook.
-    @MainActor
-    func refreshClearColor() {
-        // File-backed TOML theme (~/.config/solidterm/themes/<name>.toml)
-        // wins over the built-in Theme.Mode cascade — same code path
-        // the theme picker drives. The renderer honors the file's
-        // bg/fg, cursor, selection, AND ANSI palette (mapped via the
-        // engine's compile-time hex values).
-        if let file = ThemeFileStore.shared.current {
-            resolvedPalette = file.palette
-            resolvedCursor = file.cursor
-            resolvedSelection = file.selection
-            ansiOverride = Self.buildAnsiOverride(file: file)
-            clearColor = MTLClearColor(
-                red: Double(file.background.x),
-                green: Double(file.background.y),
-                blue: Double(file.background.z),
-                alpha: Double(file.background.w))
-        } else {
-            let mode = ThemeManager.shared.resolved
-            clearColor = Theme.defaultClearMTL(for: mode)
-            resolvedPalette = Theme.Color.defaultPalette(for: mode)
-            resolvedCursor = Theme.Color.cursorDefaultLinear(for: mode)
-            resolvedSelection = Theme.Color.selectionBgLinear(for: mode)
-            ansiOverride = [:]
-        }
-        // Refresh the per-cell palette so existing visible cells re-
-        // resolve against the live theme. Earlier versions blanked
-        // `self.cells` and waited for the engine to re-emit damage on
-        // the next PTY write — but an idle Claude Code session never
-        // ticks PTY output, so text stayed invisible mid-theme-switch
-        // until the user typed. `take_full_frame_delta` re-emits
-        // every viewport row through the FFI without consuming
-        // alacritty's damage state, so the renderer's resolver picks
-        // up the new palette + `ansiOverride` map in the next frame.
-        // No session yet (renderer still initialising) → fall back to
-        // the blank-grid path so the new background color paints
-        // immediately.
-        withCellTextureSlot {
-            if let session, let pipeline = gridPipeline, let atlas {
-                let frame = session.take_full_frame_delta()
-                self.lastCursor = frame.cursor
-                if let decoded = try? FrameDeltaDecoding.decodeCells(frame.cells) {
-                    if useShaping {
-                        let coalesced = GraphemeClusterCoalescer.coalesce(decoded)
-                        Self.applyCoalescedCellsAsRegions(
-                            coalesced, pipeline: pipeline, atlas: atlas,
-                            shadow: &self.cells, gridCols: gridCols,
-                            makeSlot: { [weak self] cell in
-                                self?.makeSlot(from: cell, atlas: atlas)
-                            })
-                    } else {
-                        Self.applyCellsAsRegions(
-                            decoded, pipeline: pipeline, atlas: atlas,
-                            shadow: &self.cells, gridCols: gridCols,
-                            makeSlot: { [weak self] cell in
-                                self?.makeSlot(from: cell, atlas: atlas)
-                            })
-                    }
-                }
-            } else {
-                self.cells = Self.makeBlankGrid(
-                    cols: gridCols, rows: gridRows, palette: resolvedPalette)
-                try? gridPipeline?.setGrid(
-                    self.cells, atlasSize: GlyphAtlas.atlasSize,
-                    colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
-            }
-        }
-        // Keep the engine's OSC 10/11/12 reply colors in lockstep with the
-        // rendered theme: a child querying fg/bg/cursor (Claude Code's
-        // `auto` light/dark detection, vim/delta `background` probes) must
-        // see the real theme, not a hardcoded palette. The renderer works
-        // in linear space; the OSC reply wants sRGB, so convert.
-        if let session {
-            let fgLinear: SIMD4<Float>
-            let bgLinear: SIMD4<Float>
-            if let file = ThemeFileStore.shared.current {
-                fgLinear = file.foreground
-                bgLinear = file.background
-            } else {
-                let mode = ThemeManager.shared.resolved
-                fgLinear = Theme.Color.textPrimaryLinear(for: mode)
-                bgLinear = Theme.Color.bgBaseLinear(for: mode)
-            }
-            session.set_theme_colors(
-                Self.srgbU32(fromLinear: fgLinear),
-                Self.srgbU32(fromLinear: bgLinear),
-                Self.srgbU32(fromLinear: resolvedCursor))
-        }
-        pendingRedraw = true
-    }
-
-    /// Pack a linear-space color into sRGB `0x00RRGGBB` for the engine's
-    /// OSC 10/11/12 color-query replies (xterm/kitty report sRGB). Inverse
-    /// of the sRGB→linear decode the theme loader applies on parse.
-    private static func srgbU32(fromLinear c: SIMD4<Float>) -> UInt32 {
-        func enc(_ v: Float) -> UInt32 {
-            let x = Double(max(0, min(1, v)))
-            let s = x <= 0.003_130_8 ? x * 12.92 : 1.055 * pow(x, 1.0 / 2.4) - 0.055
-            return UInt32((s * 255).rounded())
-        }
-        return (enc(c.x) << 16) | (enc(c.y) << 8) | enc(c.z)
-    }
-
     func attach(layer: CAMetalLayer) {
         attachedLayer = layer
         layer.device = device
@@ -688,147 +569,8 @@ final class MetalRenderer {
         pendingRedraw = true
     }
 
-    /// P1: equality on the fields that drive the cursor overlay encode.
-    /// `lastCursor` always reflects the latest engine snapshot; the
-    /// "encoded" mirror only updates on a successful draw. Any field
-    /// change between the two ticks must force a redraw — but updates
-    /// that no-op visually (e.g. same position with a flipped reserved
-    /// bit, should we add one) shouldn't.
-    private static func cursorEqual(_ a: CursorState?, _ b: CursorState?) -> Bool {
-        switch (a, b) {
-        case (nil, nil): return true
-        case (let l?, let r?):
-            return l.row == r.row && l.col == r.col
-                && l.shape == r.shape && l.blink == r.blink
-                && l.hidden == r.hidden
-        default: return false
-        }
-    }
-
-    /// M7-3: subscribe to `FontSettings.didChange` exactly once per
-    /// renderer-lifetime so font family / size edits trigger an
-    /// atlas regen on the next draw. Idempotent — re-installs only
-    /// when the prior observer was torn down (e.g. the renderer is
-    /// rehosted on a different window). Posts run on the main run
-    /// loop, matching the rendering thread.
-    /// Test seam — `MetalRendererFontTests` calls this after
-    /// constructing a renderer-without-window so the `atlasDirty`
-    /// flag wiring can be exercised without standing up a real
-    /// `CAMetalLayer`. Production callers go through `windowChanged`.
-    @MainActor
-    func installFontObserverForTesting() {
-        installFontObserverIfNeeded()
-    }
-
-    @MainActor
-    private func installFontObserverIfNeeded() {
-        if fontObserver != nil { return }
-        fontObserver = NotificationCenter.default.addObserver(
-            forName: FontSettings.didChange,
-            object: nil, queue: .main
-        ) { [weak self] _ in
-            self?.atlasDirty = true
-        }
-    }
-
-    /// Per-window ⌘+ / ⌘- / ⌘0. Updates this renderer's font-size
-    /// override and triggers an atlas regen on the next frame. Other
-    /// windows are unaffected. Clamped via `FontSettings.clamp` so
-    /// out-of-band hotkey presses are silently saturated.
-    @MainActor
-    func bumpFontSize() {
-        let next = FontSettings.clamp(effectiveFontSize + 1)
-        guard next != effectiveFontSize else { return }
-        fontSizeOverride = next
-        atlasDirty = true
-        reloadFont()
-    }
-
-    @MainActor
-    func dropFontSize() {
-        let next = FontSettings.clamp(effectiveFontSize - 1)
-        guard next != effectiveFontSize else { return }
-        fontSizeOverride = next
-        atlasDirty = true
-        reloadFont()
-    }
-
-    /// ⌘0 — clears the per-window override so the window snaps back
-    /// to the global Settings → Appearance default. Not "shrink to
-    /// 14" — match the M7-3 spec where ⌘0 means "default size".
-    @MainActor
-    func resetFontSize() {
-        guard fontSizeOverride != nil else { return }
-        fontSizeOverride = nil
-        atlasDirty = true
-        reloadFont()
-    }
-
     /// Test seam — read-only view of the per-window override.
     var fontSizeOverrideForTesting: CGFloat? { fontSizeOverride }
-
-    /// M7-3: rebuild the glyph atlas + grid pipeline against the
-    /// current `FontSettings`. Also recomputes the host window's
-    /// content-size so the cell grid matches the new metrics
-    /// (without this, a font-size bump leaves the visible grid the
-    /// same pixel size but with fewer / clipped cells until the next
-    /// manual resize). Safe to call repeatedly; no-op when the
-    /// renderer hasn't yet attached a window.
-    @MainActor
-    @discardableResult
-    func reloadFont() -> Bool {
-        guard let window = hostWindow else {
-            atlasDirty = false
-            return false
-        }
-        let scale = window.backingScaleFactor
-        let font = makeEffectiveFont()
-        do {
-            let newAtlas = try GlyphAtlas(
-                device: device, font: font, contentsScale: scale)
-            for scalar in Self.randomGlyphs {
-                _ = try newAtlas.entry(
-                    for: scalar, commandQueue: commandQueue)
-            }
-            let newPipeline = try GridPipeline(
-                device: device,
-                pixelFormat: attachedPixelFormat,
-                cols: gridCols,
-                rows: gridRows)
-            // No frameSlot needed: fresh pipeline — these textures have never been submitted; in-flight buffers retain the old set.
-            try newPipeline.setGrid(
-                self.cells, atlasSize: GlyphAtlas.atlasSize,
-                colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
-            self.atlas = newAtlas
-            self.gridPipeline = newPipeline
-            // Keep the window size fixed; reflow the cell grid against
-            // the new cell metrics instead. Bigger font ⇒ fewer cells
-            // visible; smaller font ⇒ more cells. Matches iTerm2 /
-            // Ghostty: ⌘+/⌘- changes typography only, not chrome.
-            // We derive cols/rows from the unchanged content rect and
-            // forward to `resizeGrid`, which propagates through to
-            // alacritty via the FFI.
-            let viewSize = window.contentRect(
-                forFrameRect: window.frame
-            ).size
-            let cellW = newAtlas.cellSizePt.width
-            let cellH = newAtlas.cellSizePt.height
-            if cellW > 0, cellH > 0 {
-                let gridWidth = max(0, viewSize.width - Theme.Gutter.widthPt)
-                let cols = max(1, Int((gridWidth / cellW).rounded(.down)))
-                let rows = max(1, Int((viewSize.height / cellH).rounded(.down)))
-                resizeGrid(cols: cols, rows: rows)
-            }
-        } catch {
-            NSLog(
-                "MetalRenderer.reloadFont: rebuild failed: %@",
-                String(describing: error))
-            atlasDirty = false
-            return false
-        }
-        atlasDirty = false
-        return true
-    }
 
     @MainActor
     func windowChanged(window: NSWindow?) {
@@ -1027,182 +769,26 @@ final class MetalRenderer {
         pendingRedraw = true
     }
 
-    /// 4.8: drain the engine's pending title-changed events and
-    /// forward the latest to the host window. Called once per frame
-    /// from `draw(update:)`. Empty-string sentinel = no event this
-    /// tick → skip; otherwise set `window.title`. The display-link
-    /// callback already runs on the main thread (per
-    /// `CAMetalDisplayLink.add(to: .main, ...)`) so the AppKit
-    /// `setTitle` call is safe without a dispatch hop.
-    @discardableResult
-    private func applyLatestTitleIfAny() -> Bool {
-        guard let session else { return false }
-        let oscTitle = session.drain_latest_title().toString()
-        // V3 fallback rule: an OSC title is *sticky* — it holds the
-        // title bar until the child gives it back, exactly like every
-        // other terminal. Ownership ends on one of two signals:
-        //
-        //  - `drain_title_reset()` — OSC 0/1/2 with an empty payload,
-        //    alacritty's `Event::ResetTitle`, i.e. "I'm done with it".
-        //  - leaving the alternate screen — vim / htop / less quitting
-        //    without bothering to reset. (A shell with a title hook
-        //    re-titles on its next prompt anyway; this covers the ones
-        //    without.)
-        //
-        // This replaces a 500 ms recency window that let the
-        // cwd-basename fallback overwrite a still-valid title after
-        // half a second of quiet. Anything that titles once and then
-        // works — `\e]2;building\a` before a long build, a shell hook
-        // titling at exec time, any TUI that isn't a spinner — lost its
-        // title mid-run, which read as "the title reverts under load".
-        let altScreen = session.is_alt_screen()
-        let altScreenExited = lastAltScreenForTitle && !altScreen
-        lastAltScreenForTitle = altScreen
-        stickyOscTitle = Self.nextTitleOwner(
-            sticky: stickyOscTitle,
-            oscTitle: oscTitle,
-            reset: session.drain_title_reset(),
-            altScreenExited: altScreenExited)
-        let effective: String
-        let subtitle: String
-        if let sticky = stickyOscTitle {
-            effective = sticky
-            subtitle = lastCwd.isEmpty ? "" : Self.displayCwd(lastCwd)
-        } else if !lastCwd.isEmpty {
-            effective =
-                (lastCwd as NSString).lastPathComponent.isEmpty
-                ? lastCwd
-                : (lastCwd as NSString).lastPathComponent
-            subtitle = Self.displayCwd(lastCwd)
-        } else {
-            return false
-        }
-        var changed = false
-        if hostWindow?.title != effective {
-            hostWindow?.title = effective
-            changed = true
-        }
-        // V3 subtitle gate: assigning `NSWindow.subtitle` on a window
-        // without a fully-initialised titlebar (e.g. xctest-spun
-        // windows that haven't been ordered front yet) raises
-        // `NSInternalInconsistencyException: titlebarAccessoryViewControllers
-        // not supported for this window style` because subtitle is
-        // implemented under the hood as a titlebar accessory. Gate on
-        // the window having a real close-button — a reliable signal
-        // that AppKit has built the proper titlebar chrome.
-        if let window = hostWindow,
-            window.styleMask.contains(.titled),
-            window.standardWindowButton(.closeButton) != nil,
-            window.subtitle != subtitle
-        {
-            window.subtitle = subtitle
-            changed = true
-        }
-        return changed
-    }
-
-    /// Who owns the title bar after this tick: the OSC title to show,
-    /// or nil for the host's cwd-basename fallback.
-    ///
-    /// Pure so the rules can be pinned without a PTY. A title arriving
-    /// in the same tick as a hand-back wins — the child re-titled, it
-    /// did not walk away — though the FFI already keeps `reset` and a
-    /// non-empty `oscTitle` mutually exclusive per drain.
-    static func nextTitleOwner(
-        sticky: String?,
-        oscTitle: String,
-        reset: Bool,
-        altScreenExited: Bool
-    ) -> String? {
-        var owner = sticky
-        if reset || altScreenExited { owner = nil }
-        if !oscTitle.isEmpty { owner = oscTitle }
-        return owner
-    }
-
-    /// V3: render a cwd absolute path with `$HOME` collapsed to `~`
-    /// for a tidier subtitle. Common case is `/Users/<me>/foo` →
-    /// `~/foo`; everything outside `$HOME` stays absolute.
-    private static func displayCwd(_ path: String) -> String {
-        let home = NSHomeDirectory()
-        if path == home { return "~" }
-        if path.hasPrefix(home + "/") {
-            return "~" + path.dropFirst(home.count)
-        }
-        return path
-    }
-
     /// M6-2: latest OSC-7 cwd, polled once per frame off
     /// `drain_latest_cwd`. Read by `TerminalSurfaceView` for relative-
     /// path resolution in the file-path detector. Empty when the shell
     /// hasn't emitted OSC 7 yet (e.g. a fresh login shell with no
     /// chpwd hook configured).
-    private(set) var lastCwd: String = ""
+    var lastCwd: String = ""
 
-    @discardableResult
-    private func applyLatestCwdIfAny() -> Bool {
-        guard let session else { return false }
-        let cwd = session.drain_latest_cwd().toString()
-        if !cwd.isEmpty, cwd != lastCwd {
-            lastCwd = cwd
-            return true
-        }
-        // V3 fallback: when the shell hasn't wired OSC 7, periodically
-        // refresh `lastCwd` from `proc_pidinfo(child_pid)`. 500 ms is
-        // slow enough to keep the FFI/proc call rare and fast enough
-        // that the user sees the title flip within a frame or two
-        // after `cd`. Skip while OSC 7 has been observed at least
-        // once (the engine pushes events; we trust them).
-        if cwd.isEmpty {
-            let now = self.now()
-            if now - lastCwdProcPollTime > 0.5 {
-                lastCwdProcPollTime = now
-                let pid = pid_t(session.child_pid())
-                if pid > 0, let refreshed = Self.cwdForPid(pid),
-                    refreshed != lastCwd
-                {
-                    lastCwd = refreshed
-                    return true
-                }
-            }
-        }
-        return false
-    }
-
-    private var lastCwdProcPollTime: CFTimeInterval = 0
+    var lastCwdProcPollTime: CFTimeInterval = 0
 
     /// V3: the OSC title currently owning the title bar, or nil when
     /// the cwd-basename fallback has it. Set by any non-empty OSC 0/2,
     /// cleared by a title reset or by the child leaving the alternate
     /// screen — see `applyLatestTitleIfAny` for why it is sticky rather
     /// than time-limited.
-    private var stickyOscTitle: String?
+    var stickyOscTitle: String?
 
     /// Alt-screen state as of the last title tick, so the *transition*
     /// out (TUI quit) can hand the title back. Alt-screen entry is not
     /// a signal: plenty of TUIs title themselves after switching.
-    private var lastAltScreenForTitle = false
-
-    /// Best-effort working directory for ⌘N / ⌘T inheritance.
-    /// Prefers OSC 7 (`lastCwd`) when the shell has emitted it; falls
-    /// back to `proc_pidinfo` on the child PID so a vanilla zsh with no
-    /// shell integration still inherits cwd — matches Terminal.app's
-    /// behaviour. Returns nil if neither source has a value.
-    func currentCwd() -> String? {
-        if !lastCwd.isEmpty { return lastCwd }
-        guard let session else { return nil }
-        let pid = pid_t(session.child_pid())
-        guard pid > 0 else { return nil }
-        return Self.cwdForPid(pid)
-    }
-
-    /// macOS `proc_pidinfo(PROC_PIDVNODEPATHINFO)` cwd read. The
-    /// implementation moved to `ProcessSnapshot` so `SessionJournal`'s
-    /// off-main sampler can share it without depending on the renderer;
-    /// this stays as the renderer's spelling of the same call.
-    private static func cwdForPid(_ pid: pid_t) -> String? {
-        ProcessSnapshot.cwd(forPid: pid)
-    }
+    var lastAltScreenForTitle = false
 
     // The delegate is held strongly by the renderer; the link only retains
     // it weakly so we keep a strong ref here.
@@ -1739,291 +1325,6 @@ final class MetalRenderer {
         recordFrameTime((cpuEnd - cpuStart) * 1_000.0)  // ms
     }
 
-    /// Pull the latest `FrameDelta` from the Rust session, decode the
-    /// `cells: Vec<u8>` payload via the zero-copy reader, and apply
-    /// engine-driven cells through `pipeline.setRegion`. Called once
-    /// per `CAMetalDisplayLink` tick from `draw(update:)`, per
-    /// spec/ffi-boundary.md:240 ("Swift calls take_frame_delta()
-    /// synchronously from that callback").
-    ///
-    /// swift-bridge transfers ownership of the `Vec<u8>` allocation per
-    /// call: the returned `FrameDelta` carries a Swift-owned `RustVec`
-    /// that frees on `deinit`. The Rust-side buffer's lifetime is the
-    /// `FrameDelta` value's lifetime — scoped to this function body.
-    /// Decoding and application both happen before `frame` drops at
-    /// function exit, so the zero-copy `RustVec.as_ptr()` reads are
-    /// safe.
-    ///
-    /// **Region grouping (#57):** decoded cells are sorted by
-    /// (row, col) and split into row-contiguous runs. Each run is
-    /// pushed through `pipeline.setRegion` as a 1×N rect, collapsing
-    /// 3·N `replace(region:)` calls into 3 calls per run. For typical
-    /// PTY traffic (a handful of full lines + cursor moves) this is
-    /// the dominant per-frame Metal driver cost on the FrameDelta
-    /// path; the keystroke spike path (`pendingCellWrites`) keeps
-    /// `setCell` since it always carries exactly one cell.
-    ///
-    /// `makeSlot(from:)` returns `nil` today (Phase 1 stub); the
-    /// producer also returns 0 cells, so the inner loop runs zero
-    /// times in practice. Both light up at M1 Week 1 task 1.6 (#56).
-    @discardableResult
-    private func applyFrameDelta(pipeline: GridPipeline, atlas: GlyphAtlas) -> Bool {
-        guard let session else { return false }
-        let frame = session.take_frame_delta()
-        // Cursor state is consumed by the Stage-2 overlay encode in
-        // `draw(update:)`. Snapshot it BEFORE the decode + apply so a
-        // malformed-cells early-return (`decodeCells throws`) can't
-        // leave `lastCursor` pinned to a stale visibility state. The
-        // engine's `display_offset == 0 && SHOW_CURSOR` gate (see
-        // `engine.rs::cursor()`) flips this on every scroll-into-
-        // history; without an unconditional refresh the cursor stays
-        // drawn at the last live-grid row while the user pages
-        // through scrollback.
-        self.lastCursor = frame.cursor
-        let decoded: [CellDeltaSwift]
-        do {
-            decoded = try FrameDeltaDecoding.decodeCells(frame.cells)
-        } catch {
-            NSLog(
-                "MetalRenderer: frame delta decode failed: %@",
-                String(describing: error))
-            return false
-        }
-        if useShaping {
-            let coalesced = GraphemeClusterCoalescer.coalesce(decoded)
-            Self.applyCoalescedCellsAsRegions(
-                coalesced, pipeline: pipeline, atlas: atlas,
-                shadow: &self.cells, gridCols: gridCols,
-                makeSlot: { [weak self] cell in
-                    self?.makeSlot(from: cell, atlas: atlas)
-                })
-        } else {
-            Self.applyCellsAsRegions(
-                decoded, pipeline: pipeline, atlas: atlas,
-                shadow: &self.cells, gridCols: gridCols,
-                makeSlot: { [weak self] cell in
-                    self?.makeSlot(from: cell, atlas: atlas)
-                })
-        }
-        // M7-2: cache scroll_top so the search-highlight overlay can
-        // translate alacritty-absolute match lines into viewport rows
-        // every frame (so highlights track content as the user scrolls
-        // without re-running search).
-        let scrollChanged =
-            self.lastScrollTop != Int(frame.scroll_top)
-            || self.lastScrollTotal != Int(frame.scroll_total)
-        self.lastScrollTop = Int(frame.scroll_top)
-        self.lastScrollTotal = Int(frame.scroll_total)
-        if scrollChanged {
-            // V1 scrollbar fade: bump activity so the thumb pops back
-            // to full opacity. Also any new cell delta counts as
-            // "user is scrolled into history and live tail moved"
-            // implicitly via the engine's scroll-on-output snap,
-            // but only the top/total changes are real scroll events.
-            lastScrollActivityTime = now()
-        }
-        return !decoded.isEmpty || scrollChanged
-    }
-
-    /// Apply a decoded cell stream as row-contiguous region writes.
-    /// Static + parameterized on `makeSlot` so unit tests can exercise
-    /// the grouping logic without instantiating a full renderer.
-    ///
-    /// Algorithm:
-    ///   1. Resolve each `CellDeltaSwift` to a `CellSlot` via `makeSlot`;
-    ///      cells that resolve to `nil` (out-of-cascade glyph, malformed
-    ///      grapheme) are dropped.
-    ///   2. Sort the resolved (row, col, slot) triples by (row, col).
-    ///      The Rust producer at #56 writes in row-major scan order, so
-    ///      this is typically already-sorted; the sort is a safety net,
-    ///      not the hot path.
-    ///   3. Walk the sorted list emitting one `setRegion` per maximal
-    ///      run of (same row, contiguous col).
-    static func applyCellsAsRegions(
-        _ decoded: [CellDeltaSwift],
-        pipeline: GridPipeline,
-        atlas: GlyphAtlas,
-        shadow: inout [CellSlot],
-        gridCols: Int,
-        makeSlot: (CellDeltaSwift) -> CellSlot?
-    ) {
-        guard !decoded.isEmpty else { return }
-        // Pin glyphs resolved this batch so a later cell can't evict an
-        // earlier cell's atlas rect mid-frame (CJK/Thai garble).
-        atlas.beginResolveBatch()
-        var resolved: [(row: Int, col: Int, slot: CellSlot)] = []
-        resolved.reserveCapacity(decoded.count)
-        for cell in decoded {
-            guard let slot = makeSlot(cell) else { continue }
-            resolved.append((row: Int(cell.row), col: Int(cell.col), slot: slot))
-        }
-        guard !resolved.isEmpty else { return }
-        Self.writeShadow(resolved, into: &shadow, gridCols: gridCols)
-        resolved.sort { lhs, rhs in
-            lhs.row != rhs.row ? lhs.row < rhs.row : lhs.col < rhs.col
-        }
-
-        // Coalesce maximal (row == prev.row && col == prev.col + 1) runs.
-        // `runStart` indexes the first element of the current run,
-        // `runEnd` is one-past-the-last (half-open).
-        var runStart = 0
-        while runStart < resolved.count {
-            let start = resolved[runStart]
-            var runEnd = runStart + 1
-            while runEnd < resolved.count {
-                let prev = resolved[runEnd - 1]
-                let curr = resolved[runEnd]
-                if curr.row == prev.row && curr.col == prev.col + 1 {
-                    runEnd += 1
-                } else {
-                    break
-                }
-            }
-            let width = runEnd - runStart
-            var slots: [CellSlot] = []
-            slots.reserveCapacity(width)
-            for k in runStart..<runEnd {
-                slots.append(resolved[k].slot)
-            }
-            let rect = GridPipeline.GridRect(
-                col: start.col, row: start.row, width: width, height: 1)
-            do {
-                try pipeline.setRegion(
-                    rect: rect, slots: slots,
-                    atlasSize: GlyphAtlas.atlasSize,
-                    colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
-            } catch {
-                // Bounds errors from a misbehaving Rust producer are
-                // logged but non-fatal — drop the run and continue;
-                // the next frame's setRegion calls re-establish state.
-                NSLog(
-                    "MetalRenderer.applyCellsAsRegions: setRegion failed for "
-                        + "rect=(%d,%d %dx%d): %@",
-                    rect.col, rect.row, rect.width, rect.height,
-                    String(describing: error))
-            }
-            runStart = runEnd
-        }
-    }
-
-    /// ADR-0003 — coalesced-cell variant of
-    /// `applyCellsAsRegions`. Each `CoalescedCell` expands to one
-    /// primary slot at `(row, col)` carrying the cluster glyph (whose
-    /// `AtlasEntry.cellSpan == cellSpan`, so GridPipeline packs the
-    /// high byte of `cellAtlasSelector` accordingly) plus `cellSpan-1`
-    /// continuation slots at `(row, col+1)..(row, col+cellSpan-1)`
-    /// with `glyph = nil` — those pack as selector=0/cellSpan=0, which
-    /// the fragment shader treats as continuation-of-primary-to-left.
-    ///
-    /// Run grouping logic is identical to the `CellDeltaSwift` variant
-    /// above (sort by (row, col); emit maximal contiguous runs through
-    /// `setRegion`). Primary + continuation cells of a single cluster
-    /// land in the same run.
-    static func applyCoalescedCellsAsRegions(
-        _ coalesced: [CoalescedCell],
-        pipeline: GridPipeline,
-        atlas: GlyphAtlas,
-        shadow: inout [CellSlot],
-        gridCols: Int,
-        makeSlot: (CoalescedCell) -> CellSlot?
-    ) {
-        guard !coalesced.isEmpty else { return }
-        // Pin glyphs resolved this batch so a later cell can't evict an
-        // earlier cell's atlas rect mid-frame (CJK/Thai garble).
-        atlas.beginResolveBatch()
-        var resolved: [(row: Int, col: Int, slot: CellSlot)] = []
-        resolved.reserveCapacity(coalesced.count)
-        for cell in coalesced {
-            guard let primary = makeSlot(cell) else { continue }
-            resolved.append(
-                (
-                    row: Int(cell.row), col: Int(cell.col), slot: primary
-                ))
-            // Emit cellSpan-1 continuation cells. Each carries the
-            // primary's bg so the cluster row paints a contiguous
-            // background; foreground is irrelevant (no glyph). The
-            // shader's leftward primary-walk reads the glyph from the
-            // primary's selector byte, not from continuations.
-            let span = max(UInt8(1), cell.cellSpan)
-            if span >= 2 {
-                let continuation = CellSlot(
-                    glyph: nil,
-                    fgColorLinear: primary.fgColorLinear,
-                    bgColorLinear: primary.bgColorLinear,
-                    attrs: primary.attrs)
-                for k in 1..<Int(span) {
-                    resolved.append(
-                        (
-                            row: Int(cell.row),
-                            col: Int(cell.col) + k,
-                            slot: continuation
-                        ))
-                }
-            }
-        }
-        guard !resolved.isEmpty else { return }
-        Self.writeShadow(resolved, into: &shadow, gridCols: gridCols)
-        resolved.sort { lhs, rhs in
-            lhs.row != rhs.row ? lhs.row < rhs.row : lhs.col < rhs.col
-        }
-
-        var runStart = 0
-        while runStart < resolved.count {
-            let start = resolved[runStart]
-            var runEnd = runStart + 1
-            while runEnd < resolved.count {
-                let prev = resolved[runEnd - 1]
-                let curr = resolved[runEnd]
-                if curr.row == prev.row && curr.col == prev.col + 1 {
-                    runEnd += 1
-                } else {
-                    break
-                }
-            }
-            let width = runEnd - runStart
-            var slots: [CellSlot] = []
-            slots.reserveCapacity(width)
-            for k in runStart..<runEnd {
-                slots.append(resolved[k].slot)
-            }
-            let rect = GridPipeline.GridRect(
-                col: start.col, row: start.row, width: width, height: 1)
-            do {
-                try pipeline.setRegion(
-                    rect: rect, slots: slots,
-                    atlasSize: GlyphAtlas.atlasSize,
-                    colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
-            } catch {
-                NSLog(
-                    "MetalRenderer.applyCoalescedCellsAsRegions: setRegion "
-                        + "failed for rect=(%d,%d %dx%d): %@",
-                    rect.col, rect.row, rect.width, rect.height,
-                    String(describing: error))
-            }
-            runStart = runEnd
-        }
-    }
-
-    /// Mirror resolved (row,col,slot) entries into the CPU-side `cells`
-    /// shadow that `encodeTextUnderlineOverlay` (SGR `\e[4m`) and the IME
-    /// preedit-restore walk read. The apply path otherwise writes only GPU
-    /// textures, leaving the shadow blank (attrs=0) so underline never
-    /// renders. Bounds-guarded so a stale delta arriving mid-resize is
-    /// skipped, mirroring the tolerant `setRegion` catch above.
-    private static func writeShadow(
-        _ resolved: [(row: Int, col: Int, slot: CellSlot)],
-        into shadow: inout [CellSlot],
-        gridCols: Int
-    ) {
-        guard gridCols > 0 else { return }
-        for entry in resolved {
-            let idx = entry.row * gridCols + entry.col
-            if idx >= 0 && idx < shadow.count {
-                shadow[idx] = entry.slot
-            }
-        }
-    }
-
     /// Translate an engine-produced `CellDeltaSwift` into a renderable
     /// `CellSlot`. Implements task 4.1 (SGR colors) end-to-end:
     ///
@@ -2078,999 +1379,14 @@ final class MetalRenderer {
     /// at compile time (`cells.rs`); user-selected file themes ride
     /// on top via this map. Keys are the engine's packed `u32`
     /// (`R<<24 | G<<16 | B<<8 | A`).
-    private var ansiOverride: [UInt32: SIMD4<Float>] = [:]
-
-    /// Engine's 16 compile-time ANSI hex values (matcha palette).
-    /// Mirrors `cells.rs::encode_named` order:
-    ///   0..7   = normal black/red/green/yellow/blue/magenta/cyan/white
-    ///   8..15  = bright variants
-    /// Hex stored in packed `R<<24 | G<<16 | B<<8 | 0xff` form so the
-    /// override map can key directly on the u32 the renderer reads
-    /// off `cell.fg` / `cell.bg`.
-    private static let engineAnsiHex: [UInt32] = [
-        0x2a34_24ff, 0xd470_70ff, 0xa8cc_8cff, 0xd4c0_78ff,
-        0x6898_b0ff, 0xb890_a8ff, 0x70b8_a0ff, 0xc8d0_b8ff,
-        0x3a4a_34ff, 0xe888_88ff, 0xb8dc_a0ff, 0xe8d8_90ff,
-        0x80b0_c8ff, 0xd0a8_c0ff, 0x88d0_b8ff, 0xd8e0_ccff,
-    ]
-
-    private static func buildAnsiOverride(
-        file: ThemeFile
-    ) -> [UInt32: SIMD4<Float>] {
-        guard file.ansi.count == 16 else { return [:] }
-        var out: [UInt32: SIMD4<Float>] = [:]
-        out.reserveCapacity(16)
-        for (i, hex) in engineAnsiHex.enumerated() {
-            out[hex] = file.ansi[i]
-        }
-        return out
-    }
-
-    private func makeSlot(from cell: CellDeltaSwift, atlas: GlyphAtlas) -> CellSlot? {
-        Self.makeSlot(
-            from: cell,
-            atlas: atlas,
-            commandQueue: commandQueue,
-            palette: resolvedPalette,
-            ansiOverride: ansiOverride,
-            onAtlasMiss: { [weak self] scalar, error in
-                self?.logMissingGlyphOnce(scalar: scalar, error: error)
-            })
-    }
-
-    /// Pick the styled atlas entry for a (scalar, attrs) pair.
-    /// Branches on alacritty `Flags::BOLD` (0x0002) / `Flags::ITALIC`
-    /// (0x0004); plain text takes the unstyled fast path so the
-    /// per-cell cost stays the same as pre-styled-text.
-    static func lookupGlyph(
-        scalar: Unicode.Scalar,
-        attrs: UInt16,
-        atlas: GlyphAtlas,
-        commandQueue: MTLCommandQueue
-    ) throws -> AtlasEntry {
-        let bold = (attrs & 0x0002) != 0
-        let italic = (attrs & 0x0004) != 0
-        if !bold && !italic {
-            return try atlas.entry(for: scalar, commandQueue: commandQueue)
-        }
-        let font = atlas.styledFont(bold: bold, italic: italic)
-        return try atlas.entry(
-            for: scalar, font: font, commandQueue: commandQueue)
-    }
-
-    /// Test-friendly static variant. Pure logic — no `self` capture, so
-    /// `MetalRendererSGRColorTests` can drive it without standing up a
-    /// renderer (which requires a window + display link). The instance
-    /// method above is the production caller.
-    ///
-    /// Returns `Optional<CellSlot>` to fit the existing
-    /// `applyCellsAsRegions` makeSlot closure signature, but the body
-    /// here NEVER returns nil — even atlas-miss paths return a blank
-    /// slot. Once 4.3 lands the closure signature can drop the optional.
-    static func makeSlot(
-        from cell: CellDeltaSwift,
-        atlas: GlyphAtlas,
-        commandQueue: MTLCommandQueue,
-        palette: Theme.Palette,
-        ansiOverride: [UInt32: SIMD4<Float>] = [:],
-        onAtlasMiss: ((Unicode.Scalar, Error) -> Void)? = nil
-    ) -> CellSlot? {
-        var fg = resolveColor(
-            packed: cell.fg, sentinel: 0xffff_ffff,
-            fallback: palette.defaultFgLinear,
-            override: ansiOverride)
-        var bg = resolveColor(
-            packed: cell.bg, sentinel: 0x0000_00ff,
-            fallback: palette.defaultBgLinear,
-            override: ansiOverride)
-
-        // INVERSE (alacritty `Flags::INVERSE` = bit 0, value 0x0001)
-        // swaps fg/bg. TUIs (Claude Code, vim selection, less status
-        // line) draw their cursors and selections via `\e[7m` — without
-        // this swap those reads as plain unstyled text.
-        if (cell.attrs & 0x0001) != 0 {
-            swap(&fg, &bg)
-        }
-
-        guard let clusterString = decodeGraphemeString(cell.grapheme),
-            let scalar = clusterString.unicodeScalars.first
-        else {
-            // All-zero grapheme — engine emits this for blank cells
-            // populated by the default empty-cell template. Paint bg
-            // only; no glyph lookup.
-            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
-        }
-
-        // Fast path: ASCII space renders pure background. Skips the
-        // atlas lookup entirely (it would resolve to a blank glyph
-        // anyway, but no point burning the CoreText path on it).
-        if clusterString.unicodeScalars.count == 1, scalar.value == 0x20 {
-            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
-        }
-
-        // Multi-codepoint grapheme cluster (Thai base + tone mark,
-        // Devanagari + matra, Hangul jamo, emoji ZWJ sequences):
-        // route through CTLine so CoreText applies shaping + mark
-        // positioning. Single-scalar grapheme stays on the fast path.
-        if clusterString.unicodeScalars.count > 1 {
-            do {
-                let entry = try atlas.entry(
-                    forCluster: clusterString, commandQueue: commandQueue)
-                return CellSlot(
-                    glyph: entry, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
-            } catch {
-                onAtlasMiss?(scalar, error)
-                return CellSlot(
-                    glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
-            }
-        }
-
-        do {
-            let entry = try lookupGlyph(
-                scalar: scalar, attrs: cell.attrs, atlas: atlas,
-                commandQueue: commandQueue)
-            return CellSlot(glyph: entry, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
-        } catch {
-            onAtlasMiss?(scalar, error)
-            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
-        }
-    }
-
-    /// ADR-0003 — resolve a `CoalescedCell` (coalescer output)
-    /// to a `CellSlot` for the primary cell. Continuation cells are
-    /// emitted separately as `slot.glyph = nil` so they pack as
-    /// selector=0 / cellSpan=0 (continuation sentinel per atomic 3).
-    ///
-    /// Routing:
-    ///   - `cellSpan >= 2`  → cluster atlas slot rasterized at
-    ///     `cellSpan * cellW` wide via `entry(forCluster:cellSpan:)`.
-    ///   - `cellSpan == 1` multi-scalar → existing cluster path (span=1).
-    ///   - `cellSpan == 1` single-scalar → fast scalar atlas path.
-    private func makeSlot(
-        from cell: CoalescedCell, atlas: GlyphAtlas
-    ) -> CellSlot? {
-        Self.makeSlot(
-            from: cell,
-            atlas: atlas,
-            commandQueue: commandQueue,
-            palette: resolvedPalette,
-            ansiOverride: ansiOverride,
-            onAtlasMiss: { [weak self] scalar, error in
-                self?.logMissingGlyphOnce(scalar: scalar, error: error)
-            })
-    }
-
-    /// Test-friendly static variant for the coalesced-cell slot. Mirrors
-    /// the `CellDeltaSwift` static above; pure logic so unit tests can
-    /// drive it without a live renderer.
-    static func makeSlot(
-        from cell: CoalescedCell,
-        atlas: GlyphAtlas,
-        commandQueue: MTLCommandQueue,
-        palette: Theme.Palette,
-        ansiOverride: [UInt32: SIMD4<Float>] = [:],
-        onAtlasMiss: ((Unicode.Scalar, Error) -> Void)? = nil
-    ) -> CellSlot? {
-        var fg = resolveColor(
-            packed: cell.fg, sentinel: 0xffff_ffff,
-            fallback: palette.defaultFgLinear,
-            override: ansiOverride)
-        var bg = resolveColor(
-            packed: cell.bg, sentinel: 0x0000_00ff,
-            fallback: palette.defaultBgLinear,
-            override: ansiOverride)
-        if (cell.attrs & 0x0001) != 0 {
-            swap(&fg, &bg)
-        }
-
-        let clusterString = cell.grapheme
-        guard let scalar = clusterString.unicodeScalars.first else {
-            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
-        }
-        if clusterString.unicodeScalars.count == 1,
-            scalar.value == 0x20, cell.cellSpan <= 1
-        {
-            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
-        }
-
-        let span = max(UInt8(1), cell.cellSpan)
-        // Multi-cell cluster or multi-scalar grapheme → cluster atlas.
-        if span >= 2 || clusterString.unicodeScalars.count > 1 {
-            do {
-                let entry = try atlas.entry(
-                    forCluster: clusterString,
-                    cellSpan: span,
-                    commandQueue: commandQueue)
-                return CellSlot(
-                    glyph: entry, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
-            } catch {
-                onAtlasMiss?(scalar, error)
-                return CellSlot(
-                    glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
-            }
-        }
-
-        // Single-scalar, single-cell: fast scalar atlas path.
-        do {
-            let entry = try lookupGlyph(
-                scalar: scalar, attrs: cell.attrs, atlas: atlas,
-                commandQueue: commandQueue)
-            return CellSlot(glyph: entry, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
-        } catch {
-            onAtlasMiss?(scalar, error)
-            return CellSlot(glyph: nil, fgColorLinear: fg, bgColorLinear: bg, attrs: cell.attrs)
-        }
-    }
-
-    /// Decode the full UTF-8 grapheme buffer to a Swift String, trimming
-    /// trailing nulls. Returns `nil` on all-zero/malformed input.
-    /// Used by both the single-scalar and the cluster atlas paths.
-    static func decodeGraphemeString(_ grapheme: [UInt8]) -> String? {
-        var end = grapheme.count
-        for (i, byte) in grapheme.enumerated() where byte == 0 {
-            end = i
-            break
-        }
-        guard end > 0 else { return nil }
-        return String(bytes: grapheme.prefix(end), encoding: .utf8)
-    }
-
-    /// Resolve a packed RGBA8 color (engine `pack_rgba` layout) to a
-    /// linear-space `SIMD4<Float>`. Sentinels (`0xffff_ffff` foreground,
-    /// `0x0000_00ff` background — see `cells.rs:224-225`) bypass the
-    /// LUT and use the active palette's default. Any other value goes
-    /// through `SRGBLinearLUT.unpackLinear` for the sRGB→linear
-    /// conversion.
-    @inline(__always)
-    static func resolveColor(
-        packed: UInt32, sentinel: UInt32, fallback: SIMD4<Float>,
-        override: [UInt32: SIMD4<Float>] = [:]
-    ) -> SIMD4<Float> {
-        if packed == sentinel { return fallback }
-        // Theme-file ANSI override: cells the engine baked with its
-        // compile-time encode_named values get redirected to the
-        // user's theme-file palette. Truecolor SGR (`38;2;r;g;b`)
-        // values almost never collide with the 16 named hexes so
-        // this is safe in practice.
-        if let mapped = override[packed] {
-            return mapped
-        }
-        return SRGBLinearLUT.unpackLinear(packed)
-    }
-
-    /// 4.5 selection overlay tint. Per spec/metal-renderer.md §Stage 2,
-    /// selection is rendered at 0.35 alpha over the grid pass; the
-    /// shader stays kind-agnostic and we modulate alpha CPU-side via
-    /// `colorLinear.a`. Color comes from `Theme.Color.selectionBgLinear`
-    /// (`#3d4254` per spec/design-tokens.md).
-    ///
-    /// **Span shape (4.5 scope cut):** stream selections only.
-    /// `is_block == true` is plumbed through the FFI but rendered as
-    /// stream — block-mode rendering is paired with block-mode input
-    /// (alt-drag), and the brief defers the input plumb. The renderer
-    /// is shape-ready (the `is_block` flag is read; only the encode
-    /// strategy is shared) so when block-mode lands it's a single
-    /// branch in this method.
-    ///
-    /// Stream geometry, given a span `(start_row, start_col, end_row,
-    /// end_col)`:
-    ///   - Single row (`start_row == end_row`): one quad spanning
-    ///     `[start_col, end_col]` × that row.
-    ///   - Multi-row: first row covers `[start_col, viewportCols)`;
-    ///     middle rows cover `[0, viewportCols)`; last row covers
-    ///     `[0, end_col]`. One overlay quad per row.
-    ///
-    /// Spans are passed through `OverlayUniforms.cellSpanCols`; the
-    /// vertex shader stretches the quad's x-extent so each row is one
-    /// draw call regardless of width. Y-axis stays single-cell.
-    // PG4 selection contrast: 0.35 was the original "soft tint" that
-    // kept underlying glyphs visible but produced low contrast on
-    // dark themes (matcha selection #2a3424 over bg-base #0e0d10 at
-    // 35% looked like a barely-there green shadow). 0.55 reads as a
-    // confident selection while still letting the glyph show
-    // through. True reverse-video (swap fg/bg per cell) is shader
-    // work — tracked separately. This is the 80% win.
-    static let selectionAlpha: Float = 0.55
-    func encodeSelectionOverlay(
-        encoder: MTLRenderCommandEncoder,
-        drawableSizePx: SIMD2<Float>,
-        cellSizePx: SIMD2<Float>,
-        gridOriginPx: SIMD2<Float>,
-        overlay: OverlayPipeline
-    ) {
-        guard let session else { return }
-        // Keep the mirror's viewport rows in step with the content
-        // before reading it: output that scrolled the grid since the
-        // last input event moved the selected cells without touching
-        // any mouse handler. See `reprojectSelectionMirror`.
-        hostView?.reprojectSelectionMirror(from: session)
-        // Wire format: empty → no selection; 5 u32s otherwise per
-        // bridge.rs::TerminalSession::selection_span.
-        //
-        // **Source of truth**: prefer the Swift-side `swiftSelectionSpan`
-        // mirror over the engine's span when set. alacritty clears its
-        // own `Term::selection` on grid writes that intersect the
-        // selection's row range (term/mod.rs:1657,1773,1786,1803,1811);
-        // TUIs that redraw rows on every render tick would otherwise
-        // see the selection-tint vanish under their feet. The Swift
-        // mirror is the authoritative UI-layer record of "what cells
-        // does the user have selected" — see
-        // `TerminalSurfaceView.pendingSelection` docs.
-        let startRow: Int
-        let startCol: Int
-        let endRow: Int
-        let endCol: Int
-        let isBlock: Bool
-        if let mirror = hostView?.swiftSelectionSpan, mirror.count == 5 {
-            startRow = Int(mirror[0])
-            startCol = Int(mirror[1])
-            endRow = Int(mirror[2])
-            endCol = Int(mirror[3])
-            isBlock = mirror[4] != 0
-        } else {
-            let span = session.selection_span()
-            guard span.len() == 5 else { return }
-            startRow = Int(span.get(index: 0).map { $0 } ?? 0)
-            startCol = Int(span.get(index: 1).map { $0 } ?? 0)
-            endRow = Int(span.get(index: 2).map { $0 } ?? 0)
-            endCol = Int(span.get(index: 3).map { $0 } ?? 0)
-            isBlock = (span.get(index: 4).map { $0 } ?? 0) != 0
-        }
-
-        // Defensive bounds: clamp to viewport so a misbehaving
-        // producer can't drive an off-screen quad. Real out-of-range
-        // inputs are clamped engine-side; this is belt-and-braces.
-        let maxCol = max(0, gridCols - 1)
-        let maxRow = max(0, gridRows - 1)
-        let sR = min(max(startRow, 0), maxRow)
-        let eR = min(max(endRow, 0), maxRow)
-        let sC = min(max(startCol, 0), maxCol)
-        let eC = min(max(endCol, 0), maxCol)
-
-        // Per-row encode helper.
-        func encodeRow(row: Int, fromCol: Int, toCol: Int) {
-            guard fromCol <= toCol else { return }
-            let spanCells = toCol - fromCol + 1
-            let originPx = SIMD2<Float>(
-                gridOriginPx.x + Float(fromCol) * cellSizePx.x,
-                gridOriginPx.y + Float(row) * cellSizePx.y)
-            var color = resolvedSelection
-            color.w = Self.selectionAlpha
-            let uniforms = OverlayUniforms(
-                screenSizePx: drawableSizePx,
-                cellOriginPx: originPx,
-                cellSizePx: cellSizePx,
-                colorLinear: color,
-                kind: OverlayKind.selection.rawValue,
-                alpha: 1.0,
-                cellSpanCols: UInt32(spanCells))
-            overlay.encode(uniforms: uniforms, encoder: encoder)
-        }
-
-        if isBlock {
-            // Block-mode: each row covers [sC, eC]. Documented as
-            // shape-ready scope-cut — the input side stays deferred.
-            for r in sR...eR {
-                encodeRow(row: r, fromCol: sC, toCol: eC)
-            }
-        } else if sR == eR {
-            encodeRow(row: sR, fromCol: sC, toCol: eC)
-        } else {
-            // First row: [sC, lastCol]
-            encodeRow(row: sR, fromCol: sC, toCol: maxCol)
-            // Middle rows: full width
-            if eR > sR + 1 {
-                for r in (sR + 1)...(eR - 1) {
-                    encodeRow(row: r, fromCol: 0, toCol: maxCol)
-                }
-            }
-            // Last row: [0, eC]
-            encodeRow(row: eR, fromCol: 0, toCol: eC)
-        }
-    }
-
-    /// Resolved per-frame cursor presentation, shared by the grid pass
-    /// (BLOCK reverse-video) and the overlay pass (BEAM / UNDERLINE quads).
-    /// Computed once per tick by `computeCursorBlockState()` so the blink
-    /// bookkeeping advances exactly once. `nil` means "draw no cursor this
-    /// frame" — hidden, scrolled into history, off-screen, or blink-off.
-    struct CursorBlockState {
-        var col: Int
-        var row: Int
-        var kind: OverlayKind  // .cursorBlock / .cursorBeam / .cursorUnderline
-        var color: SIMD4<Float>  // straight linear RGBA, .w forced to 1
-        var alpha: Float  // blink phase, > 0 (callers gate on nil for off)
-    }
-
-    /// Resolve the cursor's draw state for this frame. Holds all the
-    /// visibility gates (hidden / scrolled-into-history / off-screen /
-    /// blink-off) and the blink + pause-on-type bookkeeping that used to
-    /// live inline in `encodeCursorOverlay`. Pulled out so it can run
-    /// BEFORE the grid encode — the grid pass needs the BLOCK cursor's
-    /// cell + colour + alpha to reverse-video the glyph, and this helper
-    /// mutates `blinkOriginTime` / `wasTypingLastFrame`, so it must run
-    /// exactly once per tick. Returns `nil` when nothing should draw.
-    func computeCursorBlockState() -> CursorBlockState? {
-        guard let cursor = lastCursor, !cursor.hidden else { return nil }
-        // UX3: don't draw the cursor while the user is scrolled into
-        // history (display_offset > 0). It's misleading there — the
-        // block on old output reads as "this line is editable" when it
-        // isn't. Snap-to-bottom restores the cursor automatically on the
-        // next input frame. Matches Terminal.app / iTerm2 behaviour.
-        if lastScrollTop > 0 { return nil }
-        // Defensive: a misbehaving producer could place the cursor
-        // outside the grid; drop rather than reverse-video / encode an
-        // off-screen cell.
-        guard Int(cursor.row) < gridRows,
-            Int(cursor.col) < gridCols
-        else { return nil }
-
-        let kind = Self.cursorKind(forShape: cursor.shape)
-
-        // Lazily anchor the blink phase so blink starts from "visible"
-        // the moment the renderer has work to do, not the moment the
-        // process launched (which can be seconds before the first frame
-        // on a cold start).
-        let now = self.now()
-        if blinkOriginTime == nil { blinkOriginTime = now }
-
-        // V2 pause-on-type: hold solid while the user is actively typing.
-        // The blink resumes ~500 ms after the last keystroke. Re-anchor
-        // `blinkOriginTime` on resume so the cursor enters at the
-        // visible-steady phase rather than mid-fade.
-        let timeSinceKey = now - lastKeystrokeTime
-        let typingActive =
-            lastKeystrokeTime > 0
-            && timeSinceKey < Self.blinkPauseAfterKeystrokeSec
-        // UX6: re-anchor `blinkOriginTime` only on the typing → idle
-        // transition. Continuously anchoring during typing made `elapsed`
-        // jump to the pause duration the instant typing stopped — landing
-        // the first post-pause frame in the hidden-steady phase, so the
-        // cursor disappeared for ~150 ms right when the user finished
-        // typing and expected to see it. Anchoring only at the boundary
-        // guarantees the first idle frame enters the visible-steady phase.
-        if !typingActive && wasTypingLastFrame {
-            blinkOriginTime = now
-        }
-        wasTypingLastFrame = typingActive
-
-        let alpha: Float
-        if !cursor.blink || typingActive {
-            alpha = 1.0
-        } else {
-            let elapsedNow = now - (blinkOriginTime ?? now)
-            alpha = easedBlinkAlpha(
-                elapsed: elapsedNow, period: Self.blinkPeriodSec)
-        }
-
-        // Blink-off phase: nothing draws.
-        guard alpha > 0 else { return nil }
-
-        var color = resolvedCursor
-        // The uniform's `alpha` carries the blink phase; keep the colour
-        // straight-RGBA with full opacity so the grid reverse-video mix
-        // and the overlay's `colorLinear.a * alpha` term agree.
-        color.w = 1.0
-
-        return CursorBlockState(
-            col: Int(cursor.col),
-            row: Int(cursor.row),
-            kind: kind,
-            color: color,
-            alpha: alpha)
-    }
-
-    /// Encode the Stage-2 cursor overlay quad for the BEAM / UNDERLINE
-    /// shapes only. The BLOCK shape is no longer drawn here: it would
-    /// paint an opaque quad over the glyph and hide the character. Instead
-    /// the grid pass reverse-videos the cursor cell (see `grid_fragment` +
-    /// `computeCursorBlockState`), keeping the character readable. Beam and
-    /// underline don't cover the glyph, so they stay as overlay quads with
-    /// the source-over blend exactly as before.
-    ///
-    /// `state` is the precomputed per-frame cursor presentation; `nil`
-    /// means no cursor this frame (already gated in the helper).
-    func encodeCursorOverlay(
-        state: CursorBlockState?,
-        encoder: MTLRenderCommandEncoder,
-        drawableSizePx: SIMD2<Float>,
-        cellSizePx: SIMD2<Float>,
-        gridOriginPx: SIMD2<Float>,
-        overlay: OverlayPipeline
-    ) {
-        guard let state else { return }
-        // BLOCK is handled by the grid-pass reverse-video; skip the quad.
-        guard state.kind != .cursorBlock else { return }
-
-        let originPx = SIMD2<Float>(
-            gridOriginPx.x + Float(state.col) * cellSizePx.x,
-            gridOriginPx.y + Float(state.row) * cellSizePx.y)
-
-        let uniforms = OverlayUniforms(
-            screenSizePx: drawableSizePx,
-            cellOriginPx: originPx,
-            cellSizePx: cellSizePx,
-            colorLinear: state.color,
-            kind: state.kind.rawValue,
-            alpha: state.alpha,
-            cellSpanCols: 1)
-        overlay.encode(uniforms: uniforms, encoder: encoder)
-    }
-
-    /// 4.9: paint preedit cells over the grid texture, or restore the
-    /// underlying real cells when composition just cleared.
-    ///
-    /// Strategy: composition state lives Swift-side only. We poll the
-    /// host view's `activeComposition` each frame; when it's non-nil
-    /// AND `compositionInvalidated` is set (avoids redundant uploads
-    /// on stable composition frames), we upload preedit cells via
-    /// `setRegion` at the cursor row. When composition just ended
-    /// (`compositionInvalidated && composition == nil`), we restore
-    /// the cells we'd been painting from the cached `cells` shadow
-    /// array — the engine doesn't mark them dirty (we never sent
-    /// preedit through the FFI), so without this restore the preedit
-    /// glyphs would linger on screen until the next real PTY write
-    /// touches those cells.
-    ///
-    /// The `cells` shadow may be empty post-resize (cleared by
-    /// `resizeGrid`) — in that case we fall back to a blank-cell
-    /// repaint with the theme's default background. Acceptable
-    /// because resize triggers a full repaint from alacritty anyway
-    /// on the next FrameDelta.
-    private func applyCompositionStateIfNeeded(
-        pipeline: GridPipeline, atlas: GlyphAtlas
-    ) {
-        let composition = hostView?.activeComposition
-        // Fast path: no composition AND nothing to clean up. Most
-        // frames take this exit.
-        if composition == nil && !compositionInvalidated
-            && preeditPaintedCells.isEmpty
-        {
-            return
-        }
-
-        // Restore previously-painted preedit cells from the cached
-        // grid state. Done unconditionally when there ARE painted
-        // cells — covers two cases:
-        //   - composition just ended: no new preedit overwrite, so
-        //     restore puts real cells back.
-        //   - composition refined to a SHORTER preedit: tail cells
-        //     that the new preedit doesn't cover need their real
-        //     content back.
-        // For composition that grew or stayed same length, the
-        // upcoming preedit upload overwrites the restored cells, so
-        // the restore is wasted work. Acceptable cost — composition
-        // typically refines once per word, well under any latency
-        // budget concern.
-        if !preeditPaintedCells.isEmpty {
-            for (row, col) in preeditPaintedCells {
-                let restoredSlot = restoredSlot(row: row, col: col)
-                let rect = GridPipeline.GridRect(
-                    col: col, row: row, width: 1, height: 1)
-                try? pipeline.setRegion(
-                    rect: rect, slots: [restoredSlot],
-                    atlasSize: GlyphAtlas.atlasSize,
-                    colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
-            }
-            preeditPaintedCells.removeAll(keepingCapacity: true)
-        }
-
-        // Paint new preedit cells (if any).
-        if let comp = composition, !comp.text.isEmpty {
-            paintPreeditCells(
-                text: comp.text, pipeline: pipeline, atlas: atlas)
-        }
-
-        compositionInvalidated = false
-    }
-
-    /// 4.9: resolve the underlying real cell at (row, col) from the
-    /// renderer's cached shadow. Falls back to a blank cell with
-    /// theme defaults when:
-    ///   - the shadow is empty (post-resize, before next FrameDelta), or
-    ///   - the index is out of range (defensive — preedit cells should
-    ///     always sit inside the grid since we clamp at paint time).
-    private func restoredSlot(row: Int, col: Int) -> CellSlot {
-        let idx = row * gridCols + col
-        if idx >= 0, idx < cells.count {
-            return cells[idx]
-        }
-        return CellSlot(
-            glyph: nil,
-            fgColorLinear: Theme.Color.textPrimaryLinear,
-            bgColorLinear: Theme.Color.bgBaseLinear)
-    }
-
-    /// 4.9: paint preedit `text` starting at the cursor cell. Each
-    /// scalar maps to one cell. Truncated at the viewport's right
-    /// edge — wrapping preedit to the next row would mismatch the
-    /// IME's candidate-window anchor (which is fixed at the cursor
-    /// cell). Records the painted cells in `preeditPaintedCells` so
-    /// the next composition-state-change frame can restore them.
-    private func paintPreeditCells(
-        text: String, pipeline: GridPipeline, atlas: GlyphAtlas
-    ) {
-        guard let cursor = lastCursor else { return }
-        let row = Int(cursor.row)
-        let startCol = Int(cursor.col)
-        guard row >= 0, row < gridRows, startCol >= 0, startCol < gridCols
-        else { return }
-
-        var slots: [CellSlot] = []
-        var col = startCol
-        for scalar in text.unicodeScalars {
-            guard col < gridCols else { break }
-            let glyph = try? atlas.entry(
-                for: scalar, commandQueue: commandQueue)
-            slots.append(
-                CellSlot(
-                    glyph: glyph,
-                    fgColorLinear: Theme.Color.textPrimaryLinear,
-                    bgColorLinear: Theme.Color.bgBaseLinear))
-            col += 1
-        }
-        guard !slots.isEmpty else { return }
-
-        let rect = GridPipeline.GridRect(
-            col: startCol, row: row,
-            width: slots.count, height: 1)
-        do {
-            try pipeline.setRegion(
-                rect: rect, slots: slots,
-                atlasSize: GlyphAtlas.atlasSize, colorAtlasSize: GlyphAtlas.defaultColorAtlasSize)
-            for i in 0..<slots.count {
-                preeditPaintedCells.append((row: row, col: startCol + i))
-            }
-        } catch {
-            NSLog(
-                "MetalRenderer.paintPreeditCells: setRegion failed for "
-                    + "rect=(%d,%d %dx%d): %@",
-                rect.col, rect.row, rect.width, rect.height,
-                String(describing: error))
-        }
-    }
-
-    /// 4.9: encode one IME-underline quad per preedit cell at the
-    /// cursor row. The shader's kind=3 case lights the bottom ~15%
-    /// of each cell with `colorLinear` (`Theme.Color.imeUnderlineLinear`).
-    /// Skipped when no composition is active.
-    func encodeImeUnderlineOverlay(
-        encoder: MTLRenderCommandEncoder,
-        drawableSizePx: SIMD2<Float>,
-        cellSizePx: SIMD2<Float>,
-        gridOriginPx: SIMD2<Float>,
-        overlay: OverlayPipeline
-    ) {
-        guard let comp = hostView?.activeComposition,
-            !comp.text.isEmpty,
-            let cursor = lastCursor
-        else { return }
-        let row = Int(cursor.row)
-        let startCol = Int(cursor.col)
-        guard row >= 0, row < gridRows, startCol >= 0, startCol < gridCols
-        else { return }
-
-        var color = Theme.Color.imeUnderlineLinear
-        color.w = 1.0  // straight alpha; the shader gates by cellUV.y
-
-        var col = startCol
-        for _ in comp.text.unicodeScalars {
-            guard col < gridCols else { break }
-            let originPx = SIMD2<Float>(
-                gridOriginPx.x + Float(col) * cellSizePx.x,
-                gridOriginPx.y + Float(row) * cellSizePx.y)
-            let uniforms = OverlayUniforms(
-                screenSizePx: drawableSizePx,
-                cellOriginPx: originPx,
-                cellSizePx: cellSizePx,
-                colorLinear: color,
-                kind: OverlayKind.imeUnderline.rawValue,
-                alpha: 1.0,
-                cellSpanCols: 1)
-            overlay.encode(uniforms: uniforms, encoder: encoder)
-            col += 1
-        }
-    }
-
-    /// M6-2: encode a single-row, N-cell underline at `linkHover` so a
-    /// ⌘+hovered file path looks clickable. Reuses the kind=3 shader
-    /// path (`imeUnderline`, bottom ~15% of cell) with a link-tint color
-    /// so no shader change is needed. Skipped when `linkHover` is nil
-    /// (not hovering, ⌘ not down, or detection disabled).
-    func encodeLinkUnderlineOverlay(
-        encoder: MTLRenderCommandEncoder,
-        drawableSizePx: SIMD2<Float>,
-        cellSizePx: SIMD2<Float>,
-        gridOriginPx: SIMD2<Float>,
-        overlay: OverlayPipeline
-    ) {
-        guard let hover = linkHover else { return }
-        let row = hover.row
-        let startCol = hover.startCol
-        guard row >= 0, row < gridRows, startCol >= 0, startCol < gridCols,
-            hover.span > 0
-        else { return }
-        let span = min(hover.span, gridCols - startCol)
-        var color = Theme.Color.linkUnderlineLinear
-        color.w = 1.0
-        let originPx = SIMD2<Float>(
-            gridOriginPx.x + Float(startCol) * cellSizePx.x,
-            gridOriginPx.y + Float(row) * cellSizePx.y)
-        let uniforms = OverlayUniforms(
-            screenSizePx: drawableSizePx,
-            cellOriginPx: originPx,
-            cellSizePx: cellSizePx,
-            colorLinear: color,
-            kind: OverlayKind.imeUnderline.rawValue,
-            alpha: 1.0,
-            cellSpanCols: UInt32(span))
-        overlay.encode(uniforms: uniforms, encoder: encoder)
-    }
-
-    /// SGR underline (`\e[4m`). Walks the cached `cells` array, coalescing
-    /// adjacent cells in the same row that carry the UNDERLINE attr bit
-    /// (alacritty `Flags::UNDERLINE` = 0x0008) into runs. One overlay
-    /// quad per run, tinted with the run's fg color.
-    func encodeTextUnderlineOverlay(
-        encoder: MTLRenderCommandEncoder,
-        drawableSizePx: SIMD2<Float>,
-        cellSizePx: SIMD2<Float>,
-        gridOriginPx: SIMD2<Float>,
-        overlay: OverlayPipeline
-    ) {
-        let underlineBit: UInt16 = 0x0008
-        guard gridCols > 0, gridRows > 0, cells.count == gridCols * gridRows
-        else { return }
-        for row in 0..<gridRows {
-            var col = 0
-            while col < gridCols {
-                let idx = row * gridCols + col
-                guard (cells[idx].attrs & underlineBit) != 0 else {
-                    col += 1
-                    continue
-                }
-                let runStart = col
-                let runFg = cells[idx].fgColorLinear
-                while col < gridCols
-                    && (cells[row * gridCols + col].attrs & underlineBit) != 0
-                {
-                    col += 1
-                }
-                let span = col - runStart
-                let originPx = SIMD2<Float>(
-                    gridOriginPx.x + Float(runStart) * cellSizePx.x,
-                    gridOriginPx.y + Float(row) * cellSizePx.y)
-                let uniforms = OverlayUniforms(
-                    screenSizePx: drawableSizePx,
-                    cellOriginPx: originPx,
-                    cellSizePx: cellSizePx,
-                    colorLinear: runFg,
-                    kind: OverlayKind.textUnderline.rawValue,
-                    alpha: 1.0,
-                    cellSpanCols: UInt32(span))
-                overlay.encode(uniforms: uniforms, encoder: encoder)
-            }
-        }
-    }
-
-    /// Scrollbar thumb. Hidden when scrollback is empty (live tail with
-    /// no history). Right-edge strip with a thumb whose height is
-    /// proportional to (viewport / total) and whose y is proportional
-    /// to (scroll_top / scroll_total). scroll_top == 0 means we're at
-    /// the live tail, so the thumb sits at the bottom; scroll_top ==
-    /// scroll_total means oldest history, thumb at the top.
-    func encodeScrollbarOverlay(
-        encoder: MTLRenderCommandEncoder,
-        drawableSizePx: SIMD2<Float>,
-        cellSizePx: SIMD2<Float>,
-        gridOriginPx: SIMD2<Float>,
-        overlay: OverlayPipeline
-    ) {
-        let total = lastScrollTotal
-        guard total > 0, gridRows > 0 else { return }
-        // V1: don't show the thumb at all until the buffer holds
-        // meaningful history — a shell that hasn't yet exceeded one
-        // viewport's worth of output doesn't need scrollback chrome.
-        guard total >= gridRows else { return }
-
-        let viewportPx = Float(gridRows) * cellSizePx.y
-        let viewportRows = Float(gridRows)
-        let totalRowsF = Float(total)
-        let trackHeightPx = viewportPx
-        // Thumb height: proportional to viewport / (viewport + history).
-        // Min 24px so the thumb stays grabbable at very deep scrollback.
-        let rawThumbH = trackHeightPx * (viewportRows / (viewportRows + totalRowsF))
-        let thumbHPx = max(24, rawThumbH)
-        // scroll_top is "rows scrolled up into history" — 0 at live
-        // tail. Tail-anchored: fraction 1.0 puts the thumb at the
-        // bottom of the track; fraction 0.0 at the top.
-        let fractionFromTop = 1.0 - Float(lastScrollTop) / totalRowsF
-        let thumbYPx = gridOriginPx.y + (trackHeightPx - thumbHPx) * fractionFromTop
-
-        // V1 hover-grow: when the pointer sits within
-        // `scrollbarHoverHitWidthPt` of the right edge AND vertically
-        // overlaps the thumb, snap to the hover width and full opacity.
-        // `hoverPointInView` is in view-points (not pixels); convert
-        // by dividing drawableSize.x by `layer.contentsScale` to
-        // compare. We approximate via the drawable-points conversion
-        // here — for Retina (2×) the math is `drawableSizePx.x / 2`.
-        let scale = Float((attachedLayer?.contentsScale) ?? 2.0)
-        let viewWidthPt = drawableSizePx.x / scale
-        let viewHeightPt = drawableSizePx.y / scale
-        var hovering = false
-        if let p = hoverPointInView {
-            let xFromRight = viewWidthPt - Float(p.x)
-            // AppKit y origin is bottom-left; convert to top-down so it
-            // lines up with the drawable's pixel coords.
-            let yFromTop = viewHeightPt - Float(p.y)
-            let thumbYPt = thumbYPx / scale
-            let thumbHPt = thumbHPx / scale
-            if xFromRight >= 0
-                && xFromRight <= Self.scrollbarHoverHitWidthPt
-                && yFromTop >= thumbYPt - 4
-                && yFromTop <= thumbYPt + thumbHPt + 4
-            {
-                hovering = true
-            }
-        }
-
-        let widthPx: Float =
-            hovering
-            ? Self.scrollbarHoverWidthPx
-            : Self.scrollbarRestingWidthPx
-
-        // V1 fade: solid for `scrollbarHoldSec` post-activity, then
-        // linear fade to `scrollbarRestingAlpha` over the next
-        // `scrollbarFadeSec`. Hover overrides to full opacity.
-        let elapsed = now() - lastScrollActivityTime
-        let alpha: Float
-        if hovering {
-            alpha = 1.0
-        } else if elapsed < Self.scrollbarHoldSec {
-            alpha = 1.0
-        } else {
-            let fadeProgress = min(
-                1.0,
-                Float((elapsed - Self.scrollbarHoldSec) / Self.scrollbarFadeSec))
-            alpha = 1.0 - (1.0 - Self.scrollbarRestingAlpha) * fadeProgress
-        }
-
-        let originPx = SIMD2<Float>(
-            drawableSizePx.x - widthPx,
-            thumbYPx)
-        let sizePx = SIMD2<Float>(widthPx, thumbHPx)
-        var color = Theme.Color.scrollbarThumbLinear
-        color.w = 1.0
-        let uniforms = OverlayUniforms(
-            screenSizePx: drawableSizePx,
-            cellOriginPx: originPx,
-            cellSizePx: sizePx,
-            colorLinear: color,
-            kind: OverlayKind.cursorBlock.rawValue,  // kind=0: solid rect
-            alpha: alpha,
-            cellSpanCols: 1)
-        overlay.encode(uniforms: uniforms, encoder: encoder)
-    }
-
-    /// I1 bell flash: full-viewport tint quad. Linear fade from
-    /// `bellFlashPeakAlpha` to 0 over `bellFlashDurationSec`. No encode
-    /// when no flash is in-flight — common path is a no-op.
-    func encodeBellFlashOverlay(
-        encoder: MTLRenderCommandEncoder,
-        drawableSizePx: SIMD2<Float>,
-        overlay: OverlayPipeline
-    ) {
-        guard let started = bellFlashStartTime else { return }
-        let elapsed = now() - started
-        guard elapsed < Self.bellFlashDurationSec else { return }
-        let progress = Float(elapsed / Self.bellFlashDurationSec)
-        let alpha = Self.bellFlashPeakAlpha * (1.0 - progress)
-        // Use the theme's primary text color as the flash tint —
-        // contrasts with the background on both light and dark themes
-        // without needing a dedicated theme token.
-        var color = resolvedPalette.defaultFgLinear
-        color.w = 1.0
-        let uniforms = OverlayUniforms(
-            screenSizePx: drawableSizePx,
-            cellOriginPx: SIMD2<Float>(0, 0),
-            cellSizePx: drawableSizePx,
-            colorLinear: color,
-            kind: OverlayKind.cursorBlock.rawValue,  // kind=0: solid rect
-            alpha: alpha,
-            cellSpanCols: 1)
-        overlay.encode(uniforms: uniforms, encoder: encoder)
-    }
-
-    static let bellFlashPeakAlpha: Float = 0.25
-
-    /// M7-2 ⌘F: encode one selection-style overlay quad per visible
-    /// search match. Active match uses the accent-running color at full
-    /// opacity; others use the same color at reduced alpha so the user
-    /// can scan all matches without losing the active anchor.
-    func encodeSearchHighlightOverlay(
-        encoder: MTLRenderCommandEncoder,
-        drawableSizePx: SIMD2<Float>,
-        cellSizePx: SIMD2<Float>,
-        gridOriginPx: SIMD2<Float>,
-        overlay: OverlayPipeline
-    ) {
-        guard let highlights = searchHighlights else { return }
-        for (idx, h) in highlights.spans.enumerated() {
-            // Translate alacritty-absolute line → viewport row.
-            // viewport spans `[-scrollTop, screen_lines - scrollTop)`.
-            let row = h.line + lastScrollTop
-            guard row >= 0, row < gridRows,
-                h.startCol >= 0, h.startCol < gridCols,
-                h.span > 0
-            else { continue }
-            let span = min(h.span, gridCols - h.startCol)
-            let isActive = (idx == highlights.activeIndex)
-            var color = Theme.Color.accentRunningLinear
-            color.w = isActive ? 0.55 : 0.25
-            let originPx = SIMD2<Float>(
-                gridOriginPx.x + Float(h.startCol) * cellSizePx.x,
-                gridOriginPx.y + Float(row) * cellSizePx.y)
-            let uniforms = OverlayUniforms(
-                screenSizePx: drawableSizePx,
-                cellOriginPx: originPx,
-                cellSizePx: cellSizePx,
-                colorLinear: color,
-                kind: OverlayKind.selection.rawValue,
-                alpha: 1.0,
-                cellSpanCols: UInt32(span))
-            overlay.encode(uniforms: uniforms, encoder: encoder)
-        }
-    }
-
-    /// Pin the `CURSOR_SHAPE_*` u8 → `OverlayKind` mapping. Static so
-    /// `OverlayPipelineTests` can drive it without instantiating a
-    /// renderer.
-    static func cursorKind(forShape shape: UInt8) -> OverlayKind {
-        switch shape {
-        case 0: return .cursorBlock  // CURSOR_SHAPE_BLOCK
-        case 1: return .cursorBeam  // CURSOR_SHAPE_BEAM
-        case 2: return .cursorUnderline  // CURSOR_SHAPE_UNDERLINE
-        default: return .cursorBlock  // unknown shape → safe default
-        }
-    }
-
-    /// Decode the first `Unicode.Scalar` from a UTF-8 grapheme buffer.
-    /// `cell.grapheme` is fixed-size 8 bytes, null-padded; we trim
-    /// trailing zeros and run String's UTF-8 decoder. Returns nil on
-    /// all-zero or malformed input — caller renders bg-only.
-    static func firstScalar(in grapheme: [UInt8]) -> Unicode.Scalar? {
-        // Find the first null terminator; everything after is padding.
-        var end = grapheme.count
-        for (i, byte) in grapheme.enumerated() where byte == 0 {
-            end = i
-            break
-        }
-        guard end > 0 else { return nil }
-        // Decode the prefix as UTF-8. Single multi-byte scalars (BMP +
-        // astrals) decode here in one step; clusters return their first
-        // scalar and the atlas handles the BMP-only path.
-        let bytes = grapheme.prefix(end)
-        if let s = String(bytes: bytes, encoding: .utf8), let first = s.unicodeScalars.first {
-            return first
-        }
-        return nil
-    }
+    var ansiOverride: [UInt32: SIMD4<Float>] = [:]
 
     /// Per-scalar de-duplication for atlas-miss logs. Bounded so an
     /// adversarial stream can't grow this unboundedly; once we hit the
     /// cap we stop adding (further misses for new scalars go silently).
     /// 4.2 (atlas LRU) and 4.3 (font fallback) retire most of this.
-    private var loggedMissingScalars: Set<UInt32> = []
-    private static let loggedMissingCap = 256
-
-    private func logMissingGlyphOnce(scalar: Unicode.Scalar, error: Error) {
-        guard loggedMissingScalars.count < Self.loggedMissingCap else { return }
-        if loggedMissingScalars.insert(scalar.value).inserted {
-            NSLog(
-                "MetalRenderer.makeSlot: atlas miss for U+%04X (%@) — %@",
-                scalar.value, String(scalar), String(describing: error))
-        }
-    }
+    var loggedMissingScalars: Set<UInt32> = []
+    static let loggedMissingCap = 256
 
     /// Single per-keystroke latency sample. Routes through
     /// `LatencyMeter`, which logs the percentile summary once
@@ -3170,7 +1486,7 @@ final class MetalRenderer {
     /// Keeps `cells` populated with sensible slots so the IME
     /// composition restore path (`restoredSlot`) reads valid bg/fg
     /// when erasing preedit underlines on commit / unmark.
-    private static func makeBlankGrid(
+    static func makeBlankGrid(
         cols: Int, rows: Int,
         palette: Theme.Palette = Theme.Color.defaultPalette
     ) -> [CellSlot] {
