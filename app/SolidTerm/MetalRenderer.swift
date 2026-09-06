@@ -157,7 +157,7 @@ final class MetalRenderer {
     /// `FrameDelta`. `nil` while the session hasn't produced a frame
     /// yet (Phase 1 stub returns a default `CursorState` regardless,
     /// but this guards future producers that gate cursor visibility).
-    private var lastCursor: CursorState?
+    var lastCursor: CursorState?
 
     /// 4.9: weak handle to the host `TerminalSurfaceView` so the
     /// composition pass can read `activeComposition` each frame. Weak
@@ -263,8 +263,8 @@ final class MetalRenderer {
     /// `now()` when one is fading. The encode path fades
     /// from 0.25 alpha to 0 over `bellFlashDurationSec` and clears the
     /// timestamp once `elapsed > duration`.
-    private var bellFlashStartTime: CFTimeInterval?
-    private static let bellFlashDurationSec: CFTimeInterval = 0.15
+    var bellFlashStartTime: CFTimeInterval?
+    static let bellFlashDurationSec: CFTimeInterval = 0.15
 
     /// Owning handle to the Rust-side `TerminalSession`. Constructed in
     /// `windowChanged` once a window is available; reset to nil when the
@@ -380,12 +380,12 @@ final class MetalRenderer {
     /// history). Cached during `applyFrameDelta` so the search-highlight
     /// encode path can compute `viewportRow = line + scrollTop` without
     /// re-pulling the FFI frame delta (which would double-drain).
-    private var lastScrollTop: Int = 0
+    var lastScrollTop: Int = 0
 
     /// Latest `scroll_total` from the engine (rows in scrollback). Cached
     /// alongside `lastScrollTop` so the scrollbar overlay encode can
     /// compute the thumb position without re-pulling the frame delta.
-    private var lastScrollTotal: Int = 0
+    var lastScrollTotal: Int = 0
 
     /// Mutable per-cell state. The renderer keeps the array so the
     /// keystroke handler can read the previous slot before producing
@@ -394,7 +394,7 @@ final class MetalRenderer {
     /// enqueue (index, slot) pairs onto `pendingCellWrites`; the next
     /// frame applies them via `GridPipeline.setCell` for one-cell
     /// texture updates instead of full-grid rewrites.
-    private var cells: [CellSlot] = []
+    var cells: [CellSlot] = []
     private var pendingCellWrites: [(index: Int, slot: CellSlot)] = []
     private var keystrokeIndex: Int = 0
     /// Pending input timestamps (`NSEvent.timestamp`, mach-time-derived)
@@ -2058,7 +2058,7 @@ final class MetalRenderer {
     /// renderer init. Read on the same thread that drives drawing,
     /// avoiding the MainActor hop in the per-cell hot loop. The
     /// `themeDidChange` observer below mutates this on the main runloop.
-    private var resolvedPalette: Theme.Palette = Theme.Color.defaultPalette
+    var resolvedPalette: Theme.Palette = Theme.Color.defaultPalette
 
     /// Active cursor color (file-backed theme wins over the static
     /// `Theme.Color.cursorDefaultLinear`). Refreshed by
@@ -2066,7 +2066,7 @@ final class MetalRenderer {
     private var resolvedCursor: SIMD4<Float> = Theme.Color.cursorDefaultLinear
 
     /// Active selection-bg color. File-backed theme wins.
-    private var resolvedSelection: SIMD4<Float> = Theme.Color.selectionBgLinear
+    var resolvedSelection: SIMD4<Float> = Theme.Color.selectionBgLinear
 
     /// Engine-baked-ANSI-hex → theme-file-ANSI-override map. Built
     /// from `ThemeFile.ansi` on theme change so per-cell color
@@ -2371,7 +2371,7 @@ final class MetalRenderer {
     // through. True reverse-video (swap fg/bg per cell) is shader
     // work — tracked separately. This is the 80% win.
     static let selectionAlpha: Float = 0.55
-    private func encodeSelectionOverlay(
+    func encodeSelectionOverlay(
         encoder: MTLRenderCommandEncoder,
         drawableSizePx: SIMD2<Float>,
         cellSizePx: SIMD2<Float>,
@@ -2570,7 +2570,7 @@ final class MetalRenderer {
     ///
     /// `state` is the precomputed per-frame cursor presentation; `nil`
     /// means no cursor this frame (already gated in the helper).
-    private func encodeCursorOverlay(
+    func encodeCursorOverlay(
         state: CursorBlockState?,
         encoder: MTLRenderCommandEncoder,
         drawableSizePx: SIMD2<Float>,
@@ -2734,7 +2734,7 @@ final class MetalRenderer {
     /// cursor row. The shader's kind=3 case lights the bottom ~15%
     /// of each cell with `colorLinear` (`Theme.Color.imeUnderlineLinear`).
     /// Skipped when no composition is active.
-    private func encodeImeUnderlineOverlay(
+    func encodeImeUnderlineOverlay(
         encoder: MTLRenderCommandEncoder,
         drawableSizePx: SIMD2<Float>,
         cellSizePx: SIMD2<Float>,
@@ -2777,7 +2777,7 @@ final class MetalRenderer {
     /// path (`imeUnderline`, bottom ~15% of cell) with a link-tint color
     /// so no shader change is needed. Skipped when `linkHover` is nil
     /// (not hovering, ⌘ not down, or detection disabled).
-    private func encodeLinkUnderlineOverlay(
+    func encodeLinkUnderlineOverlay(
         encoder: MTLRenderCommandEncoder,
         drawableSizePx: SIMD2<Float>,
         cellSizePx: SIMD2<Float>,
@@ -2811,7 +2811,7 @@ final class MetalRenderer {
     /// adjacent cells in the same row that carry the UNDERLINE attr bit
     /// (alacritty `Flags::UNDERLINE` = 0x0008) into runs. One overlay
     /// quad per run, tinted with the run's fg color.
-    private func encodeTextUnderlineOverlay(
+    func encodeTextUnderlineOverlay(
         encoder: MTLRenderCommandEncoder,
         drawableSizePx: SIMD2<Float>,
         cellSizePx: SIMD2<Float>,
@@ -2859,7 +2859,7 @@ final class MetalRenderer {
     /// to (scroll_top / scroll_total). scroll_top == 0 means we're at
     /// the live tail, so the thumb sits at the bottom; scroll_top ==
     /// scroll_total means oldest history, thumb at the top.
-    private func encodeScrollbarOverlay(
+    func encodeScrollbarOverlay(
         encoder: MTLRenderCommandEncoder,
         drawableSizePx: SIMD2<Float>,
         cellSizePx: SIMD2<Float>,
@@ -2955,7 +2955,7 @@ final class MetalRenderer {
     /// I1 bell flash: full-viewport tint quad. Linear fade from
     /// `bellFlashPeakAlpha` to 0 over `bellFlashDurationSec`. No encode
     /// when no flash is in-flight — common path is a no-op.
-    private func encodeBellFlashOverlay(
+    func encodeBellFlashOverlay(
         encoder: MTLRenderCommandEncoder,
         drawableSizePx: SIMD2<Float>,
         overlay: OverlayPipeline
@@ -2981,13 +2981,13 @@ final class MetalRenderer {
         overlay.encode(uniforms: uniforms, encoder: encoder)
     }
 
-    private static let bellFlashPeakAlpha: Float = 0.25
+    static let bellFlashPeakAlpha: Float = 0.25
 
     /// M7-2 ⌘F: encode one selection-style overlay quad per visible
     /// search match. Active match uses the accent-running color at full
     /// opacity; others use the same color at reduced alpha so the user
     /// can scan all matches without losing the active anchor.
-    private func encodeSearchHighlightOverlay(
+    func encodeSearchHighlightOverlay(
         encoder: MTLRenderCommandEncoder,
         drawableSizePx: SIMD2<Float>,
         cellSizePx: SIMD2<Float>,
