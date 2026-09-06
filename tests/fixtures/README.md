@@ -1,6 +1,6 @@
 # Test fixtures + corpora
 
-Inputs for NextTerm's tests at every tier. Spec: `vault/spec/test-fixtures.md`.
+Inputs for SolidTerm's tests at every tier.
 
 ## Layout
 

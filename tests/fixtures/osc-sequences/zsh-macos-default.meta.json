@@ -17,5 +17,5 @@
   ],
   "commands_run": ["echo hello", "pwd", "false", "exit"],
   "size_bytes": 932,
-  "notes": "Baseline zsh on macOS. Note: macOS's /etc/zshrc_Apple_Terminal still emits OSC 7 even when our zenzai integration is gated off — useful for verifying our parser handles OSC 7 from non-NextTerm sources."
+  "notes": "Baseline zsh on macOS. Note: macOS's /etc/zshrc_Apple_Terminal still emits OSC 7 even when our zenzai integration is gated off — useful for verifying our parser handles OSC 7 from non-SolidTerm sources."
 }

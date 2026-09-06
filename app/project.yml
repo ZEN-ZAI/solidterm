@@ -90,7 +90,7 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_NSPrincipalClass: NSApplication
-        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright © 2026 Zen Kiattikhunnawong. Forked from NextTerm."
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright © 2026 Zen Kiattikhunnawong."
         SWIFT_OBJC_BRIDGING_HEADER: SolidTerm/SolidTerm-Bridging-Header.h
         SWIFT_EMIT_LOC_STRINGS: YES
         COMBINE_HIDPI_IMAGES: YES

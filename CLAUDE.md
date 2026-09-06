@@ -1,6 +1,6 @@
 # SolidTerm — Project Memory for Claude Code
 
-A native macOS terminal emulator. Minimal, fast, solid. Forked from NextTerm with all Claude-Code-specific integration stripped — pure terminal only.
+A native macOS terminal emulator. Minimal, fast, solid. Terminal only.
 
 ## Architecture (committed)
 
@@ -26,7 +26,7 @@ solidterm/
 ```
 
 
-## What's IN this fork
+## What's in SolidTerm
 
 Core terminal features only:
 
@@ -44,21 +44,20 @@ Core terminal features only:
 - Command palette
 - Look-up popover
 
-## What's NOT in this fork
+## Out of scope
 
-Stripped from the NextTerm base:
+SolidTerm is a terminal and nothing else. Deliberately absent:
 
-- Claude Native Core (stream-JSON parser, QueryFSM)
-- Claude block model + block state machine
-- Auth (Claude credential cascade + Keychain)
-- Hook runner + hook editor UI
-- Agent-team mode (split-pane Claude orchestration)
-- Sidebar (rate-limit HUD, hook editor, subagent panel, CLAUDE.md viewer)
-- Kitty Graphics Protocol (image → Claude CLI)
-- Block overlay (NSHostingView blocks, Claude block chrome)
-- Diff viewer, file-path detector, permission modal
+- No AI-agent integration or stream parsers
+- No block model
+- No auth / credential storage
+- No hook runner
+- No agent-team orchestration
+- No sidebar / HUD
+- No Kitty graphics protocol
+- No block overlay / diff viewer / permission modal
 
-If a Claude feature comes up: out of scope for SolidTerm.
+If an AI-integration feature comes up: out of scope for SolidTerm.
 
 ## Build commands
 

@@ -2439,7 +2439,7 @@ mod tests {
     // UAX #11 width verification — task 2.11.
     //
     // The tests below pin alacritty_terminal's behavior for the cell
-    // widths that matter to NextTerm's Thai user + global locales.
+    // widths that matter to SolidTerm's Thai user + global locales.
     // alacritty determines width via `unicode_width::UnicodeWidthChar`
     // (default features, no `emoji` flag) — see
     // alacritty_terminal-0.26/src/term/mod.rs:14 + 1062. We only
@@ -3165,12 +3165,12 @@ mod tests {
 
     /// Feeding an OSC 2 (set-window-title) sequence through the
     /// parser pipeline produces an `EngineEvent::TitleChanged`.
-    /// `\x1b]2;NextTerm\x07` is the standard form: ESC + ']' + '2' +
+    /// `\x1b]2;SolidTerm\x07` is the standard form: ESC + ']' + '2' +
     /// ';' + title + BEL terminator. We append `\n` because /bin/cat
     /// in cooked mode is line-buffered: bytes sit in the kernel's
     /// input buffer until LF arrives. Cat then echoes the whole
     /// line to its stdout, where the parser sees the OSC sequence
-    /// and Term fires `Event::Title("NextTerm")` through the
+    /// and Term fires `Event::Title("SolidTerm")` through the
     /// `EventProxy`.
     /// OSC 0/2 with an *empty* payload is how a child hands the title
     /// back. vte parses it as `set_title(Some(""))` — **not**
@@ -3224,7 +3224,7 @@ mod tests {
             TerminalEngine::new(cat_config()).expect("/bin/cat spawn should succeed on macOS");
 
         engine
-            .feed_input(b"\x1b]2;NextTerm\x07\n")
+            .feed_input(b"\x1b]2;SolidTerm\x07\n")
             .expect("feed_input should write OSC 2 to /bin/cat");
 
         let deadline = Instant::now() + Duration::from_secs(5);
@@ -3245,8 +3245,8 @@ mod tests {
         }
         assert_eq!(
             title_seen.as_deref(),
-            Some("NextTerm"),
-            "expected EngineEvent::TitleChanged(\"NextTerm\") within 5s after OSC 2"
+            Some("SolidTerm"),
+            "expected EngineEvent::TitleChanged(\"SolidTerm\") within 5s after OSC 2"
         );
     }
 

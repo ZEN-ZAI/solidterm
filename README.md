@@ -37,10 +37,12 @@ open ~/Library/Developer/Xcode/DerivedData/SolidTerm-*/Build/Products/Debug/Soli
 - `swift-bridge` FFI carries pure data across the boundary
 - See `CLAUDE.md` for the engineering memory
 
+## Built on
+
+- [`alacritty_terminal`](https://github.com/alacritty/alacritty) — PTY + VT engine
+- [`swift-bridge`](https://github.com/chinedufn/swift-bridge) — Rust ↔ Swift FFI
+- CoreText + Apple Color Emoji — glyph shaping and rasterization
+
 ## License
 
-None (private development).
-
-## Origin
-
-Forked from [NextTerm](https://github.com/ZEN-ZAI/nextterm) at v0.1.8 — Claude-specific features stripped out for a clean terminal-only base.
+GPL-3.0-or-later — see `LICENSE`.

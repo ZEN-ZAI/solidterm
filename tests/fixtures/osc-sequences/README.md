@@ -1,6 +1,6 @@
 # OSC sequence captures
 
-Real byte streams emitted by shells + TUIs running on macOS. Used by `nextterm-engine`'s OSC router integration tests.
+Real byte streams emitted by shells + TUIs running on macOS. Used by `solidterm-engine`'s OSC router integration tests.
 
 **Not committed yet** — captures need to be made on a real machine. Run the capture script and commit results.
 

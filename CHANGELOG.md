@@ -77,30 +77,23 @@ The first tagged release since 0.1.0, reconstructed from the 58 commits between 
 - Long pastes froze the UI (non-blocking PTY write plus a chunker that re-queues on EAGAIN), ⌘N/⌘T didn't inherit the cwd when OSC 7 wasn't wired (`proc_pidinfo` fallback), a second ⌘F raced its own dismissal, and the right-click menu silently did nothing.
 - The glyph atlas 64 MiB ceiling was checked against grey bytes only on one of the two placement paths, and an eviction left cells showing stale UVs until the next scroll — evictions now force a full-frame repaint.
 
-## [0.1.0] — 2026-05-17 — fork from NextTerm
+## [0.1.0] — 2026-05-17 — initial release
 
-Initial fork from `nextterm` v0.1.8 (commit `1633d62`). All Claude-Code-specific features stripped out. The remaining surface is a clean macOS terminal:
+First SolidTerm build: a native macOS terminal on alacritty_terminal + Metal.
 
 ### What works
 - PTY + VT parsing via alacritty
 - Metal renderer (Stack A) with cross-cell shaping for Thai, flag pairs, ZWJ overflow, variation selectors
-- Color emoji (Apple Color Emoji) at 2-cell width — fixed UV 2x scaling bug inherited from NextTerm
+- Color emoji (Apple Color Emoji) at 2-cell width — fixed emoji UV 2× scaling
 - IME (Thai + CJK), keyboard input, mouse, drag-drop file paths
 - Themes (TOML), font config, theme hot-reload
 - Search (regex scrollback)
 - Shell integration: OSC 7, OSC 133 (zsh/bash/fish)
 - Command palette, look-up popover
 
-### What's stripped (vs NextTerm base)
-- Claude Native Core, block model, auth, hooks, agent teams
-- Sidebar (rate-limit HUD, hook editor, subagent panel, CLAUDE.md viewer)
-- Kitty Graphics Protocol (image attach)
-- Block overlay, diff viewer, file-path detector, permission modal
-- Most bundled themes; `zenzai` only
-
 ### Stats
-- 3 Rust crates (was 7), 195 + 13 unit tests pass
-- 63 Swift sources (was ~98), 320 XCTest tests pass
+- 3 Rust crates, 195 + 13 unit tests pass
+- 63 Swift sources, 320 XCTest tests pass
 - Bundle: `com.zenzai.SolidTerm`, product `SolidTerm`
 
 [Unreleased]: https://github.com/ZEN-ZAI/solidterm/compare/v0.4.12...HEAD

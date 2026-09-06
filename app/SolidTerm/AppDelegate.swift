@@ -263,8 +263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let credits = NSMutableAttributedString(
             string:
                 "A minimal, fast, solid native macOS terminal.\n\n"
-                + "Built on alacritty_terminal + swift-bridge.\n"
-                + "Forked from NextTerm — Claude integration stripped.",
+                + "Built on alacritty_terminal + swift-bridge.",
             attributes: [
                 .font: NSFont.systemFont(ofSize: 11),
                 .foregroundColor: NSColor.secondaryLabelColor,
