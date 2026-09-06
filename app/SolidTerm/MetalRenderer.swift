@@ -77,10 +77,23 @@ final class MetalRenderer {
     private weak var attachedLayer: CAMetalLayer?
     private var displayLink: CAMetalDisplayLink?
 
-    /// `CACurrentMediaTime()` of the last `draw(update:)` tick. Read by
+    /// The renderer's clock. Every timestamp the renderer stamps into
+    /// its own state and every elapsed-time comparison it makes against
+    /// one reads this, so the durations that drive the idle-pump
+    /// watchdog, the bell flash, the scrollbar fade and the blink phase
+    /// are all on one substitutable source. Production leaves it at
+    /// `CACurrentMediaTime`; only tests reassign it, which is how
+    /// `IdlePumpTests` reaches a stalled link without a display sleep.
+    /// The two diagnostic `NSLog` timestamps that sit next to
+    /// `NSEvent.timestamp` / `MTLDrawable.presentedTime` deliberately
+    /// stay on `CACurrentMediaTime()` — they are only comparable to
+    /// those values on the same mach clock.
+    var now: () -> CFTimeInterval = CACurrentMediaTime
+
+    /// `now()` of the last `draw(update:)` tick. Read by
     /// `pumpIfDisplayLinkStalled()` to tell a stopped display link
     /// (display asleep, window fully occluded) from a healthy one.
-    private var lastDisplayLinkTick: CFTimeInterval = 0
+    var lastDisplayLinkTick: CFTimeInterval = 0
     /// Watchdog that keeps the engine draining while the display link
     /// is stopped. See `startIdlePump()`.
     private var idlePumpTimer: DispatchSourceTimer?
@@ -91,7 +104,7 @@ final class MetalRenderer {
     /// Set when the idle pump discarded a frame delta; consumed by
     /// `draw(update:)`, which then repaints from a full-frame delta so
     /// the discarded cells reappear.
-    private var pendingFullRepaint = false
+    private(set) var pendingFullRepaint = false
 
     private var atlas: GlyphAtlas?
 
@@ -247,7 +260,7 @@ final class MetalRenderer {
 
     /// I1 bell flash: timestamp of the most recent `EngineEvent::Bell`
     /// drained from the engine. Nil when no flash is in-flight; a
-    /// CACurrentMediaTime() when one is fading. The encode path fades
+    /// `now()` when one is fading. The encode path fades
     /// from 0.25 alpha to 0 over `bellFlashDurationSec` and clears the
     /// timestamp once `elapsed > duration`.
     private var bellFlashStartTime: CFTimeInterval?
@@ -263,6 +276,16 @@ final class MetalRenderer {
     /// observable side effect is buffering `event.key.text` bytes for
     /// the future PTY consumer.
     private(set) var session: TerminalSession?
+
+    /// Test seam — production only ever assigns `session` from
+    /// `windowChanged(window:)`, which needs a live `CAMetalLayer`.
+    /// `IdlePumpTests` drives `pumpIfDisplayLinkStalled()` on a
+    /// renderer-without-window and needs that guard to both pass and
+    /// fail, so hand it the one assignment it needs instead of opening
+    /// the setter to every caller in the module.
+    func attachSessionForTesting(_ session: TerminalSession) {
+        self.session = session
+    }
 
     /// The host `NSWindow` the renderer is currently presenting into.
     /// Captured in `windowChanged(window:)` so the per-frame title
@@ -1131,7 +1154,7 @@ final class MetalRenderer {
         // after `cd`. Skip while OSC 7 has been observed at least
         // once (the engine pushes events; we trust them).
         if cwd.isEmpty {
-            let now = CACurrentMediaTime()
+            let now = self.now()
             if now - lastCwdProcPollTime > 0.5 {
                 lastCwdProcPollTime = now
                 let pid = pid_t(session.child_pid())
@@ -1258,10 +1281,10 @@ final class MetalRenderer {
     }
 
     @MainActor
-    private func pumpIfDisplayLinkStalled() {
+    func pumpIfDisplayLinkStalled() {
         guard let session,
             Self.displayLinkStalled(
-                now: CACurrentMediaTime(), lastTick: lastDisplayLinkTick)
+                now: now(), lastTick: lastDisplayLinkTick)
         else { return }
         // Called for the side effect only: `take_frame_delta` runs
         // `poll_output`, which drains the reader channel and writes
@@ -1274,7 +1297,7 @@ final class MetalRenderer {
     }
 
     private func draw(update: CAMetalDisplayLink.Update) {
-        lastDisplayLinkTick = CACurrentMediaTime()
+        lastDisplayLinkTick = now()
         // 4.8: poll the engine for the latest title-changed event and
         // forward to the host window. Empty string is the
         // no-event-this-tick sentinel; we skip the assignment to avoid
@@ -1299,7 +1322,7 @@ final class MetalRenderer {
         // — matches iTerm2). Setting the start time here ensures the
         // dirty-frame gate below treats the flash as a redraw reason.
         if let session, session.drain_bell() {
-            bellFlashStartTime = CACurrentMediaTime()
+            bellFlashStartTime = now()
         }
 
         // OSC 52 clipboard write: when the child (e.g. Claude Code copying
@@ -1459,14 +1482,14 @@ final class MetalRenderer {
         // until the next scroll.
         let scrollbarFadeActive: Bool = {
             guard lastScrollActivityTime > 0 else { return false }
-            let elapsed = CACurrentMediaTime() - lastScrollActivityTime
+            let elapsed = self.now() - lastScrollActivityTime
             return elapsed
                 < Self.scrollbarHoldSec + Self.scrollbarFadeSec
         }()
 
         let bellFlashing: Bool = {
             guard let started = bellFlashStartTime else { return false }
-            let elapsed = CACurrentMediaTime() - started
+            let elapsed = self.now() - started
             if elapsed >= Self.bellFlashDurationSec {
                 bellFlashStartTime = nil
                 // One last frame to clear the flash overlay.
@@ -1505,7 +1528,7 @@ final class MetalRenderer {
         else { return }
         encoder.label = "Grid pass (Stage 1)"
 
-        let cpuStart = CACurrentMediaTime()
+        let cpuStart = now()
 
         // Drain pending keystroke timestamps now (before encoding) so the
         // completion handler closes over a stable list rather than a
@@ -1712,7 +1735,7 @@ final class MetalRenderer {
         pendingRedraw = false
         hasPresented = true
 
-        let cpuEnd = CACurrentMediaTime()
+        let cpuEnd = now()
         recordFrameTime((cpuEnd - cpuStart) * 1_000.0)  // ms
     }
 
@@ -1797,7 +1820,7 @@ final class MetalRenderer {
             // "user is scrolled into history and live tail moved"
             // implicitly via the engine's scroll-on-output snap,
             // but only the top/total changes are real scroll events.
-            lastScrollActivityTime = CACurrentMediaTime()
+            lastScrollActivityTime = now()
         }
         return !decoded.isEmpty || scrollChanged
     }
@@ -2488,7 +2511,7 @@ final class MetalRenderer {
         // the moment the renderer has work to do, not the moment the
         // process launched (which can be seconds before the first frame
         // on a cold start).
-        let now = CACurrentMediaTime()
+        let now = self.now()
         if blinkOriginTime == nil { blinkOriginTime = now }
 
         // V2 pause-on-type: hold solid while the user is actively typing.
@@ -2899,7 +2922,7 @@ final class MetalRenderer {
         // V1 fade: solid for `scrollbarHoldSec` post-activity, then
         // linear fade to `scrollbarRestingAlpha` over the next
         // `scrollbarFadeSec`. Hover overrides to full opacity.
-        let elapsed = CACurrentMediaTime() - lastScrollActivityTime
+        let elapsed = now() - lastScrollActivityTime
         let alpha: Float
         if hovering {
             alpha = 1.0
@@ -2938,7 +2961,7 @@ final class MetalRenderer {
         overlay: OverlayPipeline
     ) {
         guard let started = bellFlashStartTime else { return }
-        let elapsed = CACurrentMediaTime() - started
+        let elapsed = now() - started
         guard elapsed < Self.bellFlashDurationSec else { return }
         let progress = Float(elapsed / Self.bellFlashDurationSec)
         let alpha = Self.bellFlashPeakAlpha * (1.0 - progress)
@@ -3187,7 +3210,7 @@ final class MetalRenderer {
         pendingRedraw = true
         // V2 pause-on-type: stamp the most recent keystroke so the
         // cursor encode path holds solid for the next ~500 ms.
-        lastKeystrokeTime = CACurrentMediaTime()
+        lastKeystrokeTime = now()
 
         // Task #36 diagnostic: log the entry condition + the early-
         // return path. The atlas-nil / cells-empty silent skip is one
