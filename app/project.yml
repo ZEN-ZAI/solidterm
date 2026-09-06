@@ -153,6 +153,15 @@ targets:
     platform: macOS
     sources:
       - path: SolidTermTests
+        excludes:
+          - "Fixtures/**"
+      - path: SolidTermTests/Fixtures
+        buildPhase: none
+        # Golden tables (BoxDrawingGoldenTests) are read from the source tree
+        # via #filePath, because the BOXDRAWING_REGEN=1 regenerator writes that
+        # same path. Copying them into the .xctest bundle would add a second,
+        # never-read copy; buildPhase: none keeps them visible in Xcode without
+        # a resources phase.
     dependencies:
       - target: SolidTerm
     settings:
