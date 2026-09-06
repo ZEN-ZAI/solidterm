@@ -17,8 +17,7 @@
 # single self-contained file).
 
 # Guard against double-loading.
-# Legacy _NEXTTERM_ name honored: pre-rename installs may have set it.
-{ [ -n "$_SOLIDTERM_INTEGRATION_LOADED" ] || [ -n "$_NEXTTERM_INTEGRATION_LOADED" ]; } && return
+[ -n "$_SOLIDTERM_INTEGRATION_LOADED" ] && return
 _SOLIDTERM_INTEGRATION_LOADED=1
 
 # Suppress PROMPT_COMMAND-driven OSC emission for non-interactive shells.

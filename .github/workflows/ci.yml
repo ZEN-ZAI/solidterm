@@ -2,8 +2,6 @@
 #
 # Jobs: Rust fmt + clippy, Rust test, FFI drift gate, deps audit,
 # custom lints, and Swift lint + test on macos-14 and macos-15.
-#
-# Merge-gate table: same file, summary at the end.
 
 name: CI
 

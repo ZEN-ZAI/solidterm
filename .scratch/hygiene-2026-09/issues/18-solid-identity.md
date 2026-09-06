@@ -1,6 +1,6 @@
 # 18 — SolidTerm stands on its own: identity, agents, vault cut, compat shims
 
-Status: ready-for-agent
+Status: done — 2026-09-06
 Blocked by: 03, 04, 05
 Spec: ../spec.md (D13)
 
@@ -142,3 +142,70 @@ scripts/check-no-analytics.sh && scripts/check-license-headers.sh && scripts/che
 ```
 
 ## Comments
+
+### 2026-09-06 — landed
+
+Four commits, in the order the ticket lists them:
+
+- `765e5cd` docs: give SolidTerm its own identity in docs and app strings
+- `7248cfa` docs(agents): point the subagent definitions at the tree they review
+- `1afa4ad` docs: replace design-archive pointers with three committed ADRs
+- this commit — refactor(app): drop the legacy env and shell-guard compat shims
+
+Both acceptance greps pass at HEAD. The first returns **five** `.bin` fixtures, not
+the six the ticket and the spec's "Facts gathered" predicted: `bash-default`,
+`claude-code-exit`, `tmux-passthrough`, `zsh-macos-default`, `zsh-zenzai-integration`.
+`fish-default.bin` and `neovim-startup.bin` never carried the capture cwd. The tree
+won. The second grep returns nothing. `docs/adr/` holds `0001-no-telemetry.md`,
+`0002-distribution-direct-dmg.md` and `0003-cross-cell-shaping-swift-side.md`, all
+`Status: accepted` and all written from what the repository enforces today rather than
+ported from anywhere. All seventeen `ADR-19` citations now resolve.
+
+Final tallies, taken before this commit: `cargo test --workspace -j 8` → **273 passed,
+0 failed**; `xcodebuild test -scheme SolidTerm` → **Executed 446 tests, with 2 tests
+skipped and 2 failures**, both `CopyPasteTests.testPasteConsultsBracketedPasteFlag`,
+the documented PTY-echo timing flake; rerun alone it reports Executed 1 test, with 0
+failures. The same flake appeared on the gate runs for commits 2 and 3 and passed alone
+each time; the gate run for commit 1 and the first run for this commit were clean at
+446/0. `cargo fmt --check`, clippy under `RUSTFLAGS=-D warnings`, `check-ffi-drift.sh`,
+`cargo deny check`, the three custom-lint scripts and `swift-format lint --strict` are
+clean, `xcodegen generate` leaves the pbxproj untouched, and `app/SolidTerm/Generated/*`
+was unchanged after every build.
+
+Judgement calls:
+
+- `app/project.yml`'s copyright change produced exactly the two predicted pbxproj lines,
+  so the regenerated project went into commit 1 and no later commit needed a regenerate.
+- Three lines of `.github/pull_request_template.md` asked for archive material, not the
+  one the inventory named; two further files matched the acceptance grep without being
+  in the inventory at all. All were fixed, on the grounds that a template asking for
+  something unreachable is a defect wherever it sits.
+- Ticket line numbers had drifted in `CONTRIBUTING.md`, `docs/SECURITY.md`,
+  `docs/release-runbook.md`, `MetalRenderer.swift` and `GlyphAtlas.swift`; every edit was
+  matched on content instead.
+- `CLAUDE.md` carries the design-archive sentence without the "(ticket 19 retires those
+  citations)" clause that `docs/agents/domain.md` keeps: a scratch ticket number outlives
+  its directory, and `CLAUDE.md` is the durable file.
+- The two-axis code review of `fbe8a30..HEAD` was folded into this commit, every fix in
+  a file the branch had already touched, so it shrank the diff rather than growing it.
+  It found two dangling pointers commit `1afa4ad` had created by deleting their referent
+  (`ci.yml`'s "Merge-gate table: same file" header sentence, and the feature-request
+  template's "propose adding to ROADMAP"), two edits that had strayed past the ticket's
+  scope and were reverted (the `claude-code-exit` fixture's description of the program it
+  captured, and `CONTRIBUTING.md`'s `spec/testing-strategy.md` citation, which is
+  ticket 19's class under D14), and four claims in the new ADRs that the repository
+  contradicts: ADR-0001 overstated `check-no-analytics.sh`'s file coverage and its CI
+  trigger and called a commented prompt a checkbox, and ADR-0003 described the atlas
+  quad as `width` × `cellSpan` when `cellSpan` already includes the width, and named a
+  test that does not exist. All corrected here.
+- Left for ticket 19: `.githooks/pre-commit` lines 38 and 40 still cite a `decisions/`
+  path from the retired archive. It is a file-level citation, not a live-location
+  pointer under D13, and it matches neither acceptance grep. Separately,
+  `.github/CODEOWNERS` still gates two crate directories that no longer exist; that is
+  not an identity concern and no ticket claims it yet.
+- The manual Release checks in `## Verify` (About panel credits, `ทำ` rendering as one
+  cluster with the fallback gone) are left to the human reviewer — this session runs
+  headless.
+- tdd does not apply to this ticket: it changes prose, pointers and two compat shims,
+  and adds no behaviour a test could pin. No test was added, removed, skipped or
+  weakened.

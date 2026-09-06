@@ -12,8 +12,7 @@
 # silently ignored by terminals that don't parse them.
 
 # Guard against double-loading.
-# Legacy _NEXTTERM_ name honored: pre-rename installs may have set it.
-[[ -n "$_SOLIDTERM_INTEGRATION_LOADED" || -n "$_NEXTTERM_INTEGRATION_LOADED" ]] && return
+[[ -n "$_SOLIDTERM_INTEGRATION_LOADED" ]] && return
 typeset -g _SOLIDTERM_INTEGRATION_LOADED=1
 
 # OSC 133 A — prompt start. Emitted via precmd (runs before each

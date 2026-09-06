@@ -33,8 +33,9 @@ Cross-cell grapheme shaping is a Swift-side pass that runs *after* the FFI, in
 `GraphemeClusterCoalescer`. It sweeps the decoded cell records row-major, and
 where adjacent cells belong to one cluster it merges them into a
 `CoalescedCell` carrying an owned `grapheme` string and a `cellSpan` — the
-number of source columns the entry covers. The renderer sizes its atlas quad
-from `width` × `cellSpan`; `GridPipeline`'s span texture was widened to
+number of source columns the entry covers, the primary cell's display width
+included. The renderer sizes its atlas quad from `cellSpan` alone;
+`GridPipeline`'s span texture was widened to
 `r16Uint` to carry it, and the shader extends the quad accordingly.
 
 The coalescer is two-stage on purpose. `candidate()` is a cheap scalar-range
@@ -60,8 +61,10 @@ comes from shaping or from somewhere else.
   screen keeps ASCII rows at effectively the cost of the range compare.
 - Correctness is pinned by tests, not by inspection:
   `GraphemeClusterCoalescerTests` covers the Thai stacks, flag pairs, ZWJ
-  spillover, variation selectors and the orphan-mark rejection, and
-  `GlyphAtlasTests` pins the `cellSpan` quad sizing.
+  spillover, variation selectors and the over-merge guards — a skin-tone
+  modifier must not swallow the emoji after it, and where the cheap screen
+  fires the commit decision must still agree with Swift's own segmentation —
+  and `GlyphAtlasTests` pins the `cellSpan` quad sizing.
 - The escape hatch is a diagnostic, not a supported configuration. Anything
   that only works with `SOLIDTERM_SHAPING=0` is a bug in the coalescer.
 - Because the merge happens after the FFI, the engine's cell records stay a

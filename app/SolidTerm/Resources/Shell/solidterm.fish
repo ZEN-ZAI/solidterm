@@ -16,10 +16,7 @@
 # Guard against double-loading. `return`, never `exit` — in a sourced
 # fish file `exit` terminates the whole interactive shell, so a
 # re-source (e.g. after editing config.fish) would kill the session.
-# The legacy _NEXTTERM_ name is also honored: pre-rename installs (and
-# NextTerm itself, whose hooks emit identical OSC 133) may have set it
-# in this session already.
-if set -q _SOLIDTERM_INTEGRATION_LOADED; or set -q _NEXTTERM_INTEGRATION_LOADED
+if set -q _SOLIDTERM_INTEGRATION_LOADED
     return
 end
 set -g _SOLIDTERM_INTEGRATION_LOADED 1

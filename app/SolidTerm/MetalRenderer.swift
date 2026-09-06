@@ -426,11 +426,10 @@ final class MetalRenderer {
     /// Default ON since v0.1.7 (ADR-0003 — manual verification
     /// of `ทำ`, `ห้`, `ก่อ`, `กืน` 2026-05-16). Setting
     /// `SOLIDTERM_SHAPING=0` disables the coalescer and restores the
-    /// v0.1.6 single-cell path for diagnosis (the legacy
-    /// `NEXTTERM_SHAPING` name is still honored).
+    /// v0.1.6 single-cell path for diagnosis.
     private let useShaping: Bool = {
         let env = ProcessInfo.processInfo.environment
-        return (env["SOLIDTERM_SHAPING"] ?? env["NEXTTERM_SHAPING"]) != "0"
+        return env["SOLIDTERM_SHAPING"] != "0"
     }()
 
     init(device: MTLDevice) {

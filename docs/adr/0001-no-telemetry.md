@@ -26,12 +26,13 @@ initiates.
 
 This is enforced mechanically, not by review discipline:
 
-- `scripts/check-no-analytics.sh` greps every tracked file for a list of
-  analytics and crash-reporting SDK names, word-anchored so substrings don't
-  produce false positives. It runs in the `custom-lints` CI job on every push
-  and pull request, and again in the `.githooks/pre-commit` hook.
-- The pull-request template carries a stop-the-line checkbox: no new outbound
-  network endpoint, or this ADR is updated in the same change.
+- `scripts/check-no-analytics.sh` greps the tracked Rust, Swift, JavaScript,
+  TypeScript and TOML sources for a list of analytics and crash-reporting SDK
+  names, word-anchored so substrings don't produce false positives. It runs in
+  the `custom-lints` CI job on every pull request and every push to `main`, and
+  again in the `.githooks/pre-commit` hook.
+- The pull-request template's stop-the-line list asks the author to confirm no
+  new outbound network endpoint, or this ADR updated in the same change.
 - `docs/SECURITY.md` states the policy publicly and invites a security report
   for any network call a user cannot account for.
 
@@ -47,6 +48,7 @@ change plus a lint change, and both are visible in the diff.
 - Future features that inherently need the network (an update checker, a theme
   gallery) do not get a free pass from this ADR. They need their own ADR that
   supersedes or amends this one, and an explicit user-facing opt-in.
-- The lint's forbidden list is a denylist and will lag a genuinely new SDK.
-  It catches the realistic accident — a dependency or a snippet pulled in
-  without thinking — not a determined author.
+- The lint's forbidden list is a denylist over a fixed set of source file
+  types, so it will lag a genuinely new SDK and will not see a shell script or
+  a workflow file. It catches the realistic accident — a dependency or a
+  snippet pulled in without thinking — not a determined author.

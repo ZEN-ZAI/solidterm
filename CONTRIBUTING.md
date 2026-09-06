@@ -64,7 +64,7 @@ Architectural changes go through a lightweight ADR in `docs/adr/` (format per `d
 For code / spec changes:
 
 1. Branch (or work on `main` for <30 min / <300 LoC per AGENTS.md #1)
-2. Write tests (unit / integration / smoke — see `crates/solidterm-engine/tests/` and `app/SolidTermTests/`)
+2. Write tests (see `spec/testing-strategy.md`)
 3. Verify locally: `cargo fmt --check && cargo clippy --workspace -- -D warnings && cargo test --workspace`
 4. Open a PR using `.github/pull_request_template.md`
 5. CI must pass; human review required for files listed in `CODEOWNERS`
