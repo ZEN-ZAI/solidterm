@@ -396,7 +396,7 @@ mod tests {
     /// UTF-8, bounded, base-then-marks) rather than an exact fit count,
     /// so it stays correct regardless of how many zerowidth marks
     /// alacritty itself retains. Guards the downstream FFI (bridge.rs
-    /// row_text / cell_before_cursor) against a lone lead byte.
+    /// `row_text` / `cell_before_cursor`) against a lone lead byte.
     #[test]
     fn from_alacritty_cell_zerowidth_overflow_stays_valid_utf8() {
         let mut cell = blank_cell();

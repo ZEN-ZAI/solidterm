@@ -1,6 +1,6 @@
 # 01 — CI green: fmt, warnings, deps audit, toolchain, job graph
 
-Status: ready-for-agent
+Status: done — 2026-09-06
 Blocked by: —
 Spec: ../spec.md (D1)
 
@@ -36,3 +36,51 @@ scripts/check-ffi-drift.sh
 ## Out of scope
 
 swift-format (ticket 02). Any behaviour change.
+
+## Comments
+
+### 2026-09-06 — landed
+
+One commit: `chore(ci): make every CI job pass and stop lint from skipping tests`
+(the single commit of this ticket; SHA in `git log`).
+
+All six steps done. `cargo fmt --all` reflowed the four `engine.rs` sites the spec
+listed. The three named warnings are fixed at the source (`#[allow(unsafe_code)]` on
+`feed_input_nonblocking` keeping its SAFETY note, the unreachable
+`Some(libc::EWOULDBLOCK)` arm dropped with a one-line note, `EventProxy::new` marked
+`#[cfg(test)]`). `crossbeam-epoch` 0.9.18 → 0.9.21 clears RUSTSEC-2026-0204.
+`rust-toolchain.toml` lost its `targets` line. `ci.yml` lost all three
+`needs: rust-fmt-clippy` edges, the commented-out `bench-drift` / `fuzz-smoke` blocks
+and their banner, and its header now names the six jobs that exist.
+
+Judgement calls:
+
+- **Step 2 was under-enumerated.** It names three rustc warnings, but
+  `[workspace.lints.clippy] pedantic = warn` plus the workflow-wide
+  `RUSTFLAGS: -D warnings` also makes 13 clippy diagnostics hard errors across six
+  files (`engine.rs`, `events.rs`, `osc.rs`, `cells.rs`, `search.rs`,
+  `tests/teardown_detached.rs`): `doc_markdown`, `cast_sign_loss`,
+  `cast_possible_wrap`, `items_after_statements`. The Goal ("every CI job passes")
+  and the Verify block both require clippy to be clean, so they are fixed here, in
+  the crate's existing per-statement `#[allow(clippy::…)]` style. No behaviour change.
+- **`build-rust.sh`** now reads `solidterm-engine, …` rather than naming
+  `solidterm-config`, which ticket 03 deletes — otherwise the comment would go stale
+  again one ticket later.
+- **`ci.yml` header** was rewritten in place, two lines for two, so the design-archive
+  pointer stays on line 6 where ticket 18's inventory expects it.
+- **Removing `needs:`** means a PR with a fmt slip now still spends the two-OS
+  `xcodebuild clean test` matrix. Deliberate: that cost is what makes the jobs a gate.
+
+Left for other tickets: `project.yml:139` (`solidterm-config`, ticket 03); the
+design-archive pointer at `ci.yml:6` (ticket 18); swift-format, so the `swift-test`
+job's lint step stays red until ticket 02. Flagged, owned by nobody:
+`crates/solidterm-engine/tests/fuzz_inputs.rs:2` names a crate that no longer exists —
+same class as step 6 but outside its three named files.
+
+Tallies before the commit: `cargo test --workspace` 288 passed, 0 failed;
+`xcodebuild test` Executed 446 tests, 2 skipped, 2 failures — both assertions of
+`testPasteConsultsBracketedPasteFlag`, the known PTY-echo flake, which passes on an
+isolated rerun (Executed 1 test, 0 failures). `cargo fmt --all -- --check` clean;
+`RUSTFLAGS='-D warnings' cargo clippy --workspace --all-targets --all-features` exit 0;
+`cargo deny check advisories` → advisories ok; `scripts/check-ffi-drift.sh` → in sync;
+all three custom lint scripts exit 0.

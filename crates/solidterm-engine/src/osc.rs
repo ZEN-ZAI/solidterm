@@ -333,7 +333,7 @@ impl OscPerform {
     /// the DCS form `DCS > | <name> <version> ST` (`\x1bP>|…\x1b\\`).
     /// alacritty 0.26 does not implement XTVERSION (no `Handler` method;
     /// vte's default is a no-op), so the sibling parser answers it — modern
-    /// terminals (Ghostty, kitty, WezTerm, xterm) all reply, and TUIs use
+    /// terminals (Ghostty, kitty, `WezTerm`, xterm) all reply, and TUIs use
     /// the reply to identify the terminal and unlock capabilities (notably
     /// Claude Code, which withholds its truecolor input gradient from
     /// terminals that don't answer this probe — env `TERM_PROGRAM` /
@@ -581,7 +581,7 @@ mod tests {
     }
 
     /// `CSI > 0 q` (XTVERSION) replies with the DCS `>| <name> <ver> ST`
-    /// form, defaulting the name to "SolidTerm".
+    /// form, defaulting the name to `SolidTerm`.
     #[test]
     fn xtversion_query_replies_with_terminal_name() {
         let (_events, replies) = drive_with_pty(b"\x1b[>0q");

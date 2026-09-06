@@ -1,7 +1,7 @@
 # CI workflow for SolidTerm.
 #
-# Current state: Phase 0 — Rust toolchain + Swift test jobs active.
-# Bench + fuzz land with their targets (Phase 1).
+# Jobs: Rust fmt + clippy, Rust test, FFI drift gate, deps audit,
+# custom lints, and Swift lint + test on macos-14 and macos-15.
 #
 # Reference target: vault/research/14-quality-gates-and-ci.md (§7 ci.yml).
 # Merge-gate table: same file, summary at the end.
@@ -34,7 +34,6 @@ jobs:
   rust-test:
     name: Rust / test
     runs-on: macos-latest
-    needs: rust-fmt-clippy
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -44,7 +43,6 @@ jobs:
   ffi-drift:
     name: FFI / swift-bridge drift gate
     runs-on: macos-latest
-    needs: rust-fmt-clippy
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -78,7 +76,6 @@ jobs:
   swift-test:
     name: Swift / test
     runs-on: ${{ matrix.os }}
-    needs: rust-fmt-clippy
     strategy:
       matrix: { os: [macos-14, macos-15] }
     steps:
@@ -90,30 +87,3 @@ jobs:
       # requires xcodebuild *clean* test to avoid linking a stale
       # libsolidterm_ffi.a against freshly regenerated shims.
       - run: xcodebuild clean test -project app/SolidTerm.xcodeproj -scheme SolidTerm -destination 'platform=macOS' -configuration Debug
-
-  # ─── Jobs below land as their subjects scaffold ────────────────────────────
-
-  # bench-drift:
-  #   name: Criterion / hot-path regression
-  #   runs-on: macos-latest
-  #   if: github.event_name == 'pull_request'
-  #   continue-on-error: true  # informational; hot_* gated by bench-gate.sh
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: dtolnay/rust-toolchain@stable
-  #     - uses: Swatinem/rust-cache@v2
-  #     - run: cargo bench -- --baseline main --output-format bencher | tee bench.out
-  #     - run: ./scripts/bench-gate.sh bench.out
-
-  # fuzz-smoke:
-  #   name: Parser / fuzz smoke
-  #   runs-on: ubuntu-latest
-  #   if: |
-  #     contains(github.event.pull_request.changed_files, 'crates/solidterm-engine/src/osc/') ||
-  #     contains(github.event.pull_request.changed_files, 'crates/solidterm-claude/src/parser/')
-  #   continue-on-error: true
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: dtolnay/rust-toolchain@nightly
-  #     - run: cargo install cargo-fuzz
-  #     - run: cargo fuzz run osc_dispatch -- -max_total_time=10

@@ -58,13 +58,13 @@ use std::sync::Arc;
 /// child can emit megabytes of base64 in one sequence; alacritty has
 /// already decoded it by the time we see the String (that transient
 /// allocation is alacritty-internal and freed immediately), so the cap
-/// bounds what we LATCH in the FFI layer and push to NSPasteboard —
+/// bounds what we LATCH in the FFI layer and push to `NSPasteboard` —
 /// not the one-shot decode. 1 MiB is far above any legitimate copy.
 const OSC52_MAX_DECODED_BYTES: usize = 1 << 20;
 
 /// Upper bound on an OSC 0/2 window-title payload. A title is only ever
 /// shown in tab/window chrome, so a few KiB is generous; capping stops a
-/// hostile `\e]2;<tens of MB>\a` (or a `CSI 22 t` push_title stack) from
+/// hostile `\e]2;<tens of MB>\a` (or a `CSI 22 t` `push_title` stack) from
 /// parking huge Strings in `held_events` and shipping them to the host.
 /// Truncated (not dropped) at a char boundary so a legitimate long title
 /// still shows a usable prefix.
@@ -324,6 +324,7 @@ impl EventProxy {
     /// Default constructor — seeds a private default theme slot. Used by
     /// tests that don't drive theming; OSC color replies fall back to the
     /// Zenzai Dark constants.
+    #[cfg(test)]
     pub(crate) fn new(sender: Sender<EngineEvent>, pty_responses: Sender<String>) -> Self {
         Self::with_theme_colors(sender, pty_responses, Arc::new(ThemeColors::new_default()))
     }
@@ -1007,7 +1008,7 @@ mod tests {
     }
 
     /// OSC 52 with a decoded payload that exceeds `OSC52_MAX_DECODED_BYTES`
-    /// is dropped at the EventProxy cap check. "QUFB" is base64 for "AAA"
+    /// is dropped at the `EventProxy` cap check. "QUFB" is base64 for "AAA"
     /// (3 bytes); repeating it `(cap / 3) + 1` times decodes to more than
     /// cap bytes. The engine must not emit a `ClipboardStore` event.
     #[test]

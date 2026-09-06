@@ -96,6 +96,7 @@ pub fn search(
         let mut byte_to_col: Vec<u16> = Vec::with_capacity(cols);
         let mut byte_to_col_right: Vec<u16> = Vec::with_capacity(cols);
         for c in 0..cols {
+            use alacritty_terminal::term::cell::Flags;
             let cell: &Cell = &grid[Point::new(Line(line), Column(c))];
             // Skip BOTH wide-char continuation placeholders — the trailing
             // spacer and the LEADING spacer alacritty emits when a wide
@@ -103,7 +104,6 @@ pub fn search(
             // column anchors the match (matching `viewport_cells`, which
             // skips both). Missing the leading variant corrupts the
             // column mapping for wrap-straddling wide chars.
-            use alacritty_terminal::term::cell::Flags;
             if cell
                 .flags
                 .intersects(Flags::WIDE_CHAR_SPACER | Flags::LEADING_WIDE_CHAR_SPACER)

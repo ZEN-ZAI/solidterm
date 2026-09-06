@@ -76,7 +76,7 @@ targets:
       - path: SolidTerm/Resources/Themes
         type: folder
         buildPhase: resources
-        # Bundled theme TOML files (zenzai, tokyo-night, gruvbox, light).
+        # The 20 bundled theme TOML files under Resources/Themes.
         # Seeded into ~/.config/solidterm/themes/ on first launch by
         # ThemeFileStore.ensureSeeded. Hot-reload via DispatchSource
         # watch picks up user edits live.

@@ -24,8 +24,8 @@ export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 # Build the whole workspace, not just `-p solidterm-ffi`: a bare
 # per-package build doesn't always re-link when sources change in
-# upstream crates (`solidterm-engine`, `solidterm-claude`, …), which
-# leaves Xcode binding against stale `.a`. Surfaced 2026-05-09 (B13).
+# upstream crates (`solidterm-engine`, …), which leaves Xcode binding
+# against stale `.a`. Surfaced 2026-05-09 (B13).
 echo "▶ cargo build --workspace $CARGO_FLAGS (profile=$CARGO_PROFILE)"
 # shellcheck disable=SC2086
 cargo build --workspace $CARGO_FLAGS

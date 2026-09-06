@@ -57,6 +57,8 @@ fn hup_immune_child_is_killed_without_blocking_caller() {
         "trap '' HUP; while :; do sleep 1; done".to_string(),
     ]))
     .expect("spawn should succeed");
+    // `child_pid` is a `u32` (std `Child::id`); kernel pids fit i32.
+    #[allow(clippy::cast_possible_wrap)]
     let pid = engine.child_pid() as i32;
 
     let t0 = Instant::now();
@@ -88,6 +90,8 @@ fn send_blocked_reader_and_write_blocked_child_do_not_deadlock() {
         "trap '' HUP; /usr/bin/yes solidterm-flood".to_string(),
     ]))
     .expect("spawn should succeed");
+    // `child_pid` is a `u32` (std `Child::id`); kernel pids fit i32.
+    #[allow(clippy::cast_possible_wrap)]
     let pid = engine.child_pid() as i32;
 
     // No poll_output at all: let the flood fill the bounded channel
@@ -118,6 +122,8 @@ fn cooperative_child_exits_on_sighup() {
         "while :; do sleep 1; done".to_string(),
     ]))
     .expect("spawn should succeed");
+    // `child_pid` is a `u32` (std `Child::id`); kernel pids fit i32.
+    #[allow(clippy::cast_possible_wrap)]
     let pid = engine.child_pid() as i32;
 
     engine.shutdown_detached();

@@ -587,6 +587,10 @@ impl TerminalEngine {
     /// mutation happens here — important because the reader thread
     /// shares the same file description. Returns 0 on EAGAIN: the
     /// caller treats that as "buffer full, try again next tick".
+    //
+    // unsafe_code allow: one bare `libc::write` on the PTY master — the
+    // SAFETY note at the call site covers the descriptor and the slice.
+    #[allow(unsafe_code)]
     pub fn feed_input_nonblocking(&mut self, bytes: &[u8]) -> Result<usize, EngineError> {
         use std::os::fd::AsRawFd;
         if bytes.is_empty() {
@@ -606,11 +610,15 @@ impl TerminalEngine {
         // `*const libc::c_void` is ABI-correct for write(2).
         let n = unsafe { libc::write(fd, bytes.as_ptr().cast::<libc::c_void>(), bytes.len()) };
         if n >= 0 {
+            // Guarded by `n >= 0`, so the sign bit is clear and the cast is
+            // exact: on success write(2) returns the accepted byte count.
+            #[allow(clippy::cast_sign_loss)]
             return Ok(n as usize);
         }
         let err = std::io::Error::last_os_error();
         match err.raw_os_error() {
-            Some(libc::EAGAIN) | Some(libc::EWOULDBLOCK) => Ok(0),
+            // `EWOULDBLOCK` == `EAGAIN` on macOS, the only platform built for.
+            Some(libc::EAGAIN) => Ok(0),
             _ => Err(EngineError::Io(err)),
         }
     }
@@ -851,6 +859,7 @@ impl TerminalEngine {
 
         // `child_pid` is a `u32` (std `Child::id`); kernel pids fit
         // i32 — the same cast alacritty's `Pty::Drop` performs.
+        #[allow(clippy::cast_possible_wrap)]
         let pid = self.child_pid() as i32;
         // Ask politely first — the same signal `Pty::Drop` would send,
         // decoupled from its blocking wait.
@@ -1450,7 +1459,11 @@ impl TerminalEngine {
     fn live_selection_anchor(&self) -> Option<Point> {
         let anchor_is_start = self.selection_anchor_is_start?;
         let range = self.term.selection.as_ref()?.to_range(&self.term)?;
-        Some(if anchor_is_start { range.start } else { range.end })
+        Some(if anchor_is_start {
+            range.start
+        } else {
+            range.end
+        })
     }
 
     /// Clear any active selection. Idempotent.
@@ -3184,16 +3197,16 @@ mod tests {
                 .count()
                 < 2
         {
-            let _ = engine.poll_output().expect("poll_output is infallible today");
+            let _ = engine
+                .poll_output()
+                .expect("poll_output is infallible today");
             seen.extend(engine.drain_events());
             std::thread::sleep(Duration::from_millis(20));
         }
 
         let titles: Vec<_> = seen
             .iter()
-            .filter(|e| {
-                matches!(e, EngineEvent::TitleChanged(_) | EngineEvent::TitleReset)
-            })
+            .filter(|e| matches!(e, EngineEvent::TitleChanged(_) | EngineEvent::TitleReset))
             .collect();
         assert_eq!(
             titles.len(),
@@ -4540,7 +4553,9 @@ mod tests {
         );
 
         // Output arrives mid-drag: the grid rotates under the selection.
-        engine.feed_input(b"NEWA\nNEWB\nNEWC\n").expect("feed_input ok");
+        engine
+            .feed_input(b"NEWA\nNEWB\nNEWC\n")
+            .expect("feed_input ok");
         wait_for_row_text(&mut engine, "NEWC");
 
         // The drag continues one row further down. The anchor must still
