@@ -1,9 +1,8 @@
-//! Implements spec/m1-task-breakdown.md §1.7 — `CellView`, the
-//! engine-side cell snapshot returned by
+//! M1 task 1.7 — `CellView`, the engine-side cell snapshot returned by
 //! [`crate::TerminalEngine::viewport_cells`]. Mirrors
-//! `solidterm_ffi::CellDeltaWire`'s 32-byte wire layout
-//! (`spec/ffi-boundary.md` + #13) so the engine→FFI transcode is
-//! mechanical when 1.8+ wires the bridge.
+//! `solidterm_ffi::CellDeltaWire`'s 32-byte grapheme wire layout
+//! (ADR-0006, plus #13) so the engine→FFI transcode is mechanical when
+//! 1.8+ wires the bridge.
 //!
 //! Wide-char handling: alacritty stores wide characters as TWO grid
 //! cells — a primary cell with `Flags::WIDE_CHAR` set carrying the

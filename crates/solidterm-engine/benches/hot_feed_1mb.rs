@@ -1,4 +1,4 @@
-//! Implements spec/m1-task-breakdown.md §1.10 — Criterion baseline for
+//! M1 task 1.10 — Criterion baseline for
 //! the engine's hot path (`vte::ansi::Processor` →
 //! `Term::<EventListener>` grid mutation).
 //!

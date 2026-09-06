@@ -1,8 +1,7 @@
 //! swift-bridge FFI surface — Stack A, data only.
 //!
-//! Implements `spec/ffi-boundary.md`. No Metal / `CAMetalLayer` / Obj-C
-//! types cross this boundary — Stack A commitment, see
-//! `decisions/05-renderer.md`.
+//! No Metal / `CAMetalLayer` / Obj-C types cross this boundary — the
+//! Stack A commitment (ADR-0006).
 //!
 //! Minimal "solidterm" surface — basic terminal only (PTY + VT + grid +
 //! scrollback + selection + search + OSC routing). Claude / blocks /
@@ -53,7 +52,7 @@ pub mod kinds {
 // ───────────────────────── Wire types ────────────────────────────────────
 
 /// On-wire cell-delta record (48 bytes). Field order, sizes, and offsets
-/// MUST match `spec/ffi-boundary.md` and the Swift-side decoder.
+/// MUST match the Swift-side decoder (ADR-0006).
 /// `grapheme` is 32 bytes so a single cell's cluster (subdivision tag
 /// flags, deep ZWJ families, long Thai/Indic mark stacks) survives the
 /// FFI boundary whole.

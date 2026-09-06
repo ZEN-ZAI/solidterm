@@ -1,4 +1,4 @@
-//! Implements spec/m1-task-breakdown.md §1.6 — `DirtyRows`, the
+//! M1 task 1.6 — `DirtyRows`, the
 //! engine-side damage snapshot returned by [`crate::TerminalEngine::take_damage`].
 //!
 //! Mirrors `alacritty_terminal::term::TermDamage` (upstream

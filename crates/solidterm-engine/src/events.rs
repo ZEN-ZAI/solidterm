@@ -1,4 +1,4 @@
-//! Implements spec/m1-task-breakdown.md §1.8 — `EngineEvent`,
+//! M1 task 1.8 — `EngineEvent`,
 //! `EventProxy`, and the engine-side event bus.
 //!
 //! Two event sources merge into one `crossbeam_channel::Receiver`
@@ -70,9 +70,8 @@ const OSC52_MAX_DECODED_BYTES: usize = 1 << 20;
 /// still shows a usable prefix.
 const TITLE_MAX_BYTES: usize = 4096;
 
-/// Hardcoded Zenzai Dark foreground (`#d6d6dd`, per
-/// `spec/theme-appearance.md`). Used as the reply payload for OSC 10
-/// queries until M5's `ThemeManager` lands. M1 keeps theming
+/// Hardcoded Zenzai Dark foreground (`#d6d6dd`). Used as the reply
+/// payload for OSC 10 queries until M5's `ThemeManager` lands. M1 keeps theming
 /// deliberately out-of-scope so the engine surface doesn't grow a
 /// `set_theme` API we'd have to redesign.
 pub(crate) const ZENZAI_DARK_FOREGROUND: Rgb = Rgb {
@@ -81,19 +80,18 @@ pub(crate) const ZENZAI_DARK_FOREGROUND: Rgb = Rgb {
     b: 0xdd,
 };
 
-/// Hardcoded Zenzai Dark background (`#0c0d10`, per
-/// `spec/theme-appearance.md` — also matches the Phase 0 Metal renderer
-/// clear color in `app/SolidTerm/TerminalSurfaceView.swift:29`). Used as
-/// the reply payload for OSC 11 queries.
+/// Hardcoded Zenzai Dark background (`#0c0d10` — also matches the
+/// Phase 0 Metal renderer clear color in
+/// `app/SolidTerm/TerminalSurfaceView.swift:29`). Used as the reply
+/// payload for OSC 11 queries.
 pub(crate) const ZENZAI_DARK_BACKGROUND: Rgb = Rgb {
     r: 0x0c,
     g: 0x0d,
     b: 0x10,
 };
 
-/// Hardcoded Zenzai Dark cursor (`#7aa2f7`, per
-/// `spec/theme-appearance.md`). Used as the reply payload for OSC 12
-/// queries.
+/// Hardcoded Zenzai Dark cursor (`#7aa2f7`). Used as the reply payload
+/// for OSC 12 queries.
 pub(crate) const ZENZAI_DARK_CURSOR: Rgb = Rgb {
     r: 0x7a,
     g: 0xa2,

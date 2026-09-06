@@ -1,5 +1,5 @@
 // swift-bridge FFI surface. Pure data across the boundary — Stack A.
-// See spec/ffi-boundary.md.
+// See ADR-0006.
 
 mod bridge;
 

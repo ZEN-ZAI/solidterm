@@ -1,4 +1,4 @@
-//! Implements spec/m1-task-breakdown.md §1.7+ cursor accessor for the
+//! M1 task 1.7+ — cursor accessor for the
 //! FFI integration atomic (#56). Engine-side cursor snapshot returned
 //! by [`crate::TerminalEngine::cursor`].
 //!

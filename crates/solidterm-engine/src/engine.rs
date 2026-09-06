@@ -1,11 +1,10 @@
-//! Implements spec/m1-task-breakdown.md §1.1 through §1.8 —
+//! M1 tasks 1.1 through 1.8 —
 //! `TerminalEngine` skeleton, `EngineConfig` validation, PTY spawn via
 //! `alacritty_terminal::tty::new`, the stable `feed_input` /
 //! `poll_output` public API, `resize`, `take_damage`,
 //! `viewport_cells`, and `drain_events`. Wraps ~2,000 LOC of
 //! production-hardened terminal machinery (alacritty's `Term`,
-//! `Pty`, and `vte::ansi::Processor`) behind our own stable interface
-//! per spec/rust-core-modules.md.
+//! `Pty`, and `vte::ansi::Processor`) behind our own stable interface.
 //!
 //! Phase 1 sliver after #55: the engine owns `Term<EventProxy>` +
 //! `Pty` + a [`PtyReader`] thread + a `vte::ansi::Processor` + a
@@ -344,9 +343,8 @@ impl TerminalEngine {
     /// "constructed but not spawned" state would force `Option`-gating
     /// throughout.
     ///
-    /// `config` is by-value to match the spec/rust-core-modules.md
-    /// signature; `command` / `env` / `cwd` are moved into the
-    /// `tty::Options` rather than cloned.
+    /// `config` is by-value by design; `command` / `env` / `cwd` are
+    /// moved into the `tty::Options` rather than cloned.
     #[allow(clippy::needless_pass_by_value)]
     pub fn new(config: EngineConfig) -> Result<Self, EngineError> {
         config.validate()?;

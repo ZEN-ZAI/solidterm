@@ -171,7 +171,7 @@ pub fn search(
 
 /// Matches over `MAX_MATCHES` are dropped silently. 10k is a comfortable
 /// ceiling — 80 KB FFI payload at 8 bytes/match, well below the 1 MB
-/// soft-cap noted in `decisions/10-ffi-collection-deferral.md`.
+/// soft-cap on FFI collection payloads (ADR-0006).
 pub const MAX_MATCHES: usize = 10_000;
 
 #[cfg(test)]

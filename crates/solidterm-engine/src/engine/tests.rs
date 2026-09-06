@@ -501,8 +501,7 @@ fn viewport_cells_handles_wide_chars() {
 // *verify* that path lands correct values in `CellView.width`; we
 // do not reimplement width logic at our layer.
 //
-// Test corpus parallels `tests/fixtures/font-corpus/` (the spec at
-// `spec/test-fixtures.md` — which exists in draft state). We use
+// Test corpus parallels `tests/fixtures/font-corpus/`. We use
 // small inline strings rather than reading the .txt fixtures
 // because:
 //   1. unit tests need fast, hermetic input, not file I/O;
@@ -543,8 +542,8 @@ fn viewport_cells_narrow_ascii_width_1() {
 /// Ambiguous-width characters (UAX #11 EAW=A) default to **narrow**
 /// in `unicode_width` without the `cjk` feature. § (U+00A7),
 /// ★ (U+2605), and ° (U+00B0) all report `width = 1`. This pins
-/// our default-locale behavior (decisions/08-protocol-priorities
-/// commits to narrow as default). If the dependency or its
+/// our default-locale behavior — narrow is the committed default.
+/// If the dependency or its
 /// features ever change to EAW=W for ambiguous chars, this test
 /// fails loudly.
 #[test]

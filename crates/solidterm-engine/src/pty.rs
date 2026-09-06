@@ -1,4 +1,4 @@
-//! Implements spec/m1-task-breakdown.md §1.3 — PTY spawn + reader thread.
+//! M1 task 1.3 — PTY spawn + reader thread.
 //!
 //! `alacritty_terminal::tty::new` opens a pseudoterminal pair, fork/execs
 //! the configured shell, and returns a `Pty` whose master file is the
@@ -7,7 +7,7 @@
 //! pushes byte chunks into a `crossbeam-channel` the engine drains.
 //!
 //! Threading: this is the first of the Ghostty-pattern three-thread-
-//! per-pane model (see spec/rust-core-modules.md §Threading). Today:
+//! per-pane model. Today:
 //! PTY read thread (here). Next: VT/Grid thread (task 1.4 wires
 //! `Term::advance_bytes`). Render thread is Swift-side (FFI).
 //!

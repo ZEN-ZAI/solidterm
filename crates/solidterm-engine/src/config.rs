@@ -1,6 +1,5 @@
-//! Implements spec/m1-task-breakdown.md §1.2 — `EngineConfig` validated
-//! configuration for `TerminalEngine`. Spec shape per
-//! spec/rust-core-modules.md (rows / cols / env / command / cwd /
+//! M1 task 1.2 — `EngineConfig`, validated configuration for
+//! `TerminalEngine` (rows / cols / env / command / cwd /
 //! `scrollback_lines`).
 //!
 //! This is engine-internal config; the FFI-side `SessionConfig` /
@@ -19,14 +18,14 @@ use serde::{Deserialize, Serialize};
 /// history at typical row widths.
 pub const MAX_SCROLLBACK_LINES: u32 = 1_000_000;
 
-/// Default scrollback per spec/rust-core-modules.md.
+/// Default scrollback.
 pub const DEFAULT_SCROLLBACK_LINES: u32 = 100_000;
 
 /// Validated engine configuration. Construct via direct field
 /// initialization; call [`EngineConfig::validate`] before handing to
 /// [`crate::TerminalEngine::new`].
 ///
-/// Field shape follows spec/rust-core-modules.md:
+/// Field shape:
 /// - `command` is `Vec<String>` (e.g. `["/bin/zsh", "-l"]`) — the first
 ///   element is the executable path, the rest are argv.
 /// - `env` is `Vec<(String, String)>` so order is preserved (matters
@@ -55,10 +54,7 @@ pub enum EngineConfigError {
     #[error("cwd must be an absolute path: {0}")]
     RelativeCwd(PathBuf),
 
-    #[error(
-        "scrollback_lines={got} exceeds the {max} maximum (spec/rust-core-modules.md \
-         default is {default})"
-    )]
+    #[error("scrollback_lines={got} exceeds the {max} maximum (default is {default})")]
     ScrollbackTooLarge { got: u32, max: u32, default: u32 },
 }
 

@@ -1,7 +1,7 @@
 //! OSC routing — recognises shell-integration escape sequences and emits
 //! semantic events for the rest of the system.
 //!
-//! Implements spec/m1-task-breakdown.md §2.1: the [`OscPerform`] sibling
+//! M1 task 2.1: the [`OscPerform`] sibling
 //! `vte::Perform` impl runs alongside alacritty's `vte::ansi::Processor`
 //! in [`crate::TerminalEngine::poll_output`]. Each output chunk is parsed
 //! twice — once by the alacritty pipeline (grid mutation, the load-bearing

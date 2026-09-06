@@ -1,4 +1,4 @@
-//! Integration smoke for spec/m1-task-breakdown.md §1.3 + §1.4 —
+//! Integration smoke for M1 tasks 1.3 + 1.4 —
 //! exercises `TerminalEngine::new` end-to-end: spawn `/bin/zsh -l`,
 //! `feed_input` a probe command, drain the PTY via `poll_output`
 //! (which feeds bytes through `vte::ansi::Processor` into `Term`).

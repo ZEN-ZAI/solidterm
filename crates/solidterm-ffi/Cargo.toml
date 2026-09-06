@@ -6,7 +6,7 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
-# Cross-language ABI version per spec/ffi-boundary.md §Versioning. Bump on
+# Cross-language ABI version (ADR-0006). Bump on
 # any boundary-shape change. Swift bundle's Info.plist will assert match at
 # load time once the runtime check lands. Namespaced under `solidterm` so the
 # key cannot collide with future tool conventions on the bare

@@ -1,7 +1,6 @@
-//! Integration tests for `spec/m1-task-breakdown.md` §2.13 (initial
-//! corpus) + §4.10 (full-corpus expansion). Pins `solidterm-engine`
-//! behaviour against the vttest categories that are in M1 scope per
-//! `spec/test-fixtures.md` §2 + `decisions/08-protocol-priorities.md`:
+//! Integration tests for M1 tasks 2.13 (initial corpus) and 4.10
+//! (full-corpus expansion). Pins `solidterm-engine` behaviour against
+//! the vttest categories that are in M1 scope:
 //!
 //!   - cursor movement (CUP / CUU / CUD / CUF / CUB / CHA / VPA, plus
 //!     IND / RI / NEL / CBT — §4.10)
@@ -35,7 +34,7 @@
 //!
 //! ## Why these tests live here, not in `tests/fixtures/vttest/`
 //!
-//! `tests/fixtures/vttest/` (per `spec/test-fixtures.md` §2) is meant
+//! `tests/fixtures/vttest/` is meant
 //! to mirror byte captures from the upstream `vttest` binary by Thomas
 //! Dickey. `vttest` is interactive — it waits for the user to confirm
 //! each test screen — and is not available on the CI runners
