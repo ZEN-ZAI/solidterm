@@ -126,37 +126,12 @@ final class OverlayPipelineTests: XCTestCase {
     /// readback (no sRGB encode-on-store path).
     func testCursorShapesRenderExpectedGeometry() throws {
         let pipeline = try OverlayPipeline(device: device, pixelFormat: .rgba8Unorm)
-        let queue = try XCTUnwrap(device.makeCommandQueue())
-
-        // Use a private-storage render target for encoding, then blit
-        // to a shared-storage texture for CPU readback. .rgba8Unorm
-        // (non-sRGB) means the linear cursor color reads back as the
-        // same byte values we wrote — no encode-on-store transform.
-        let renderDesc = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: .rgba8Unorm,
-            width: 32, height: 32, mipmapped: false)
-        renderDesc.usage = [.renderTarget, .shaderRead]
-        renderDesc.storageMode = .private
-        let renderTarget = try XCTUnwrap(device.makeTexture(descriptor: renderDesc))
-
-        let readDesc = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: .rgba8Unorm,
-            width: 32, height: 32, mipmapped: false)
-        readDesc.usage = [.shaderRead]
-        readDesc.storageMode = .shared
-        let readback = try XCTUnwrap(device.makeTexture(descriptor: readDesc))
+        let harness = try MetalOffscreenHarness(
+            device: device, widthPx: 32, heightPx: 32,
+            clear: MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1))
 
         // Render one cursor shape and return the readback pixel buffer.
-        func render(kind: OverlayKind) throws -> [UInt8] {
-            let pass = MTLRenderPassDescriptor()
-            pass.colorAttachments[0].texture = renderTarget
-            pass.colorAttachments[0].loadAction = .clear
-            pass.colorAttachments[0].storeAction = .store
-            pass.colorAttachments[0].clearColor = MTLClearColor(
-                red: 0, green: 0, blue: 0, alpha: 1)
-
-            let buf = try XCTUnwrap(queue.makeCommandBuffer())
-            let enc = try XCTUnwrap(buf.makeRenderCommandEncoder(descriptor: pass))
+        func render(kind: OverlayKind) throws -> PixelBuffer {
             // Cell at origin (0, 0), 16×16 px. Cursor uniform alpha=1
             // and color is pure (1, 0, 1, 1) so we can detect cursor
             // pixels via the magenta R+B channels — distinct from both
@@ -170,70 +145,45 @@ final class OverlayPipelineTests: XCTestCase {
                 kind: kind.rawValue,
                 alpha: 1.0,
                 cellSpanCols: 1)
-            pipeline.encode(uniforms: uniforms, encoder: enc)
-            enc.endEncoding()
-
-            // Blit to readback so the GPU work flushes to a CPU-
-            // visible texture.
-            let blit = try XCTUnwrap(buf.makeBlitCommandEncoder())
-            blit.copy(
-                from: renderTarget,
-                sourceSlice: 0, sourceLevel: 0,
-                sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
-                sourceSize: MTLSize(width: 32, height: 32, depth: 1),
-                to: readback,
-                destinationSlice: 0, destinationLevel: 0,
-                destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
-            blit.endEncoding()
-
-            buf.commit()
-            buf.waitUntilCompleted()
-            XCTAssertNil(buf.error)
-
-            var pixels = [UInt8](repeating: 0, count: 32 * 32 * 4)
-            pixels.withUnsafeMutableBufferPointer { ptr in
-                readback.getBytes(
-                    ptr.baseAddress!,
-                    bytesPerRow: 32 * 4,
-                    from: MTLRegion(
-                        origin: MTLOrigin(x: 0, y: 0, z: 0),
-                        size: MTLSize(width: 32, height: 32, depth: 1)),
-                    mipmapLevel: 0)
+            return try harness.render { encoder in
+                pipeline.encode(uniforms: uniforms, encoder: encoder)
             }
-            return pixels
         }
 
-        @inline(__always) func isCursor(_ pixels: [UInt8], x: Int, y: Int) -> Bool {
-            // Magenta cursor pixel: high R, low G, high B.
-            let i = (y * 32 + x) * 4
-            return pixels[i] > 200 && pixels[i + 1] < 50 && pixels[i + 2] > 200
+        // Magenta cursor pixel: high R, low G, high B. The bands are not
+        // symmetric around a single tolerance, so this one stays local
+        // rather than going through `PixelBuffer.matchesColor`.
+        @inline(__always) func isCursor(_ pixels: PixelBuffer, x: Int, y: Int) -> Bool {
+            let p = pixels.rgba(x: x, y: y)
+            return p.x > 200 && p.y < 50 && p.z > 200
         }
-        @inline(__always) func isClear(_ pixels: [UInt8], x: Int, y: Int) -> Bool {
-            let i = (y * 32 + x) * 4
-            return pixels[i] < 20 && pixels[i + 1] < 20 && pixels[i + 2] < 20
-        }
+        // The clear colour, for the "stays background" samples below.
+        let clear = SIMD3<UInt8>(0, 0, 0)
 
         // — Block: full 16×16 cell painted cursor color.
         let block = try render(kind: .cursorBlock)
         XCTAssertTrue(isCursor(block, x: 0, y: 0), "block: top-left cell corner")
         XCTAssertTrue(isCursor(block, x: 8, y: 8), "block: cell center")
         XCTAssertTrue(isCursor(block, x: 15, y: 15), "block: bottom-right cell corner")
-        XCTAssertTrue(isClear(block, x: 16, y: 8), "block: outside cell stays clear")
-        XCTAssertTrue(isClear(block, x: 24, y: 24), "block: far outside cell stays clear")
+        block.assertCellColor(
+            x: 16, y: 8, clear, tolerance: 19, "block: outside cell stays clear")
+        block.assertCellColor(
+            x: 24, y: 24, clear, tolerance: 19, "block: far outside cell stays clear")
 
         // — Beam: only left ~12% (~2px at 16px width) painted.
         let beam = try render(kind: .cursorBeam)
         XCTAssertTrue(isCursor(beam, x: 0, y: 8), "beam: cell-left")
         XCTAssertTrue(isCursor(beam, x: 1, y: 8), "beam: cell-left+1")
-        XCTAssertTrue(isClear(beam, x: 4, y: 8), "beam: cell-mid is bg")
-        XCTAssertTrue(isClear(beam, x: 8, y: 8), "beam: cell-center is bg")
-        XCTAssertTrue(isClear(beam, x: 14, y: 8), "beam: cell-right is bg")
+        beam.assertCellColor(x: 4, y: 8, clear, tolerance: 19, "beam: cell-mid is bg")
+        beam.assertCellColor(x: 8, y: 8, clear, tolerance: 19, "beam: cell-center is bg")
+        beam.assertCellColor(x: 14, y: 8, clear, tolerance: 19, "beam: cell-right is bg")
 
         // — Underline: only bottom ~15% (~3px at 16px height) painted.
         let underline = try render(kind: .cursorUnderline)
-        XCTAssertTrue(isClear(underline, x: 8, y: 0), "underline: cell-top is bg")
-        XCTAssertTrue(isClear(underline, x: 8, y: 8), "underline: cell-mid is bg")
-        XCTAssertTrue(isClear(underline, x: 8, y: 12), "underline: cell-just-above-bottom-band")
+        underline.assertCellColor(x: 8, y: 0, clear, tolerance: 19, "underline: cell-top is bg")
+        underline.assertCellColor(x: 8, y: 8, clear, tolerance: 19, "underline: cell-mid is bg")
+        underline.assertCellColor(
+            x: 8, y: 12, clear, tolerance: 19, "underline: cell-just-above-bottom-band")
         XCTAssertTrue(isCursor(underline, x: 8, y: 14), "underline: bottom band")
         XCTAssertTrue(isCursor(underline, x: 8, y: 15), "underline: cell-bottom row")
     }

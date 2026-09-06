@@ -12,10 +12,11 @@
 // Strategy mirrors `OverlayPipelineTests.testCursorShapesRenderExpectedGeometry`:
 // render the real grid pass into an offscreen `.rgba8Unorm` target (no
 // sRGB encode-on-store, so linear values read back as the bytes we wrote)
-// and sample pixels. A box-drawing glyph (U+2500 ─, a single horizontal
-// line at the cell's vertical mid-row) is used as the known glyph because
-// `BoxDrawing.rasterize` paints it procedurally at exact cell metrics —
-// deterministic coverage independent of the installed font cascade.
+// and sample pixels. Both go through `MetalOffscreenHarness`. A box-drawing
+// glyph (U+2500 ─, a single horizontal line at the cell's vertical mid-row)
+// is used as the known glyph because `BoxDrawing.rasterize` paints it
+// procedurally at exact cell metrics — deterministic coverage independent
+// of the installed font cascade.
 //
 // The two load-bearing assertions:
 //   1. On a glyph cell under the block cursor, the glyph's line row reads
@@ -101,9 +102,8 @@ final class GridCursorReverseVideoTests: XCTestCase {
 
         // The glyph's line row → reversed fg = the cell bg (black). This is
         // the visibility guarantee: NOT the cursor colour.
-        let lineIdx = pixelIndex(x: cx, y: midY)
         XCTAssertLessThan(
-            pixels[lineIdx + 1], 60,
+            pixels.rgba(x: cx, y: midY).y, 60,
             "glyph row must be the contrast colour (dark), not a green cursor block")
         assertBlack(pixels, x: cx, y: midY, label: "cursor cell glyph line (contrast)")
 
@@ -173,7 +173,7 @@ final class GridCursorReverseVideoTests: XCTestCase {
     private func renderGrid(
         slots: [CellSlot],
         cursorCell: SIMD2<UInt32>?
-    ) throws -> [UInt8] {
+    ) throws -> PixelBuffer {
         let pipeline = try GridPipeline(
             device: device, pixelFormat: .rgba8Unorm, cols: cols, rows: rows)
         try pipeline.setGrid(
@@ -185,20 +185,6 @@ final class GridCursorReverseVideoTests: XCTestCase {
         let cellH = Int(atlas.cellSizePx.y)
         let widthPx = cellW * cols
         let heightPx = cellH * rows
-
-        let renderDesc = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: .rgba8Unorm,
-            width: widthPx, height: heightPx, mipmapped: false)
-        renderDesc.usage = [.renderTarget, .shaderRead]
-        renderDesc.storageMode = .private
-        let renderTarget = try XCTUnwrap(device.makeTexture(descriptor: renderDesc))
-
-        let readDesc = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: .rgba8Unorm,
-            width: widthPx, height: heightPx, mipmapped: false)
-        readDesc.usage = [.shaderRead]
-        readDesc.storageMode = .shared
-        let readback = try XCTUnwrap(device.makeTexture(descriptor: readDesc))
 
         var uniforms = GridUniforms(
             screenSizePx: SIMD2<Float>(Float(widthPx), Float(heightPx)),
@@ -216,88 +202,51 @@ final class GridCursorReverseVideoTests: XCTestCase {
             uniforms.cursorBlockActive = 1
         }
 
-        let pass = MTLRenderPassDescriptor()
-        pass.colorAttachments[0].texture = renderTarget
-        pass.colorAttachments[0].loadAction = .clear
-        pass.colorAttachments[0].storeAction = .store
-        pass.colorAttachments[0].clearColor = MTLClearColor(
-            red: 0, green: 0, blue: 0, alpha: 1)
-
-        let buf = try XCTUnwrap(queue.makeCommandBuffer())
-        let enc = try XCTUnwrap(buf.makeRenderCommandEncoder(descriptor: pass))
-        pipeline.encode(uniforms: uniforms, atlas: atlas, encoder: enc)
-        enc.endEncoding()
-
-        let blit = try XCTUnwrap(buf.makeBlitCommandEncoder())
-        blit.copy(
-            from: renderTarget,
-            sourceSlice: 0, sourceLevel: 0,
-            sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
-            sourceSize: MTLSize(width: widthPx, height: heightPx, depth: 1),
-            to: readback,
-            destinationSlice: 0, destinationLevel: 0,
-            destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
-        blit.endEncoding()
-
-        buf.commit()
-        buf.waitUntilCompleted()
-        XCTAssertNil(buf.error)
-
-        var pixels = [UInt8](repeating: 0, count: widthPx * heightPx * 4)
-        pixels.withUnsafeMutableBufferPointer { ptr in
-            readback.getBytes(
-                ptr.baseAddress!,
-                bytesPerRow: widthPx * 4,
-                from: MTLRegion(
-                    origin: MTLOrigin(x: 0, y: 0, z: 0),
-                    size: MTLSize(width: widthPx, height: heightPx, depth: 1)),
-                mipmapLevel: 0)
+        let harness = try MetalOffscreenHarness(
+            device: device, widthPx: widthPx, heightPx: heightPx,
+            clear: MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1))
+        return try harness.render { encoder in
+            pipeline.encode(uniforms: uniforms, atlas: atlas, encoder: encoder)
         }
-        self.lastWidthPx = widthPx
-        return pixels
     }
 
-    /// Row stride for `pixelIndex`, captured by the most recent render.
-    private var lastWidthPx = 0
+    /// Cursor green, cell bg black and cell fg white as readback bytes.
+    /// The ±59 tolerance is the `< 60` / `> 195` band the samples have
+    /// always used, expressed once.
+    private let greenBytes = SIMD3<UInt8>(0, 255, 0)
+    private let blackBytes = SIMD3<UInt8>(0, 0, 0)
+    private let whiteBytes = SIMD3<UInt8>(255, 255, 255)
+    private let channelTolerance: UInt8 = 59
 
     @inline(__always)
-    private func pixelIndex(x: Int, y: Int) -> Int {
-        (y * lastWidthPx + x) * 4
-    }
-
-    @inline(__always)
-    private func isGreen(_ p: [UInt8], x: Int, y: Int) -> Bool {
-        let i = pixelIndex(x: x, y: y)
-        return p[i] < 60 && p[i + 1] > 195 && p[i + 2] < 60
+    private func isGreen(_ p: PixelBuffer, x: Int, y: Int) -> Bool {
+        p.matchesColor(x: x, y: y, greenBytes, tolerance: channelTolerance)
     }
 
     private func assertGreen(
-        _ p: [UInt8], x: Int, y: Int, label: String,
+        _ p: PixelBuffer, x: Int, y: Int, label: String,
         file: StaticString = #file, line: UInt = #line
     ) {
-        let i = pixelIndex(x: x, y: y)
-        XCTAssertLessThan(p[i], 60, "\(label): R", file: file, line: line)
-        XCTAssertGreaterThan(p[i + 1], 195, "\(label): G", file: file, line: line)
-        XCTAssertLessThan(p[i + 2], 60, "\(label): B", file: file, line: line)
+        p.assertCellColor(
+            x: x, y: y, greenBytes, tolerance: channelTolerance, label,
+            file: file, line: line)
     }
 
     private func assertBlack(
-        _ p: [UInt8], x: Int, y: Int, label: String,
+        _ p: PixelBuffer, x: Int, y: Int, label: String,
         file: StaticString = #file, line: UInt = #line
     ) {
-        let i = pixelIndex(x: x, y: y)
-        XCTAssertLessThan(p[i], 60, "\(label): R", file: file, line: line)
-        XCTAssertLessThan(p[i + 1], 60, "\(label): G", file: file, line: line)
-        XCTAssertLessThan(p[i + 2], 60, "\(label): B", file: file, line: line)
+        p.assertCellColor(
+            x: x, y: y, blackBytes, tolerance: channelTolerance, label,
+            file: file, line: line)
     }
 
     private func assertWhite(
-        _ p: [UInt8], x: Int, y: Int, label: String,
+        _ p: PixelBuffer, x: Int, y: Int, label: String,
         file: StaticString = #file, line: UInt = #line
     ) {
-        let i = pixelIndex(x: x, y: y)
-        XCTAssertGreaterThan(p[i], 195, "\(label): R", file: file, line: line)
-        XCTAssertGreaterThan(p[i + 1], 195, "\(label): G", file: file, line: line)
-        XCTAssertGreaterThan(p[i + 2], 195, "\(label): B", file: file, line: line)
+        p.assertCellColor(
+            x: x, y: y, whiteBytes, tolerance: channelTolerance, label,
+            file: file, line: line)
     }
 }

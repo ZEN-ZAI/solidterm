@@ -73,6 +73,7 @@
 		B6E9AE61C5B4C857D75B87F9 /* ThemeModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 457E17220393B266698D1779 /* ThemeModeTests.swift */; };
 		B7D1C79CA79D840FA095D2E3 /* GridPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A025AE864143B49B3525FB78 /* GridPipeline.swift */; };
 		B9503D2A34480D4786807AC5 /* TerminalSwitcherView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E97C53D1DDD6ABFBD6428A /* TerminalSwitcherView.swift */; };
+		BCC263660D8195DEF6DB77B2 /* MetalOffscreenHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 466BF176A1F2A895B02CF7B5 /* MetalOffscreenHarness.swift */; };
 		C0DEBD028E4D5251E65610B2 /* SearchMatchDecoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4264D169B3B28ED50F218C1C /* SearchMatchDecoding.swift */; };
 		C3B1623B31DE1CAE63CAF483 /* WindowRestoration.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6935E99F77F33F2A86C6226 /* WindowRestoration.swift */; };
 		C7B085DE7B230B932EE3FD31 /* SessionJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FD9C86FE375FC1849948D38 /* SessionJournal.swift */; };
@@ -142,6 +143,7 @@
 		44FC4D973C6C003417310B7C /* FFIDataTypeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFIDataTypeTests.swift; sourceTree = "<group>"; };
 		457E17220393B266698D1779 /* ThemeModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeModeTests.swift; sourceTree = "<group>"; };
 		466A1A62AFC333A4BB980AC7 /* TerminalSessionLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSessionLifecycleTests.swift; sourceTree = "<group>"; };
+		466BF176A1F2A895B02CF7B5 /* MetalOffscreenHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalOffscreenHarness.swift; sourceTree = "<group>"; };
 		47204B623B520FC856F2165D /* MouseReportingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MouseReportingTests.swift; sourceTree = "<group>"; };
 		4DE2F87B2E6955D67755FDCC /* SwiftBridgeCore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SwiftBridgeCore.h; sourceTree = "<group>"; };
 		4EB6784CDFA05421B54E7396 /* ProcessSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessSnapshot.swift; sourceTree = "<group>"; };
@@ -279,6 +281,7 @@
 				E93299E59724BD630DBF5074 /* IMETests.swift */,
 				F024D3776FDCB0DEDC721C97 /* InputEventEncodingTests.swift */,
 				4185D399FEF940DCA11B8D7F /* LatencyMeasurementTests.swift */,
+				466BF176A1F2A895B02CF7B5 /* MetalOffscreenHarness.swift */,
 				C1CD2451515F8899CC987209 /* MetalRendererFontTests.swift */,
 				2C42F67A91AB40AB73466A66 /* MetalRendererSGRColorTests.swift */,
 				47204B623B520FC856F2165D /* MouseReportingTests.swift */,
@@ -567,6 +570,7 @@
 				B2AD5B7694CE298B9522C2EF /* IMETests.swift in Sources */,
 				526614FCE376E3E9B1591DE6 /* InputEventEncodingTests.swift in Sources */,
 				7BC0E013B26BF7339BF5D969 /* LatencyMeasurementTests.swift in Sources */,
+				BCC263660D8195DEF6DB77B2 /* MetalOffscreenHarness.swift in Sources */,
 				2B7008FD8095A610C1ADCD91 /* MetalRendererFontTests.swift in Sources */,
 				33480B5D738F2301D09F5B78 /* MetalRendererSGRColorTests.swift in Sources */,
 				15CCD05AE48D8DAAF2960A55 /* MouseReportingTests.swift in Sources */,
