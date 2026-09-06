@@ -20,7 +20,7 @@ labels: enhancement
 ## Scope
 
 <!--
-Which phase does this fit into? (see vault/ROADMAP.md)
+Which phase does this fit into?
 - Phase 1 MVP (weeks 1-16) — is it in the Top 10?
 - Phase 2 (beta to 1.0) — is it in the runner-up list?
 - Phase 3+ — propose adding to ROADMAP.

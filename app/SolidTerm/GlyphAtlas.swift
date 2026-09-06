@@ -51,7 +51,7 @@ import Metal
 /// across — 1 for a single-cell glyph (ASCII, single Han, single
 /// emoji-fallback cell), N for a coalesced cross-cell grapheme cluster
 /// (Thai consonant + SARA AM, regional indicator flag pair, ZWJ
-/// spillover). See ADR-19 + spec/cross-cell-shaping.md. Defaults to 1
+/// spillover). See ADR-0003 + spec/cross-cell-shaping.md. Defaults to 1
 /// so single-glyph call sites stay unchanged; the cluster path passes
 /// the value computed by `GraphemeClusterCoalescer`.
 struct AtlasEntry {
@@ -557,7 +557,7 @@ final class GlyphAtlas {
         // mutation) doesn't smear glyphs. The span byte rides in the
         // low bits of the `contentsScale` field — pre-coalescer all
         // existing callers pass cellSpan=1 so the key shape is
-        // bit-identical to v0.1.6 (ADR-19 + spec/cross-cell-shaping.md).
+        // bit-identical to v0.1.6 (ADR-0003 + spec/cross-cell-shaping.md).
         let span = max(UInt8(1), cellSpan)
         let clusterBytes = Array(cluster.utf8)
         let clusterHash = Self.fnv1a64(bytes: clusterBytes)
@@ -630,7 +630,7 @@ final class GlyphAtlas {
     /// `textPosition = (0, descent)` the absolute ink Y spans
     /// `[descent + minY, descent + maxY]` and X spans `[minX, maxX]`.
     /// The box is `[0, boxWidthPt] × [0, boxHeightPt]`. Scaling about the
-    /// origin keeps the left edge pinned at x=0 (ADR-19). Returns 1.0
+    /// origin keeps the left edge pinned at x=0 (ADR-0003). Returns 1.0
     /// when the line already fits.
     private static func clusterFitScale(
         line: CTLine,
@@ -679,7 +679,7 @@ final class GlyphAtlas {
     /// `cellSpan * cellW × cellH` so coalesced cross-cell clusters
     /// (Thai consonant + SARA AM, RI flag pairs) keep their full
     /// horizontal extent. CTLine is drawn at x=0 (left-aligned per
-    /// ADR-19), matching iTerm2/Ghostty for Thai compositions.
+    /// ADR-0003), matching iTerm2/Ghostty for Thai compositions.
     private func rasterizeCluster(
         cluster: String, coveringFont: CTFont, cellSpan: UInt8 = 1
     ) throws -> RasterizedGlyph {
@@ -717,7 +717,7 @@ final class GlyphAtlas {
             // Fit-to-box for clusters: a CTLine's per-run fonts can't be
             // resized individually, so measure the rendered ink and
             // scale the whole line uniformly about the origin (left edge
-            // pinned at x=0 per ADR-19) so tall/wide fallback clusters
+            // pinned at x=0 per ADR-0003) so tall/wide fallback clusters
             // don't clip. baseline=descent is in the same point space, so
             // it scales with the line. A cluster already inside the box
             // gets scale==1.0 → unchanged.
@@ -745,7 +745,7 @@ final class GlyphAtlas {
     ///
     /// `cellSpan` widens the rasterization slot to
     /// `cellSpan * cellW × cellH` so coalesced flag pairs / ZWJ-spill
-    /// clusters keep their full horizontal extent (ADR-19).
+    /// clusters keep their full horizontal extent (ADR-0003).
     private func rasterizeColorCluster(
         cluster: String, coveringFont: CTFont, cellSpan: UInt8 = 1
     ) throws -> RasterizedColorGlyph {
@@ -780,7 +780,7 @@ final class GlyphAtlas {
             let descent = CTFontGetDescent(coveringFont)
             // Fit-to-box for color clusters (flag pairs, ZWJ-spill emoji)
             // — same uniform-scale-about-origin approach as the gray
-            // cluster path; left edge pinned at x=0 (ADR-19).
+            // cluster path; left edge pinned at x=0 (ADR-0003).
             let fit = Self.clusterFitScale(
                 line: line, ctx: ctx, descent: descent,
                 boxWidthPt: boxWidthPt, boxHeightPt: boxHeightPt)

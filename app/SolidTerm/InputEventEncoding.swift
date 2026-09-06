@@ -29,7 +29,7 @@
 // keyDown only this PR: KEY_ACTION_PRESS = 0 is the only action emitted.
 // keyUp / repeat get their own dispatch path at Week 2 task 2.10
 // (Kitty CSI u + modifyOtherKeys), where action discriminators start
-// emitting different escape sequences. See vault/spec/keyboard-system.md.
+// emitting different escape sequences.
 //
 // FocusStackManager routing (app-action shortcuts vs PTY pass-through) is
 // a Week 4+ surface; today every keyDown that reaches `TerminalSurfaceView`

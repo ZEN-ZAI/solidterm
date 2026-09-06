@@ -14,7 +14,7 @@
   "captured_via": "expect /tmp/capture-claude-exit.exp + script(1) -q -F",
   "exercises": [
     "Full stream-json event sequence: system/init, assistant message, result",
-    "All cleanup sequences claude emits on exit (per vault/research/05-shell-protocols.md):",
+    "All cleanup sequences the agent CLI emits on exit:",
     "  CSI ?1006l ?1003l ?1002l ?1000l — disable mouse tracking modes",
     "  CSI >4m                          — reset modifyOtherKeys",
     "  CSI <u                           — pop Kitty keyboard stack",

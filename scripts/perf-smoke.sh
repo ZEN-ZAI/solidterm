@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Performance smoke test — runs the in-scope, non-interactive measurements
-# from spec/performance-budgets.md (vault) and emits a markdown summary.
+# against the budgets below and emits a markdown summary.
 #
 # Scope (M1 task 4.11 — see spec/m1-task-breakdown.md §4.11):
 #   1. Engine throughput  — `cargo bench` on `hot_feed_1mb`
@@ -63,7 +63,6 @@ log ""
 log "- Hardware: $CPU, $MEM_HUMAN RAM"
 log "- macOS: $MACOS_VER"
 log "- Commit: $COMMIT"
-log "- Spec: vault/spec/performance-budgets.md"
 log ""
 
 # ── 1. Engine throughput — Criterion bench ───────────────────────────────────

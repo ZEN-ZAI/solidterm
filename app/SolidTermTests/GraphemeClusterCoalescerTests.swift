@@ -58,7 +58,7 @@ final class GraphemeClusterCoalescerTests: XCTestCase {
 
     func testThaiSaraAm() {
         // ทำ — consonant ท (U+0E17) + SARA AM (U+0E33). Architectural
-        // case that triggered ADR-19: alacritty splits these into
+        // case that triggered ADR-0003: alacritty splits these into
         // adjacent cells; coalescer must merge them.
         let input = [cell(0, 0, "ท"), cell(0, 1, "ำ")]
         let out = GraphemeClusterCoalescer.coalesce(input)

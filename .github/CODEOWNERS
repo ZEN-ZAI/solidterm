@@ -1,6 +1,6 @@
 # CODEOWNERS — human review is required on these paths.
 # AI agents can draft changes but merge is blocked until @ZEN-ZAI reviews.
-# See AGENTS.md "Human-only review gates" and research/14-quality-gates-and-ci.md §8.
+# See AGENTS.md "Human-only review gates".
 
 # Default: everyone can touch; human review optional for low-risk areas.
 

@@ -1,13 +1,13 @@
 ---
 name: Architecture decision proposal
-about: Propose a new ADR (goes to vault/decisions/)
+about: Propose a new ADR (goes to docs/adr/)
 title: 'decision: '
 labels: decision
 ---
 
 <!--
-Use this when you want to change something in vault/decisions/ or add a new one.
-Small changes: just open a PR to the decision file directly.
+Use this when you want to change an existing ADR in docs/adr/ or add a new one.
+Small changes: just open a PR to the ADR file directly.
 Big-picture proposals: use this template to discuss first.
 -->
 
@@ -33,4 +33,4 @@ Big-picture proposals: use this template to discuss first.
 
 ## Related
 
-<!-- Links to existing decisions, specs, research files, issues. -->
+<!-- Links to existing ADRs, issues, tickets. -->

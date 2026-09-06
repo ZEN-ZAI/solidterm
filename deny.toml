@@ -1,12 +1,11 @@
 # cargo-deny configuration for SolidTerm.
 #
-# Spec: vault/research/14-quality-gates-and-ci.md (§7 dependency hygiene).
 # CI invocation: .github/workflows/ci.yml `rust-deps` job (cargo-deny-action@v2).
 #
-# Workspace crates carry `license = "UNLICENSED"` per decisions/02 (license
-# choice deferred to Phase 2). The `private.ignore = true` setting skips them
-# in the licenses scan; advisories / bans / sources still cover the whole
-# graph.
+# Workspace crates are GPL-3.0-or-later and not published; the
+# `private.ignore = true` setting skips them in the licenses scan, which only
+# vets third-party dependencies. Advisories / bans / sources still cover the
+# whole graph.
 
 [graph]
 all-features = true
@@ -39,8 +38,8 @@ allow = [
 exceptions = []
 
 [licenses.private]
-# Workspace crates are not published; their UNLICENSED status (decisions/02)
-# is intentional and not subject to the allowlist.
+# Workspace crates are GPL-3.0-or-later and not published, so the allowlist
+# below (which vets third-party dependencies) does not apply to them.
 ignore = true
 registries = []
 

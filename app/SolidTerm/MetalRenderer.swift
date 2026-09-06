@@ -418,12 +418,12 @@ final class MetalRenderer {
     private var frameCount: UInt64 = 0
     private static let frameTimeWindow = 240  // 2 seconds at 120 Hz
 
-    /// ADR-19 / spec/cross-cell-shaping.md feature gate. When ON, the
+    /// ADR-0003 / spec/cross-cell-shaping.md feature gate. When ON, the
     /// FrameDelta path routes `[CellDeltaSwift]` through
     /// `GraphemeClusterCoalescer.coalesce` before slot resolution so
     /// cross-cell grapheme clusters (Thai SARA AM, regional indicator
     /// flag pairs, ZWJ family spillovers) render as one wide glyph.
-    /// Default ON since v0.1.7 (ADR-19 / atomic 5 — manual verification
+    /// Default ON since v0.1.7 (ADR-0003 — manual verification
     /// of `ทำ`, `ห้`, `ก่อ`, `กืน` 2026-05-16). Setting
     /// `SOLIDTERM_SHAPING=0` disables the coalescer and restores the
     /// v0.1.6 single-cell path for diagnosis (the legacy
@@ -1884,7 +1884,7 @@ final class MetalRenderer {
         }
     }
 
-    /// ADR-19 atomic 4 — coalesced-cell variant of
+    /// ADR-0003 — coalesced-cell variant of
     /// `applyCellsAsRegions`. Each `CoalescedCell` expands to one
     /// primary slot at `(row, col)` carrying the cluster glyph (whose
     /// `AtlasEntry.cellSpan == cellSpan`, so GridPipeline packs the
@@ -2194,7 +2194,7 @@ final class MetalRenderer {
         }
     }
 
-    /// ADR-19 atomic 4 — resolve a `CoalescedCell` (coalescer output)
+    /// ADR-0003 — resolve a `CoalescedCell` (coalescer output)
     /// to a `CellSlot` for the primary cell. Continuation cells are
     /// emitted separately as `slot.glyph = nil` so they pack as
     /// selector=0 / cellSpan=0 (continuation sentinel per atomic 3).

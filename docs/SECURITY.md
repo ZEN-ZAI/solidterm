@@ -45,7 +45,7 @@ Until then: only run SolidTerm beta builds on a Mac you control + only install D
 
 ## What SolidTerm does NOT do (zero-telemetry)
 
-Per `decisions/03-telemetry.md`:
+Per `docs/adr/0001-no-telemetry.md`:
 - No analytics SDKs (Mixpanel, Sentry, Rollbar, etc.)
 - No usage tracking, crash uploads, anonymous metrics, or UUIDs
 - No outbound network calls except those the user initiates from their own shell (e.g. `curl`)

@@ -52,7 +52,6 @@ If your output contradicts an existing ADR, surface it explicitly rather than si
 
 ## Project note
 
-Pre-fork decisions and specs referenced elsewhere (`vault/decisions/`,
-`spec/*.md`, `vault/research/`) live in a private Obsidian vault outside
-this repo; the `vault` symlink is gitignored and may be absent. New ADRs
-go in `docs/adr/` here.
+Design decisions live in `docs/adr/`. Older code comments cite `spec/…`,
+`decisions/…`, `research/…` sections of a retired pre-1.0 design archive;
+code and tests are authoritative (ticket 19 retires those citations).

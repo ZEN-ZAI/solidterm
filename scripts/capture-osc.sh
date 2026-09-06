@@ -8,7 +8,6 @@
 #   tests/fixtures/osc-sequences/<name>.bin
 #   tests/fixtures/osc-sequences/<name>.meta.json
 #
-# Spec: vault/spec/test-fixtures.md §3
 
 set -euo pipefail
 

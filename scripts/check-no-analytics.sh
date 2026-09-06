@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Enforce zero-telemetry policy — block any import of analytics SDKs in tracked files.
-# Policy: decisions/03-telemetry.md (vault).
+# Policy: docs/adr/0001-no-telemetry.md.
 set -euo pipefail
 
 FORBIDDEN=(
@@ -78,7 +78,7 @@ fi
 # matcher missed all of those. -P enables PCRE so the `\b` boundaries
 # in $pattern actually take effect (POSIX ERE doesn't support `\b`).
 if git grep -iIP -- "$pattern" -- '*.rs' '*.swift' '*.ts' '*.tsx' '*.js' '*.toml' 2>/dev/null; then
-  echo "::error::Analytics SDK reference detected — see decisions/03-telemetry.md"
+  echo "::error::Analytics SDK reference detected — see docs/adr/0001-no-telemetry.md"
   exit 1
 fi
 

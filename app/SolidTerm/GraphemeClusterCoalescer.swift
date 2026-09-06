@@ -4,7 +4,7 @@
 // indicator flag pairs, ZWJ spillover) and merges them into a single
 // CoalescedCell with a `cellSpan` that the renderer extends quads over.
 //
-// Driven by ADR-19 (Stack A — CoreText is the only cluster authority,
+// Driven by ADR-0003 (Stack A — CoreText is the only cluster authority,
 // so the coalescer lives Swift-side, not in Rust).
 
 import Foundation

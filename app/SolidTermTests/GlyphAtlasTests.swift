@@ -786,7 +786,7 @@ final class GlyphAtlasTests: XCTestCase {
             try atlas._testCheckBytesCeiling(widthPx: 50, heightPx: 1))
     }
 
-    // MARK: - cellSpan (ADR-19 atomic 2)
+    // MARK: - cellSpan (ADR-0003)
 
     /// A coalesced cross-cell cluster rasterizes into a slot sized
     /// `cellSpan * cellW × cellH`. Thai consonant + SARA AM stays in

@@ -151,7 +151,7 @@ fragment float4 grid_fragment(
     }
 
     // cellAtlasSelector is r16Uint: low byte = atlas selector, high byte =
-    // cellSpan (ADR-19 / spec/cross-cell-shaping.md, atomic 3). cellSpan
+    // cellSpan (ADR-0003 / spec/cross-cell-shaping.md). cellSpan
     // semantics:
     //   - >= 1 : this cell is a primary; its glyph spans `cellSpan` cols
     //   - == 0 : either a blank cell, or a continuation owned by a primary

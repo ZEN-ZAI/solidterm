@@ -65,7 +65,7 @@ final class GridPipeline {
     ///     N-wide cross-cell cluster, 0 = continuation cell owned by a primary
     ///     to its left)
     ///
-    /// Widened from r8Uint to r16Uint by ADR-19 / spec/cross-cell-shaping.md
+    /// Widened from r8Uint to r16Uint by ADR-0003 / spec/cross-cell-shaping.md
     /// (atomic 3, on top of coalescer `4a23339`) so a single cluster glyph can
     /// paint across multiple cell columns (Thai SARA AM, regional indicator
     /// flag pairs, ZWJ spillovers). Production cells continue to land with
@@ -441,7 +441,7 @@ final class GridPipeline {
     ///   - low  byte = atlas selector (0 grayscale / 1 color emoji)
     ///   - high byte = cellSpan (1 = single-cell primary, N = N-wide primary,
     ///     0 = blank or continuation)
-    /// See ADR-19 + spec/cross-cell-shaping.md §Module 3. Mirrors the shader
+    /// See ADR-0003 + spec/cross-cell-shaping.md §Module 3. Mirrors the shader
     /// decode in `Shaders.metal` (`grid_fragment`).
     private func packSelector(atlasIndex: UInt8, cellSpan: UInt8) -> UInt16 {
         return UInt16(atlasIndex) | (UInt16(cellSpan) << 8)

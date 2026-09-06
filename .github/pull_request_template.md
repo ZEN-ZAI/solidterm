@@ -10,7 +10,7 @@ Drop sections that don't apply.
 
 ## Why
 
-<!-- Link to the vault decision, issue, or spec that motivated this.
+<!-- Link to the ADR (`docs/adr/`), issue, or ticket that motivated this.
      If this is a first-of-its-kind change, propose a decision (see CONTRIBUTING.md). -->
 
 ## Risk + scope
@@ -19,7 +19,7 @@ Drop sections that don't apply.
 - Blast radius: which crates / modules / screens
 - Stop-the-line checks:
   - [ ] No `unsafe` without `// SAFETY:` comment
-  - [ ] No new outbound network endpoint (or decisions/03-telemetry.md updated)
+  - [ ] No new outbound network endpoint (or docs/adr/0001-no-telemetry.md updated)
   - [ ] No perf regression >5% (or explicit // PERF-REGRESSION: comment)
   - [ ] No new dep introduced (or justified below)
 -->
@@ -36,10 +36,10 @@ Drop sections that don't apply.
 
 <!-- Optional. Helpful for non-trivial design choices. -->
 
-## Spec / decision updates
+## Decision updates
 
-<!-- If this changes spec-defined behavior, the spec update is in this same PR.
-     List the vault files touched. -->
+<!-- If this changes decided behavior, the ADR update is in this same PR.
+     List the `docs/adr/` files touched. -->
 
 ---
 

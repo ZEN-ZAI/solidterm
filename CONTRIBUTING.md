@@ -64,7 +64,7 @@ Architectural changes go through a lightweight ADR in `docs/adr/` (format per `d
 For code / spec changes:
 
 1. Branch (or work on `main` for <30 min / <300 LoC per AGENTS.md #1)
-2. Write tests (see `spec/testing-strategy.md`)
+2. Write tests (unit / integration / smoke — see `crates/solidterm-engine/tests/` and `app/SolidTermTests/`)
 3. Verify locally: `cargo fmt --check && cargo clippy --workspace -- -D warnings && cargo test --workspace`
 4. Open a PR using `.github/pull_request_template.md`
 5. CI must pass; human review required for files listed in `CODEOWNERS`
@@ -77,7 +77,7 @@ Features not yet in scope (e.g. Linux port, plugin marketplace) need a discussio
 
 ## License
 
-License is deferred to Phase 2 (`decisions/09-mvp-scope.md`). Until then the repo is `UNLICENSED` (all rights reserved). By contributing you agree the project lead can relicense your contribution under whatever license is eventually chosen — likely MIT or Apache-2.0. If that's a blocker, open an issue before contributing code.
+SolidTerm is licensed under GPL-3.0-or-later (see `LICENSE`). Contributions are accepted under the same license, and by contributing you grant the maintainer the right to relicense your contribution.
 
 ## Conduct
 

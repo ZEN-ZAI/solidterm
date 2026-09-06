@@ -2,7 +2,7 @@
 
 Status: target state, not yet implemented — current release path is `scripts/build-release-dmg.sh`.
 
-Concrete checklist for cutting a SolidTerm release. Reference source: `vault/research/15-release-engineering.md`.
+Concrete checklist for cutting a SolidTerm release.
 
 This doc is the on-call playbook — step-by-step with no interpretation needed. Anything marked `❗` requires human verification.
 
@@ -66,7 +66,7 @@ If a released DMG is found to crash or ship a regression:
 2. **Already-installed users**: Sparkle only moves forward; ship `v1.0.1` ASAP rather than downgrading.
 3. **Cask PR**: revert to prior SHA256 / version in the tap (`ZEN-ZAI/homebrew-solidterm`).
 4. **Do NOT delete the GitHub release** — keep it for audit / forensics. Add a `!!! SUPERSEDED BY v1.0.1` notice to the release body.
-5. **Write a postmortem** in `vault/incidents/YYYY-MM-DD-<slug>.md`.
+5. **Write a postmortem** and keep it with the release notes.
 
 ## Notarization recovery
 
@@ -101,6 +101,6 @@ All managed in repo Settings → Secrets and variables → Actions:
 
 ## See also
 
-- `vault/research/15-release-engineering.md` — full reasoning + CI yml sketch
-- `vault/decisions/02-distribution.md` — direct + brew cask strategy
-- `vault/decisions/03-telemetry.md` — no auto-upload crash reports
+- `docs/adr/0002-distribution-direct-dmg.md` — why beta ships as a direct DMG
+- `docs/adr/0001-no-telemetry.md` — no auto-upload crash reports
+- `scripts/build-release-dmg.sh` — the release path this runbook wraps

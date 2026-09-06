@@ -34,9 +34,6 @@ Package.resolved
 .claude/settings.local.json
 .claude/agent-memory-local/
 
-# Local vault symlink (Obsidian vault at ~/Vaults/SolidTerm)
-/vault
-
 # Logs / temp
 *.log
 .tmp/
