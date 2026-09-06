@@ -1,4 +1,4 @@
-// Implements spec/metal-renderer.md §MSL pipeline (Stage 0) — owns the
+// Stage 0 MSL pipeline — owns the
 // `MTLRenderPipelineState` for the cell vertex+fragment shaders and
 // encodes a single-glyph draw call against a bound `GlyphAtlas`.
 //

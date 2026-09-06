@@ -5,12 +5,12 @@
 // The shelf-packing + LRU pattern is structural; the Swift
 // implementation against Metal is original.
 //
-// Implements spec/metal-renderer.md §Glyph atlas.
+// The renderer's glyph atlas.
 //
 // Stage 1: shelf-packed bitmap atlas with LRU eviction (M1 task 4.2).
 // Single grayscale `MTLTexture` (.r8Unorm, 512×512), shelf-packed,
-// uploaded via a shared-storage staging buffer + `MTLBlitCommandEncoder`
-// per spec line 167. CoreText rasterizes each glyph into a CPU
+// uploaded via a shared-storage staging buffer + `MTLBlitCommandEncoder`.
+// CoreText rasterizes each glyph into a CPU
 // `CGContext` (deviceGray, 8 bpp) before the upload. Eviction recycles
 // rects via a free-list; on fragmentation the atlas resets wholesale
 // and re-pins its blank slot.
@@ -60,7 +60,7 @@ import Metal
 /// across — 1 for a single-cell glyph (ASCII, single Han, single
 /// emoji-fallback cell), N for a coalesced cross-cell grapheme cluster
 /// (Thai consonant + SARA AM, regional indicator flag pair, ZWJ
-/// spillover). See ADR-0003 + spec/cross-cell-shaping.md. Defaults to 1
+/// spillover). See ADR-0003. Defaults to 1
 /// so single-glyph call sites stay unchanged; the cluster path passes
 /// the value computed by `GraphemeClusterCoalescer`.
 struct AtlasEntry {
@@ -120,7 +120,7 @@ final class GlyphAtlas {
     static let atlasSize: SIMD2<UInt32> = SIMD2(2048, 2048)
 
     /// Color emoji atlas dimensions. 1024 × 1024 × 4 B = 4 MiB —
-    /// compromise between the spec's 2048² (16 MiB) and the gray
+    /// compromise between the designed 2048² (16 MiB) and the gray
     /// atlas's 512² (1 MiB equivalent at RGBA). Holds ~hundreds of
     /// emoji cells before LRU eviction kicks in, which covers a
     /// typical Claude Code dogfood session without thrashing.
@@ -566,7 +566,7 @@ final class GlyphAtlas {
         // mutation) doesn't smear glyphs. The span byte rides in the
         // low bits of the `contentsScale` field — pre-coalescer all
         // existing callers pass cellSpan=1 so the key shape is
-        // bit-identical to v0.1.6 (ADR-0003 + spec/cross-cell-shaping.md).
+        // bit-identical to v0.1.6 (ADR-0003).
         let span = max(UInt8(1), cellSpan)
         let clusterBytes = Array(cluster.utf8)
         let clusterHash = Self.fnv1a64(bytes: clusterBytes)

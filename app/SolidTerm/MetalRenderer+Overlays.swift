@@ -9,11 +9,11 @@ import AppKit
 import Metal
 
 extension MetalRenderer {
-    /// 4.5 selection overlay tint. Per spec/metal-renderer.md §Stage 2,
-    /// selection is rendered at 0.35 alpha over the grid pass; the
-    /// shader stays kind-agnostic and we modulate alpha CPU-side via
-    /// `colorLinear.a`. Color comes from `Theme.Color.selectionBgLinear`
-    /// (`#3d4254` per spec/design-tokens.md).
+    /// 4.5 selection overlay tint. Selection is rendered at 0.35 alpha
+    /// over the grid pass; the shader stays kind-agnostic and we
+    /// modulate alpha CPU-side via `colorLinear.a`. Color comes from
+    /// `Theme.Color.selectionBgLinear` — the locked `selection-bg`
+    /// design token (ADR-0004).
     ///
     /// **Span shape (4.5 scope cut):** stream selections only.
     /// `is_block == true` is plumbed through the FFI but rendered as

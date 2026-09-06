@@ -1,4 +1,4 @@
-// Implements spec/swift-app-modules.md §Settings Window — SwiftUI body.
+// SwiftUI body for the Settings window.
 //
 // Descriptor-driven `TabView` per team-lead-2 M5-2 follow-up: M5-4
 // Library and any later settings work will register their own
@@ -8,7 +8,7 @@
 // The TabView itself uses macOS's system-managed tab-content
 // background — fighting it produces uncanny chrome. Each tab is
 // responsible for painting its own `bg-elevated` (#16161e) surface
-// per design-tokens.md §"Surface levels"; HookEditorView does this
+// token (ADR-0004); HookEditorView does this
 // explicitly (pixel-verified by SettingsViewTests).
 
 import SwiftUI

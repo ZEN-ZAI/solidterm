@@ -1,8 +1,7 @@
 // M6-5 KeybindingStore — load/save ~/.solidterm/keybindings.json,
 // resolve `KeybindingAction` cases against effective bindings.
 //
-// Authoritative spec: spec/keyboard-system.md (M6 pre-flight pass 4
-// finalized 2026-05-10) + research/20-m6-plan.md §M6-5.
+// Grammar, canonical normalization and resolution order: ADR-0005.
 //
 // Scope (M6 ship slice):
 // - Defaults table for the 8 `KeybindingAction` cases shipped in M6-1
@@ -13,7 +12,7 @@
 //   cmd+shift+[/] (Phase 2 prevTab/nextTab), cmd+alt+shift+[/]
 //   (M6+ jumpToErrorBlock) — warn + skip at JSON load; UI capture
 //   blocks save at the editor level
-// - Unknown action strings: warn + skip per spec line 175
+// - Unknown action strings: warn + skip
 // - Chord syntax (`cmd+k cmd+t`) decode-but-runtime-skip per Phase 2
 //   FocusStackManager dependency
 //
@@ -23,7 +22,7 @@
 // - Per-action scope resolution (active pane > window > global) —
 //   M6 has only global-scope actions
 // - Find/Find-Next, splitPane*, focusPane*, zoom*, toggleNativeMode,
-//   etc. (the rest of spec/keyboard-system.md §App-action keybindings) —
+//   etc. (the rest of the app-action keybinding surface) —
 //   not yet in `KeybindingAction` enum, M3+/Phase-2
 
 import AppKit
@@ -99,7 +98,7 @@ public final class KeybindingStore: ObservableObject {
     /// minus disabled keys.
     @Published public private(set) var effective: [KeybindingAction: String] = [:]
     /// Diagnostics emitted during the most recent load. UI surfaces
-    /// these as warning chips per spec/keyboard-system.md §Conflict.
+    /// these as warning chips (ADR-0005).
     @Published public private(set) var diagnostics: [KeybindingDiagnostic] = []
 
     private let fileURL: URL
@@ -121,7 +120,7 @@ public final class KeybindingStore: ObservableObject {
     // MARK: - Defaults table
 
     /// Built-in defaults for `KeybindingAction` cases.
-    /// Source-of-truth pinned to spec/keyboard-system.md.
+    /// This table is the source of truth for unconfigured actions.
     /// M7-5 added the tab-surface bindings (newTab, closeTab, prevTab,
     /// nextTab, selectTab1..9) — this dropped them out of the reserved
     /// range and pushed `closeWindow` to ⌘⇧W so ⌘W goes to closeTab
@@ -162,7 +161,6 @@ public final class KeybindingStore: ObservableObject {
     /// Keys reserved for future bindings; M6+ must not bind these,
     /// JSON loads warn + skip, UI capture blocks save.
     /// - cmd+alt+shift+[ / cmd+alt+shift+]: M6+ jumpToPrev/NextErrorBlock
-    ///   per spec lines 54-55
     ///
     /// M7-5 lifted the cmd+1..9 + cmd+shift+[/] reservations — those
     /// are now live tab bindings (selectTabN / prevTab / nextTab).
@@ -272,7 +270,7 @@ public final class KeybindingStore: ObservableObject {
             lastForKey[normalizedKey] = action
         }
 
-        // `disabled` is processed after `bindings` per spec line 189.
+        // `disabled` is processed after `bindings` (ADR-0005).
         // Suppress any action whose effective key matches a disabled entry.
         for (action, key) in table where disabledSet.contains(key) {
             table.removeValue(forKey: action)
@@ -332,10 +330,9 @@ public final class KeybindingStore: ObservableObject {
 
     /// Lowercase, sort modifiers into canonical order
     /// (cmd, ctrl, alt, shift), preserve chord separators (single
-    /// spaces). Per spec/keyboard-system.md §"`key` field grammar":
-    /// "case-insensitive", "Modifier order within a stroke is not
-    /// enforced" — so the store imposes a canonical order for
-    /// internal equality + lookup.
+    /// spaces). The `key` grammar is case-insensitive and does not
+    /// enforce modifier order within a stroke (ADR-0005), so the store
+    /// imposes a canonical order for internal equality + lookup.
     public static func normalizeKey(_ raw: String) -> String {
         let strokes = raw.lowercased()
             .split(separator: " ", omittingEmptySubsequences: true)

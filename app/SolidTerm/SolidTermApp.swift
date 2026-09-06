@@ -1,4 +1,4 @@
-// Implements spec/swift-app-modules.md §App Lifecycle and `@main`.
+// App lifecycle and `@main`.
 // SwiftUI's `@main` only satisfies the entry-point requirement; AppDelegate
 // owns NSWindow creation and all real lifecycle.
 //

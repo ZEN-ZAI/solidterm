@@ -1,4 +1,4 @@
-// Implements spec/metal-renderer.md §Stage 2 Overlay Pass — owns the
+// Stage 2 overlay pass — owns the
 // `MTLRenderPipelineState` for the unified overlay shaders (one MSL
 // fragment, `kind` discriminator) used to draw the cursor (4.7),
 // selection (4.5), and IME marked-text underline (4.9) on top of the
@@ -10,10 +10,10 @@
 //   1 = cursor beam       (left ~12% of cell)
 //   2 = selection         (full-cell tint at colorLinear.a alpha)
 //   3 = IME underline     (bottom ~15% of cell, under preedit cells)
-//   4 = cursor underline  (bottom ~15% of cell — extends the spec's
-//                          enum; DECSCUSR has 4 shapes, the spec
-//                          snippet at metal-renderer.md:358-375 only
-//                          listed cursor block + beam)
+//   4 = cursor underline  (bottom ~15% of cell — extends the
+//                          original enum; DECSCUSR has 4 shapes, the
+//                          design archive only defined cursor block
+//                          + beam)
 //
 // Blending: source-over straight alpha so `alpha=0` (blink-off phase)
 // composes to "no visible change" against the grid pass's stored
@@ -111,8 +111,7 @@ final class OverlayPipeline {
 
 /// CPU-driven blink phase. Pure function so the renderer's draw loop
 /// stays trivially testable; called once per frame with the current
-/// elapsed time and the configured period (500 ms per
-/// spec/metal-renderer.md:105).
+/// elapsed time and the configured period (500 ms by default).
 ///
 /// Returns 1.0 for the first half of each period (cursor visible), 0.0
 /// for the second half (cursor hidden). Steady (non-blinking) cursors

@@ -14,9 +14,9 @@
 //   Sublime Text / Zed / Other...) + detection toggle.
 // - Theme: M6-4a's mode picker (System / Light / Dark / Zenzai Dark /
 //   Zenzai Light). Light variants resolve to dark tokens with a
-//   one-shot startup warning until M6-4b lands the spec-keeper's
-//   light derivation per `spec/design-tokens.md:119-126`'s explicit
-//   gap notice.
+//   one-shot startup warning until M6-4b lands the light token
+//   cascade — a Catppuccin Latte anchor with six tokens darkened for
+//   AA on `bg-base #eff1f5` (ADR-0004).
 //
 // Persistence: per-feature `UserDefaults` keys, matching the existing
 // M5 pattern (sidebar visibility, RateLimitHUD) — no centralized

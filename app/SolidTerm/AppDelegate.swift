@@ -1,4 +1,4 @@
-// Implements spec/swift-app-modules.md §App Lifecycle and `@main`.
+// App lifecycle.
 // AppDelegate creates the first TerminalWindowController on launch and
 // terminates the process when the last window closes.
 

@@ -1,4 +1,4 @@
-// Implements spec/cross-cell-shaping.md — Swift-side post-FFI grapheme
+// Cross-cell shaping — Swift-side post-FFI grapheme
 // cluster shaper. Detects adjacent CellDeltaSwift records that belong
 // to one Unicode extended grapheme cluster (Thai SARA AM, regional
 // indicator flag pairs, ZWJ spillover) and merges them into a single

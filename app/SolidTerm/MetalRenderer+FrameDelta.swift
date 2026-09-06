@@ -40,9 +40,9 @@ extension MetalRenderer {
     /// Pull the latest `FrameDelta` from the Rust session, decode the
     /// `cells: Vec<u8>` payload via the zero-copy reader, and apply
     /// engine-driven cells through `pipeline.setRegion`. Called once
-    /// per `CAMetalDisplayLink` tick from `draw(update:)`, per
-    /// spec/ffi-boundary.md:240 ("Swift calls take_frame_delta()
-    /// synchronously from that callback").
+    /// per `CAMetalDisplayLink` tick from `draw(update:)` — Swift
+    /// calls `take_frame_delta()` synchronously from that callback
+    /// (ADR-0006).
     ///
     /// swift-bridge transfers ownership of the `Vec<u8>` allocation per
     /// call: the returned `FrameDelta` carries a Swift-owned `RustVec`

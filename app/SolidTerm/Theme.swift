@@ -1,12 +1,9 @@
-// Implements spec/design-tokens.md token primitives in Swift.
+// The design token primitives, in Swift (ADR-0004).
 //
-// Every value here is derived from a token name in design-tokens.md.
-// Implementation details (sRGB→linear conversion, MTLClearColor wrapper,
-// MTLHeap font-rasterization parameters) stay in this file; semantic
-// structure stays in the spec. No raw hex or pixel values should appear
-// in renderer code — go through these tokens.
-//
-// Reference: spec/design-tokens.md, decisions/13-visual-design-direction.md.
+// Every value here carries a token name. Implementation details
+// (sRGB→linear conversion, MTLClearColor wrapper, MTLHeap
+// font-rasterization parameters) stay in this file. No raw hex or pixel
+// values should appear in renderer code — go through these tokens.
 //
 // Scope at the time of landing: M1 ships only the renderer-facing color
 // tokens (bg-base / text-primary / cursor-default / selection-bg /
@@ -16,14 +13,13 @@
 // consume — the values land first, the call sites land later.
 //
 // `ThemeManager` (full theme switching, ANSI palette overrides, user
-// theme files) is M5 per spec/theme-appearance.md:139+. This file
+// theme files) is M5. This file
 // stays a single static enum until then — single source of truth for
 // token values, no dynamic dispatch.
 //
 // M6-4a: `Theme.Mode` + `ThemeManager` land here. M6-4b: light-mode
-// tokens (Catppuccin Latte anchor with 6 darkened for AA) per
-// `spec/design-tokens.md:119-194` §"Light-mode token table (Zenzai
-// Light)". The mode-aware `Color.*Linear(for:)` overloads are the
+// tokens (Catppuccin Latte anchor with 6 darkened for AA — the
+// "Zenzai Light" table). The mode-aware `Color.*Linear(for:)` overloads are the
 // public surface; `LightTokens` holds the implementation values.
 
 import Foundation
@@ -60,7 +56,7 @@ enum Theme {
     /// Layout + persistence constants for the M7-4 accent overlay.
     /// Kept as their own namespace so they don't bloat the existing
     /// `Gutter` enum (which still owns the M5.5 stripe constants for
-    /// the eventual rework per `research/19-block-chrome-gutter-rework.md`).
+    /// the eventual block-chrome gutter rework).
     enum OSC133 {
         /// `UserDefaults` key persisting the user's opt-in state.
         /// Bound from `Settings → Appearance` and read by
@@ -75,11 +71,10 @@ enum Theme {
         static let markerWidthPt: CGFloat = 2
     }
 
-    /// Color tokens. Every value matches a `Color tokens` entry in
-    /// `spec/design-tokens.md`. Linear-space `SIMD4<Float>` is the
+    /// Color tokens (ADR-0004). Linear-space `SIMD4<Float>` is the
     /// renderer-facing form — Metal's `.bgra8Unorm_srgb` framebuffer
     /// applies the sRGB encode on store, so passing already-linear
-    /// values means the on-screen pixel reads back as the spec'd sRGB
+    /// values means the on-screen pixel reads back as the token's sRGB
     /// hex when sampled.
     enum Color {
         // MARK: Surface levels
@@ -102,9 +97,8 @@ enum Theme {
             SRGBLinearLUT.unpackLinear(0x1a1b_26ff)
 
         /// `bg-tint-subtle` — `#16161a`. Derived as `bg-base + 4%
-        /// lightness` per `spec/design-tokens.md` §"Surface levels"
-        /// ("`bg-tint-subtle` | `bg-base` + 4% lightness | Block hover;
-        /// list-item rest"). Used by the M2-5b `AltScreenStub`
+        /// lightness` (ADR-0004) — the surface level for block hover
+        /// and list-item rest. Used by the M2-5b `AltScreenStub`
         /// container background and the M2-5c block-hover state. The
         /// concrete `#16161a` lands the channel-shift roughly equal to
         /// `bg-base` (`#0e0d10`) + (+8, +9, +10) — a one-step lift from
@@ -114,9 +108,8 @@ enum Theme {
             SRGBLinearLUT.unpackLinear(0x1616_1aff)
 
         /// `bg-tint-active` — `#1f1e22`. Derived as `bg-base + 8%
-        /// lightness` per `spec/design-tokens.md` §"Surface levels"
-        /// ("`bg-tint-active` | `bg-base` + 8% lightness | Block
-        /// focused; list-item selected"). Used by the M2-5c keyboard-
+        /// lightness` (ADR-0004) — the surface level for block focused
+        /// and list-item selected. Used by the M2-5c keyboard-
         /// focus state on `BlockContainerView`. The concrete `#1f1e22`
         /// roughly doubles the `bg-tint-subtle` delta from `bg-base`
         /// (channel-shift `(+17, +17, +18)` vs subtle's `(+8, +9, +10)`)
@@ -139,13 +132,11 @@ enum Theme {
         static let textSecondaryLinear: SIMD4<Float> =
             SRGBLinearLUT.unpackLinear(0xa9b1_d6ff)
 
-        /// `text-tertiary` — derived as `text-secondary × 60%` per
-        /// `spec/design-tokens.md` §"Text levels" ("derived (60% of
-        /// secondary)"). Multiplies the linear-space RGB channels and
+        /// `text-tertiary` — derived as `text-secondary × 60%`
+        /// (ADR-0004). Multiplies the linear-space RGB channels and
         /// preserves alpha. Used by block-container chrome (3px accent
         /// stripe in pending / unknown / raw states, 1px edge border at
-        /// 30% alpha) per `spec/block-visual-language.md` §"Container
-        /// fundamentals". Muted hints, placeholders, and separators
+        /// 30% alpha). Muted hints, placeholders, and separators
         /// also key off this token.
         static let textTertiaryLinear: SIMD4<Float> = SIMD4(
             textSecondaryLinear.x * 0.6,
@@ -186,8 +177,7 @@ enum Theme {
         /// ANSI black — a deeper green-shadow tint).
         /// Text-selection background;
         /// `MetalRenderer.encodeSelectionOverlay` modulates the alpha
-        /// down to 0.35 (per `spec/metal-renderer.md` §Stage 2:
-        /// "selection: c.color * 0.35") via `colorLinear.a`, so the
+        /// down to 0.35 via `colorLinear.a`, so the
         /// stored tint is straight-alpha and the shader stays
         /// kind-agnostic.
         static let selectionBgLinear: SIMD4<Float> =
@@ -207,8 +197,7 @@ enum Theme {
         /// IME preedit underline color. We alias `text-primary` so
         /// users perceive the preedit underline as "in-flight typing"
         /// rather than a separate UI element — the same color the
-        /// committed glyph will land in once the IME confirms. Per
-        /// `spec/swift-app-modules.md:200`.
+        /// committed glyph will land in once the IME confirms.
         static let imeUnderlineLinear: SIMD4<Float> = textPrimaryLinear
 
         /// M6-2 ⌘+hover link underline color. Aliases `accent-running`
@@ -243,14 +232,12 @@ enum Theme {
         static let teamPurpleLinear: SIMD4<Float> = accentThinkingLinear
 
         /// `team-orange` candidate `#ff9e64`. WCAG AA contrast against
-        /// `bg-base` deferred to sprint kickoff per
-        /// `spec/design-tokens.md` §"Contrast verification".
+        /// `bg-base` deferred to sprint kickoff.
         static let teamOrangeLinear: SIMD4<Float> =
             SRGBLinearLUT.unpackLinear(0xff9e_64ff)
 
         /// `team-pink` candidate `#ff7eb6`. WCAG AA contrast against
-        /// `bg-base` deferred to sprint kickoff per
-        /// `spec/design-tokens.md` §"Contrast verification".
+        /// `bg-base` deferred to sprint kickoff.
         static let teamPinkLinear: SIMD4<Float> =
             SRGBLinearLUT.unpackLinear(0xff7e_b6ff)
 
@@ -278,11 +265,10 @@ enum Theme {
         //
         // All `*(for:)` overloads route to the dark constants for `.dark`
         // and to `LightTokens.*` for `.light`. M6-4b activated the light
-        // cascade per the spec-keeper's `spec/design-tokens.md:119-194`
-        // §"Light-mode token table (Zenzai Light)" — Catppuccin Latte
-        // anchor with 6 tokens darkened from raw Latte for AA on
-        // `bg-base #eff1f5`. Hue families preserved; saturation/lightness
-        // adjusted only where direct Latte values failed contrast.
+        // cascade (Zenzai Light) — Catppuccin Latte anchor with 6 tokens
+        // darkened from raw Latte for AA on `bg-base #eff1f5`. Hue
+        // families preserved; saturation/lightness adjusted only where
+        // direct Latte values failed contrast.
         //
         // Renderer call sites that want mode-awareness migrate from
         // `Theme.Color.bgBaseLinear` to
@@ -397,13 +383,13 @@ enum Theme {
         }
 
         /// Mode-aware `cursor-default`. Aliases `accent-running` in
-        /// both modes per `spec/design-tokens.md` §"Selection / cursor".
+        /// both modes (ADR-0004).
         static func cursorDefaultLinear(for mode: Theme.Mode.Resolved) -> SIMD4<Float> {
             accentRunningLinear(for: mode)
         }
 
         /// Mode-aware `ime-underline`. Aliases `text-primary` in both
-        /// modes per `spec/swift-app-modules.md:200`.
+        /// modes (ADR-0004).
         static func imeUnderlineLinear(for mode: Theme.Mode.Resolved) -> SIMD4<Float> {
             textPrimaryLinear(for: mode)
         }
@@ -463,7 +449,7 @@ enum Theme {
         }
 
         /// Mode-aware `team-cyan`. Latte Sky re-darkened to `#06768c`
-        /// (4.67:1) per spec-keeper's programmatic-verification pass.
+        /// (4.67:1), from a programmatic contrast-verification pass.
         /// Raw Sky `#04a5e5` was 3.3:1; an earlier `#0893b0` candidate
         /// only reached 3.20:1 — the eyeballed darkening missed AA.
         static func teamCyanLinear(for mode: Theme.Mode.Resolved) -> SIMD4<Float> {
@@ -483,12 +469,10 @@ enum Theme {
 
     // MARK: M6-4b — Light-mode token values (Zenzai Light)
     //
-    // All values per `spec/design-tokens.md:119-194` §"Light-mode token
-    // table (Zenzai Light — M6 polish)" — Catppuccin Latte anchor with
-    // 6 tokens darkened from raw Latte for AA on `bg-base #eff1f5`.
-    // Each darkened token's pre-darkening Latte value + the WCAG ratio
-    // that triggered the shift is documented in the spec; the rationale
-    // also lives in the per-mode overload doc-comments above.
+    // Catppuccin Latte anchor with 6 tokens darkened from raw Latte for
+    // AA on `bg-base #eff1f5`. Each darkened token's pre-darkening Latte
+    // value + the WCAG ratio that triggered the shift is recorded in the
+    // per-mode overload doc-comments above.
     //
     // Kept inside `Theme` namespace as a sibling enum to `Color` so
     // callers reach for `Theme.Color.bgBaseLinear(for: .light)` rather
@@ -511,8 +495,8 @@ enum Theme {
         /// non-text AA.
         static let textTertiaryLinear: SIMD4<Float> = SRGBLinearLUT.unpackLinear(0x6c6f_85ff)
 
-        // Accents (6 darkened from raw Latte; doc-comments above carry
-        // the spec-keeper's rationale)
+        // Accents (6 darkened from raw Latte; the doc-comments above
+        // carry the rationale)
         static let accentRunningLinear: SIMD4<Float> = SRGBLinearLUT.unpackLinear(0x1a5c_e0ff)
         static let accentSuccessLinear: SIMD4<Float> = SRGBLinearLUT.unpackLinear(0x2d6b_1cff)
         static let accentErrorLinear: SIMD4<Float> = SRGBLinearLUT.unpackLinear(0xd20f_39ff)
@@ -545,8 +529,7 @@ enum Theme {
         let defaultBgLinear: SIMD4<Float>
     }
 
-    /// Spacing scale. 8-point grid with a 4-point half-step. Matches
-    /// `spec/design-tokens.md` §"Spacing tokens".
+    /// Spacing scale. 8-point grid with a 4-point half-step (ADR-0004).
     enum Spacing {
         /// `space-0` — 0pt. No gap.
         static let zero: CGFloat = 0
@@ -554,7 +537,7 @@ enum Theme {
         /// single component.
         static let half: CGFloat = 4
         /// `space-1` — 8pt. Default gutter; block internal padding
-        /// (per decisions/13).
+        /// (a locked value).
         static let one: CGFloat = 8
         /// `space-2` — 16pt. Section gap, list-item vertical padding.
         static let two: CGFloat = 16
@@ -568,8 +551,7 @@ enum Theme {
         static let eight: CGFloat = 64
     }
 
-    /// Border-radius scale per `spec/design-tokens.md` §"Border radius
-    /// tokens".
+    /// Border-radius scale (ADR-0004).
     enum Radius {
         /// `radius-none` — 0pt. Terminal grid (intentional sharp edges).
         static let none: CGFloat = 0
@@ -578,8 +560,8 @@ enum Theme {
         static let sm: CGFloat = 2
         /// `radius-base` — 4pt. Buttons, inputs, palette items.
         static let base: CGFloat = 4
-        /// `radius-md` — 6pt. Block containers, modal corners (per
-        /// decisions/13 lock).
+        /// `radius-md` — 6pt. Block containers, modal corners
+        /// (a locked value).
         static let md: CGFloat = 6
         /// `radius-lg` — 12pt. Large modals, sheet-style overlays.
         static let lg: CGFloat = 12
@@ -587,15 +569,14 @@ enum Theme {
 
     /// Motion tokens. Durations in seconds; easing curves as
     /// `CAMediaTimingFunction`-compatible control points (cubic-bezier
-    /// `(c1.x, c1.y, c2.x, c2.y)`). Matches `spec/design-tokens.md`
-    /// §"Motion tokens".
+    /// `(c1.x, c1.y, c2.x, c2.y)`) — ADR-0004.
     enum Motion {
         /// `motion-instant` — 0ms. Reduced-motion fallback.
         static let instant: TimeInterval = 0
         /// `motion-fast` — 100ms. Hover state, focus ring.
         static let fast: TimeInterval = 0.100
         /// `motion-base` — 150ms. Existing baseline (palette, modal,
-        /// block collapse). Locked by decisions/13 §Locks.
+        /// block collapse). A locked value.
         static let base: TimeInterval = 0.150
         /// `motion-slow` — 300ms. Multi-step orchestration, settings
         /// panel slide.
@@ -621,16 +602,15 @@ enum Theme {
     /// Block-chrome gutter (M5.5 / M6 prep) — 24pt left column that
     /// hosts per-block accent stripes outside the cell grid. Defined
     /// here so the constants survive the eventual deletion of
-    /// `BlockContainerView` (`research/19-block-chrome-gutter-rework.md`).
+    /// `BlockContainerView`.
     enum Gutter {
         /// Full gutter column width. Set to 0 by user request — stripes
         /// disabled in `BlockOverlayManager.apply()`, so the gutter column
-        /// is reclaimed for cells. Tokens kept for the eventual rework
-        /// per `research/19-block-chrome-gutter-rework.md`. Spec value
-        /// (24pt = space-3) preserved as a reference comment.
-        static let widthPt: CGFloat = 0  // spec: 24
-        /// Accent-stripe width per `spec/block-visual-language.md`
-        /// §"Container fundamentals" ("3px accent stripe"). Slimmer
+        /// is reclaimed for cells. Tokens kept for the eventual
+        /// block-chrome gutter rework. The designed value
+        /// (24pt = space-3) is preserved as a reference comment.
+        static let widthPt: CGFloat = 0  // designed: 24
+        /// Accent-stripe width — a 3px accent stripe. Slimmer
         /// than the column so the stripe reads as a marker, not a
         /// background fill.
         static let stripeWidthPt: CGFloat = 3
@@ -671,8 +651,7 @@ enum Theme {
 
     /// User-selectable theme mode. M6-4a ships infrastructure (enum,
     /// observer, broadcast, picker UI) with light variants resolving
-    /// to dark tokens; M6-4b activates the light token cascade once
-    /// `spec/design-tokens.md` gains its light-mode section.
+    /// to dark tokens; M6-4b activates the light token cascade.
     /// Built-in palette modes. Three only — `system` follows the OS
     /// appearance + flips between `light` and `dark` on change. The
     /// designs:
@@ -680,8 +659,7 @@ enum Theme {
     /// - **dark** — zenzai-v2 canonical (`#0F0F12` bg, `#E4E2DE` fg,
     ///   16-color ANSI palette mirrored in the engine's `encode_named`)
     /// - **light** — Catppuccin Latte anchor with 6 tokens darkened
-    ///   for AA contrast on `#eff1f5` bg (per `spec/design-tokens.md`
-    ///   §"Light-mode token table")
+    ///   for AA contrast on `#eff1f5` bg (ADR-0004)
     ///
     /// File-backed themes from `~/.config/solidterm/themes/*.toml`
     /// (selected via Settings → Appearance "Theme file:") win over
@@ -848,7 +826,7 @@ extension Color {
     /// Construct a SwiftUI `Color` from a linear-RGB `SIMD4<Float>`
     /// token. `Theme.Color.*Linear` constants are pre-computed in
     /// linear space (sRGB→linear) so the Metal `.bgra8Unorm_srgb`
-    /// framebuffer reads them back as the spec'd sRGB hex after
+    /// framebuffer reads them back as the token's sRGB hex after
     /// the encode-on-store. SwiftUI's `Color(.sRGBLinear, ...)`
     /// initializer takes the same linear-space values directly.
     ///

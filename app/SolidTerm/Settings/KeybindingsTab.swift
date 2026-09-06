@@ -1,8 +1,8 @@
 // M6-5 Keybindings settings tab — UI for the 8 M6 actions.
 //
-// Per `spec/keyboard-system.md` §Discovery: "Settings → Keyboard
-// table view" is one of the three discoverability surfaces for
-// app-action keybindings.
+// Settings → Keyboard is one of the three discoverability surfaces
+// for app-action keybindings, alongside the menu bar and the command
+// palette (ADR-0005).
 //
 // Responsibilities:
 // - List each `KeybindingAction` with its title + current key

@@ -1,4 +1,4 @@
-// Implements spec/ffi-boundary.md — Swift-side decoder for the
+// Swift-side decoder (ADR-0006) for the
 // `FrameDelta.cells: Vec<u8>` payload produced by Rust's
 // `encode_cells` (CellDeltaWire records, 48 bytes each, little-endian
 // native ABI).

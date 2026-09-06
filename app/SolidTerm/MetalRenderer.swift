@@ -1,5 +1,5 @@
-// Implements spec/metal-renderer.md §Frame Pacing and the Stage 1
-// full-screen cell pass. Per-frame work: clear the drawable to the
+// Frame pacing and the Stage 1 full-screen cell pass.
+// Per-frame work: clear the drawable to the
 // theme color, encode the entire grid through `GridPipeline` in a
 // single 4-vertex draw call, present. Frame times are logged on a
 // rolling 240-sample window so the kill-criterion gate at #8 can
@@ -80,7 +80,8 @@ final class MetalRenderer {
     /// Stage-2 overlay pipeline for cursor (4.7), selection (4.5), and
     /// IME marked-text underline (4.9). Constructed lazily once the
     /// device + pixel format are known; the pipeline shape is
-    /// kind-discriminated per spec/metal-renderer.md §Stage 2.
+    /// kind-discriminated — one shader whose `kind` uniform selects
+    /// the overlay geometry.
     private var overlayPipeline: OverlayPipeline?
 
     weak var attachedLayer: CAMetalLayer?
@@ -430,7 +431,7 @@ final class MetalRenderer {
     private var frameCount: UInt64 = 0
     private static let frameTimeWindow = 240  // 2 seconds at 120 Hz
 
-    /// ADR-0003 / spec/cross-cell-shaping.md feature gate. When ON, the
+    /// ADR-0003 feature gate. When ON, the
     /// FrameDelta path routes `[CellDeltaSwift]` through
     /// `GraphemeClusterCoalescer.coalesce` before slot resolution so
     /// cross-cell grapheme clusters (Thai SARA AM, regional indicator
@@ -469,8 +470,8 @@ final class MetalRenderer {
             self.overlayPipeline = nil
         }
         // M6-4a: refresh clear color on theme change. Light-mode users
-        // see same dark pixels until M6-4b lands the spec-keeper's
-        // light tokens; the wiring lands now so the activation diff is
+        // see same dark pixels until M6-4b lands the light tokens;
+        // the wiring lands now so the activation diff is
         // a token-only swap.
         themeChangeObserver = NotificationCenter.default.addObserver(
             forName: ThemeManager.themeDidChange,
@@ -1473,9 +1474,8 @@ final class MetalRenderer {
     /// linear-space colors (`Theme.Color.bgBaseLinear` /
     /// `textPrimaryLinear`). The engine's first `FrameDelta` after PTY
     /// spawn overwrites the cells the shell painted; cells the shell
-    /// never touches stay blank — matching the visual contract from
-    /// `spec/ui-chrome-visual.md` §Window ("grid extends to all four
-    /// edges visually" with `bg-base` background).
+    /// never touches stay blank — the grid extends visually to all
+    /// four window edges over the `bg-base` background.
     ///
     /// Replaces the Phase 0 `makeRandomGrid` spike fill that painted
     /// every cell with a random A-Z / 0-9 glyph in white. The

@@ -1,10 +1,10 @@
-// Implements spec/swift-app-modules.md §Settings Window.
+// The Settings window.
 //
 // `SettingsWindowController : NSWindowController` wraps `SettingsView`
-// (SwiftUI) via `NSHostingController`. Per spec line 355: SwiftUI's
-// `Settings { }` scene stays empty — `AppMenu` wires Preferences
-// directly to `showWindow(_:)` here instead. Single shared instance
-// per app, lazy-init on first showWindow.
+// (SwiftUI) via `NSHostingController`. SwiftUI's `Settings { }` scene
+// stays empty — `AppMenu` wires Preferences directly to
+// `showWindow(_:)` here instead. Single shared instance per app,
+// lazy-init on first showWindow.
 
 import AppKit
 import SwiftUI

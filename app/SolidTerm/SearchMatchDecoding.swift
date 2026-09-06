@@ -5,7 +5,9 @@
 //
 // Cross-language contract pinned to `crates/solidterm-ffi/src/bridge.rs`
 // `SearchMatchWire`. Same `Vec<u8>`-of-fixed-records pattern as
-// `BlockBoundaryDecoding` (decisions/10-ffi-collection-deferral.md).
+// `BlockBoundaryDecoding` — collections cross the FFI as `Vec<u8>` of
+// fixed-size records rather than swift-bridge typed collections
+// (ADR-0006).
 
 import Foundation
 

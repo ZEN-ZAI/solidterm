@@ -1,4 +1,4 @@
-// Implements spec/metal-renderer.md §MSL pipeline.
+// MSL pipelines.
 //
 // Two pipelines coexist:
 //
@@ -10,16 +10,15 @@
 //
 // 2. Stage-1 grid pass (`grid_vertex` / `grid_fragment`) — one full-screen
 //    quad sampling per-cell textures, drives the entire 80×24 (or larger)
-//    terminal grid in a single draw call. Implements `metal-renderer.md
-//    §Stage 1 Cell Pass (Full-Screen Quad)`. Used by `GridPipeline.swift`
+//    terminal grid in a single draw call. Used by `GridPipeline.swift`
 //    from task 3.9 onward. Fresh code, no third-party copy yet — Alacritty
 //    PR #4373 is the architectural inspiration but every line below is
 //    written from scratch against Apple's MSL docs.
 //
 // The framebuffer is .bgra8Unorm_srgb for both passes — `MTLClearColor`
 // and the fragment shader outputs are LINEAR; the GPU performs the sRGB
-// encode on store. Blending stays in linear space per metal-renderer.md
-// line 351 ("avoids muddy fonts on dark backgrounds").
+// encode on store. Blending stays in linear space — it avoids muddy
+// fonts on dark backgrounds.
 
 #include <metal_stdlib>
 using namespace metal;
@@ -151,7 +150,7 @@ fragment float4 grid_fragment(
     }
 
     // cellAtlasSelector is r16Uint: low byte = atlas selector, high byte =
-    // cellSpan (ADR-0003 / spec/cross-cell-shaping.md). cellSpan
+    // cellSpan (ADR-0003). cellSpan
     // semantics:
     //   - >= 1 : this cell is a primary; its glyph spans `cellSpan` cols
     //   - == 0 : either a blank cell, or a continuation owned by a primary
@@ -273,14 +272,13 @@ fragment float4 grid_fragment(
 
 // ─── Stage 2: overlay pass (cursor / selection / IME / find) ─────────
 //
-// One fragment shader, kind-discriminated. Per spec/metal-renderer.md
-// §Stage 2 Overlay Pass + §Overlay Fragment Shader. 4.7 implements
+// One fragment shader, kind-discriminated. 4.7 implements
 // kind=0/1/4 (cursor block / beam / underline). 4.5 fills in kind=2
 // (selection); 4.9 fills in kind=3 (IME underline).
 //
-// `kind=4=cursor_underline` extends the spec's enumeration — DECSCUSR
-// has 4 cursor shapes; the spec snippet at metal-renderer.md:358-375
-// only listed 0/1 for cursor. Spec gap fill, propose an update post-merge.
+// `kind=4=cursor_underline` extends the original enumeration —
+// DECSCUSR has 4 cursor shapes; the design archive only defined
+// kind 0/1 for the cursor.
 //
 // Encoded by `OverlayPipeline.swift` against the same color attachment
 // as the Stage-1 grid pass (load=load, no clear) — the overlay sits on
@@ -346,8 +344,7 @@ fragment float4 overlay_fragment(
             return in.cellUV.x < 0.12 ? c : float4(0);
         case 2:  // selection: solid tint at colorLinear * alpha. The
                   // pipeline's source-over blend composes this on top
-                  // of the grid-pass pixels per spec/metal-renderer.md
-                  // §Stage 2 ("selection: c.color * 0.35"). The 0.35
+                  // of the grid-pass pixels at 0.35 alpha. The 0.35
                   // factor is applied CPU-side via colorLinear.a so the
                   // shader stays kind-agnostic and the same uniform
                   // shape works for cursor / IME.
@@ -356,7 +353,7 @@ fragment float4 overlay_fragment(
                   // the cursor_underline geometry. Drawn under the
                   // preedit cells in OverlayPipeline so users see a
                   // "this is in-flight typing" cue while the IME holds
-                  // marked text. Per spec/metal-renderer.md:370-372.
+                  // marked text.
             return in.cellUV.y > 0.85 ? c : float4(0);
         case 4:  // cursor_underline: bottom ~15% of cell height (~3px at 20px cell).
             return in.cellUV.y > 0.85 ? c : float4(0);

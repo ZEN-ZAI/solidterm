@@ -86,7 +86,7 @@ extension TerminalSurfaceView {
     // Composition is Swift-side only — preedit bytes never cross the
     // FFI; only committed text from `insertText` reaches the engine.
     // This matches typical terminal IME (iTerm2 / Ghostty / Alacritty)
-    // and is the spec's pre-authorized architecture per the 4.9 brief.
+    // and is the pre-authorized architecture for task 4.9.
     //
     // Lifecycle:
     //   - setMarkedText: start (or refine) composition; renderer
@@ -100,8 +100,8 @@ extension TerminalSurfaceView {
     //     so composition keystrokes don't leak to the PTY.
     //
     // `validAttributesForMarkedText` MUST include `.markedClauseSegment`
-    // per spec/swift-app-modules.md:210 — macOS Dictation fails
-    // silently without it. Pinned by `IMETests` regression guard.
+    // — macOS Dictation fails silently without it. Pinned by the
+    // `IMETests` regression guard.
 
     func setMarkedText(
         _ string: Any, selectedRange: NSRange, replacementRange: NSRange
@@ -201,7 +201,7 @@ extension TerminalSurfaceView {
     }
 
     func validAttributesForMarkedText() -> [NSAttributedString.Key] {
-        // Required minimum per spec/swift-app-modules.md:210:
+        // Required minimum:
         // - `.underlineStyle`: standard preedit underline.
         // - `.markedClauseSegment`: macOS Dictation requires this; it
         //   fails silently otherwise (regression-guarded by
@@ -218,8 +218,7 @@ extension TerminalSurfaceView {
     ) -> NSRect {
         // CRITICAL: must return SCREEN-space rect of the cursor cell.
         // Wrong coords = IME candidate window anchors at screen-bottom
-        // (research/04-ffi-and-metal-rendering.md §82, the
-        // "Korean preedit lands at screen bottom" bug).
+        // (the "Korean preedit lands at screen bottom" bug).
         //
         // Coordinate flow:
         //   cell (row, col) → view-local rect → window-local → screen.
@@ -404,9 +403,9 @@ extension TerminalSurfaceView {
         else { return }
         // M5.5-3: cell grid is sibling to the 24pt gutter — subtract
         // its width before computing cols so a window grown by `gutter +
-        // 80 cols` still negotiates 80 cols (not 80 + extra). Q2 from
-        // research/19 §"Open questions": cell grid loses space first
-        // when the window narrows; gutter stays at 24pt.
+        // 80 cols` still negotiates 80 cols (not 80 + extra). Resolved
+        // trade-off: the cell grid loses space first when the window
+        // narrows; the gutter stays at 24pt.
         let gridWidth = max(0, viewSize.width - Theme.Gutter.widthPt)
         let cols = max(1, Int((gridWidth / cellWidthPt).rounded(.down)))
         let rows = max(1, Int((viewSize.height / cellHeightPt).rounded(.down)))

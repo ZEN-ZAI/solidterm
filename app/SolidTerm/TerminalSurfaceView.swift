@@ -1,5 +1,5 @@
-// Implements spec/swift-app-modules.md §TerminalSurfaceView and the host
-// portion of spec/metal-renderer.md (CAMetalLayer presentation).
+// The Metal-backed terminal surface — `CAMetalLayer` presentation for
+// the renderer plus the AppKit input responder chain.
 //
 // Phase 0 Day 3-4 task 3.3: bring up the Metal-backed surface and clear it
 // to the theme background color every frame. Phase 1 task 3.11 / #19:
@@ -27,8 +27,8 @@ import SwiftUI
 
 final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation {
     /// Hardcoded `bg-base` background (warm-shifted Zenzai Dark
-    /// `#0e0d10` per `decisions/13-visual-design-direction.md` §Locks
-    /// + `spec/design-tokens.md`) until ThemeManager arrives in M5.
+    /// `#0e0d10`, a locked design token — ADR-0004) until
+    /// ThemeManager arrives in M5.
     /// The layer's pixel format is `.bgra8Unorm_srgb`, so
     /// `MTLClearColor` is interpreted as **linear** values — Metal
     /// applies the sRGB encode on store. The actual byte→linear
@@ -64,7 +64,7 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
     let renderer: MetalRenderer
 
     /// Active IME composition state. Lives entirely Swift-side; never
-    /// crosses the FFI per the spec — only committed text reaches
+    /// crosses the FFI — only committed text reaches
     /// `session.send_input`. Set by `setMarkedText`, cleared on
     /// `unmarkText` / `insertText` (commit path) / explicit empty-marked
     /// reset. Read by the renderer each frame via `activeComposition`
@@ -421,8 +421,8 @@ final class TerminalSurfaceView: NSView, NSTextInputClient, NSMenuItemValidation
 
     // MARK: - Input — keyDown routing + NSTextInputClient (#19)
     //
-    // Routing model (iTerm2-pattern, validated against spec/swift-app-
-    // modules.md:215 + research/04-ffi-and-metal-rendering.md):
+    // Routing model (iTerm2-pattern, validated against the design
+    // archive):
     //
     // 1. keyDown clears `insertTextFiredThisKeyDown` and forwards to
     //    `inputContext?.handleEvent(event)`. The IME stack synchronously

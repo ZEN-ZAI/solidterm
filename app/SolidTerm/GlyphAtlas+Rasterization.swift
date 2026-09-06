@@ -18,18 +18,15 @@ extension GlyphAtlas {
     /// straight to CoreText's per-string resolver, which handles
     /// surrogate-pair encoding internally.
     ///
-    /// SPEC DEVIATION (pre-authorized): `spec/metal-renderer.md`
-    /// §Font Fallback Cascade describes a static
-    /// `kCTFontCascadeListAttribute` chain (Menlo → PingFang →
-    /// Hiragino → Thonburi → AppleColorEmoji → LastResort). M1 task
-    /// 4.3 in `spec/m1-task-breakdown.md` overrides that with the
-    /// per-string `CTFontCreateForStringWithLanguage` call below —
-    /// the brief is the source of truth for this implementation.
+    /// DELIBERATE DEVIATION (pre-authorized): the original design
+    /// called for a static `kCTFontCascadeListAttribute` chain
+    /// (Menlo → PingFang → Hiragino → Thonburi → AppleColorEmoji →
+    /// LastResort). M1 task 4.3 overrode that with the per-string
+    /// `CTFontCreateForStringWithLanguage` call below.
     /// Per-string resolution is language-aware (Han disambiguation)
     /// and avoids the static-chain failure mode where a font lower
-    /// in the chain shadows a better match in a font higher up. The
-    /// spec text should be reconciled post-merge to reflect the
-    /// chosen approach. Cascade-list-attribute remains the right
+    /// in the chain shadows a better match in a font higher up.
+    /// Cascade-list-attribute remains the right
     /// tool when we want a single shaping run to draw a mixed-script
     /// line via `CTLine` (M2+ shape-cache work).
     func resolveGlyph(

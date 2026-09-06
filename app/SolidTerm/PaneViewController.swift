@@ -1,10 +1,10 @@
-// Per `spec/team-split-pane.md` §1: each pane in a `PaneSplitter` is a
-// `PaneViewController`. M4-2 scope ships the minimal shell — pane id +
+// Each pane in a `PaneSplitter` is a `PaneViewController`.
+// M4-2 scope ships the minimal shell — pane id +
 // view + metadata stub — needed for `PaneSplitter` to position and own
 // child views. The teammate spawn flow (M4-4) and per-pane chrome
 // (M4-5/6/7) extend `PaneMetadata` and bind `kind = .teammate(...)`.
 //
-// PaneMetadata mirrors `spec/swift-app-modules.md` §PaneViewController.
+// `PaneMetadata`'s field shape comes from the design archive.
 // Today only `userShell` is actually exercised; the other variants are
 // declared so M4-4 can land without touching this file.
 

@@ -1,4 +1,4 @@
-// Implements the Swift half of spec/ffi-boundary.md §Input path. Translates
+// Swift half of the FFI input path (ADR-0006). Translates
 // AppKit `NSEvent.keyDown` into the FFI `InputEvent` shared struct that
 // rust-expert's `TerminalSession.send_input` (#16-rust, commit 4706213)
 // dispatches on. This file is pure data marshalling — no Metal types,

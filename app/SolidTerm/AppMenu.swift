@@ -1,4 +1,4 @@
-// Implements spec/swift-app-modules.md §Menu Bar and Services.
+// Menu bar and Services.
 // Programmatic menu bar — no MainMenu.xib.
 //
 // M6-5: app-action menu items (Preferences, New Window, Close Window,
@@ -71,9 +71,8 @@ enum AppMenu {
             action: #selector(AppDelegate.showAboutPanel(_:)),
             keyEquivalent: "")
         menu.addItem(.separator())
-        // M5-2 — Preferences opens `SettingsWindowController` per
-        // spec/swift-app-modules.md §Settings Window. M6-5: shortcut
-        // sourced from KeybindingStore.
+        // M5-2 — Preferences opens `SettingsWindowController`.
+        // M6-5: shortcut sourced from KeybindingStore.
         addItem(
             in: menu, title: "Preferences…",
             action: #selector(AppDelegate.openSettingsWindow),
