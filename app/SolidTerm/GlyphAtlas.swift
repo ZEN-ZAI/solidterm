@@ -33,6 +33,15 @@
 // between-frames GC step, background rasterization on a GCD queue,
 // shape cache, subpixel binning, surrogate-pair grapheme-cluster
 // shaping, bold/italic font selection.
+//
+// The atlas is split along its MARKs across sibling files: glyph
+// resolution + rasterization and the pinned blank slot in
+// GlyphAtlas+Rasterization.swift, the shelf packer / LRU eviction /
+// blit upload in GlyphAtlas+Packing.swift, the color-emoji atlas and
+// its public test seam in GlyphAtlas+ColorAtlas.swift. What stays
+// here: `AtlasEntry`, `GlyphKey`, the class declaration with every
+// stored property, init, the cross-cell cluster path and the
+// cell-size derivation.
 
 import CoreText
 import Foundation
@@ -118,7 +127,7 @@ final class GlyphAtlas {
     static let defaultColorAtlasSize: SIMD2<UInt32> = SIMD2(1024, 1024)
 
     /// Bytes per pixel of the color atlas (rgba8Unorm = 4).
-    private static let colorBytesPerPixel: UInt64 = 4
+    static let colorBytesPerPixel: UInt64 = 4
 
     /// Hard ceiling on bytes-allocated tracked across the atlas
     /// texture. The production 512² shelf can never breach this — the
@@ -150,26 +159,26 @@ final class GlyphAtlas {
     /// Internal record holding the public `AtlasEntry` plus the
     /// monotonic access counter that orders LRU eviction. Counter is
     /// bumped on insert AND on every cache-hit lookup.
-    private struct Record {
+    struct Record {
         var entry: AtlasEntry
         var lastAccess: UInt64
     }
 
-    private var entries: [GlyphKey: Record] = [:]
-    private var shelfX: UInt32 = 0
-    private var shelfY: UInt32 = 0
-    private var shelfHeight: UInt32 = 0
+    var entries: [GlyphKey: Record] = [:]
+    var shelfX: UInt32 = 0
+    var shelfY: UInt32 = 0
+    var shelfHeight: UInt32 = 0
     private let fontHash: UInt64
 
     /// Parallel state for the color emoji atlas. Same shelf-packed
     /// algorithm + LRU eviction as the gray atlas; independent storage
     /// so emoji cache pressure can't evict ASCII glyphs and vice versa.
-    private var colorEntries: [GlyphKey: Record] = [:]
-    private var colorShelfX: UInt32 = 0
-    private var colorShelfY: UInt32 = 0
-    private var colorShelfHeight: UInt32 = 0
-    private var colorFreeRects: [FreeRect] = []
-    private var colorBytesAllocated: UInt64 = 0
+    var colorEntries: [GlyphKey: Record] = [:]
+    var colorShelfX: UInt32 = 0
+    var colorShelfY: UInt32 = 0
+    var colorShelfHeight: UInt32 = 0
+    var colorFreeRects: [FreeRect] = []
+    var colorBytesAllocated: UInt64 = 0
 
     /// Resolved-fallback-font cache, keyed by `scalar.value >> 8`
     /// (256-codepoint Unicode block). Coarse but cheap: all of Thai
@@ -179,7 +188,7 @@ final class GlyphAtlas {
     /// block is a cache hit. Per-scalar caching would tighten the
     /// hit ratio for adversarial mixed-script traffic; profile if
     /// the resolver shows up in a flame graph (M2+).
-    private var fontCacheByBlock: [UInt32: CTFont] = [:]
+    var fontCacheByBlock: [UInt32: CTFont] = [:]
 
     /// FNV-1a hashes of resolved fallback fonts, memoized per
     /// `CTFont` instance identity. Keeps `entry(for:)` from rerunning
@@ -210,7 +219,7 @@ final class GlyphAtlas {
     /// Monotonic access counter — incremented on every `entry(for:)`
     /// call (both insert + cache hit). Wraps at `UInt64.max` (~6e8 years
     /// at 1 GHz access rate; ignore the wrap).
-    private var accessCounter: UInt64 = 0
+    var accessCounter: UInt64 = 0
 
     /// Eviction floor: only entries with `lastAccess <= frameAccessFloor`
     /// may be evicted. `beginResolveBatch()` snapshots `accessCounter`
@@ -220,7 +229,7 @@ final class GlyphAtlas {
     /// glyph that reuses the rect (the mid-screen CJK/Thai garble + the
     /// per-frame full-repaint thrash when the working set exceeds the
     /// atlas). Defaults to `.max` (plain LRU) for out-of-band callers.
-    private var frameAccessFloor: UInt64 = .max
+    var frameAccessFloor: UInt64 = .max
 
     /// Pin all currently-resolved glyphs against eviction for the duration
     /// of one frame's slot-resolution batch. The renderer calls this
@@ -235,19 +244,19 @@ final class GlyphAtlas {
     /// is intentional: shelf-packed allocations are uniform-cell-sized
     /// in practice (one CoreText glyph per cell), so a smarter
     /// allocator buys nothing at this scale.
-    private struct FreeRect {
+    struct FreeRect {
         let originPx: SIMD2<UInt32>
         let sizePx: SIMD2<UInt32>
     }
-    private var freeRects: [FreeRect] = []
+    var freeRects: [FreeRect] = []
 
     /// Pinned regions that LRU eviction MUST NOT recycle. Currently
     /// holds the (0, 0) blank-slot reservation (see init).
-    private struct PinnedRegion {
+    struct PinnedRegion {
         let originPx: SIMD2<UInt32>
         let sizePx: SIMD2<UInt32>
     }
-    private var pinnedRegions: [PinnedRegion] = []
+    var pinnedRegions: [PinnedRegion] = []
 
     /// Set by `evictOneLRU` / `resetAtlas` / `evictOneColorLRU`. The
     /// renderer reads this once per frame via `consumePendingEviction`
@@ -259,7 +268,7 @@ final class GlyphAtlas {
     /// until they scroll, which forces a redraw. Regression report
     /// 2026-05-23: long sessions show garbled text mid-screen until
     /// any scroll/cell-touch event re-pins the cells.
-    private var pendingEviction: Bool = false
+    var pendingEviction: Bool = false
 
     /// Called by the renderer at the top of each draw tick. Returns
     /// true when an eviction or reset happened since the last call
@@ -273,10 +282,10 @@ final class GlyphAtlas {
     /// Total bytes currently allocated to live atlas entries (excludes
     /// pinned regions and free-listed rects). Asserted ≤ `maxBytes` on
     /// every allocation per the 4.2 acceptance gate.
-    private var bytesAllocated: UInt64 = 0
+    var bytesAllocated: UInt64 = 0
 
     /// Bytes-per-pixel of the underlying texture. r8Unorm = 1.
-    private static let bytesPerPixel: UInt64 = 1
+    static let bytesPerPixel: UInt64 = 1
 
     convenience init(
         device: MTLDevice, font: CTFont, contentsScale: CGFloat
@@ -836,7 +845,7 @@ final class GlyphAtlas {
     /// See `Self.hash(font:)`.
     static let boxDrawingFontHash: UInt64 = 0xB0_DA_DA_B0_DA_DA_B0_DA
 
-    private func cachedFontHash(for font: CTFont) -> UInt64 {
+    func cachedFontHash(for font: CTFont) -> UInt64 {
         let id = ObjectIdentifier(font)
         if let h = fontHashByIdentity[id] { return h }
         let h = Self.hash(font: font)
@@ -1029,7 +1038,7 @@ final class GlyphAtlas {
     /// for these because it returns the primary font precisely BECAUSE
     /// that font already covers the codepoint, so the color face must be
     /// requested by name.
-    private lazy var emojiPresentationFont: CTFont =
+    lazy var emojiPresentationFont: CTFont =
         CTFontCreateWithName(
             "AppleColorEmoji" as CFString, CTFontGetSize(self.font), nil)
 
@@ -1046,857 +1055,4 @@ final class GlyphAtlas {
         h = h &* 0x0100_0000_01b3
         return h
     }
-
-    // MARK: - Glyph resolution + rasterization
-
-    /// Resolve a scalar to its `(glyphId, font)` pair. Walks the
-    /// fallback cascade only when the primary font lacks a glyph.
-    /// Astral scalars (> U+FFFF) skip the BMP fast path and go
-    /// straight to CoreText's per-string resolver, which handles
-    /// surrogate-pair encoding internally.
-    ///
-    /// SPEC DEVIATION (pre-authorized): `spec/metal-renderer.md`
-    /// §Font Fallback Cascade describes a static
-    /// `kCTFontCascadeListAttribute` chain (Menlo → PingFang →
-    /// Hiragino → Thonburi → AppleColorEmoji → LastResort). M1 task
-    /// 4.3 in `spec/m1-task-breakdown.md` overrides that with the
-    /// per-string `CTFontCreateForStringWithLanguage` call below —
-    /// the brief is the source of truth for this implementation.
-    /// Per-string resolution is language-aware (Han disambiguation)
-    /// and avoids the static-chain failure mode where a font lower
-    /// in the chain shadows a better match in a font higher up. The
-    /// spec text should be reconciled post-merge to reflect the
-    /// chosen approach. Cascade-list-attribute remains the right
-    /// tool when we want a single shaping run to draw a mixed-script
-    /// line via `CTLine` (M2+ shape-cache work).
-    private func resolveGlyph(
-        for scalar: Unicode.Scalar
-    ) throws -> (CGGlyph, CTFont) {
-        // Emoji-presentation-default scalars (⚡ U+26A1, etc.) must render
-        // in color even when the monospace primary font covers them with
-        // a monochrome glyph. Resolve them against the Apple Color Emoji
-        // face directly — bypassing both the primary-font fast path below
-        // and the per-256-block resolver cache (which a text-default
-        // neighbor in the same block, e.g. ⚠ U+26A0 in block 0x26, could
-        // have poisoned with a non-emoji font). Astral emoji scalars skip
-        // this — they already resolve to AppleColorEmoji via the cascade
-        // because the primary font lacks them — so the guard keeps the
-        // BMP-only `CTFontGetGlyphsForCharacters` contract. If the color
-        // face somehow lacks the glyph, fall through to the normal paths.
-        if Self.prefersColorPresentation(scalar), scalar.value <= 0xFFFF {
-            var ch = UniChar(scalar.value)
-            var glyph: CGGlyph = 0
-            if CTFontGetGlyphsForCharacters(
-                emojiPresentationFont, &ch, &glyph, 1), glyph != 0
-            {
-                return (glyph, emojiPresentationFont)
-            }
-        }
-
-        // BMP fast path — try the primary font first. Astrals fall
-        // through unconditionally (their UTF-16 representation needs
-        // a surrogate pair, which `CTFontGetGlyphsForCharacters` won't
-        // synthesize from a single UniChar input).
-        if scalar.value <= 0xFFFF {
-            var ch = UniChar(scalar.value)
-            var glyph: CGGlyph = 0
-            if CTFontGetGlyphsForCharacters(self.font, &ch, &glyph, 1)
-                && glyph != 0
-            {
-                return (glyph, self.font)
-            }
-        }
-
-        // Fallback path. CoreText always returns a font (LastResort
-        // in the genuinely-unknown case — never nil).
-        let resolvedFont = resolveFont(for: scalar)
-        // Encode the scalar as UTF-16. BMP scalars produce one unit;
-        // astrals produce a high+low surrogate pair. Use Swift's
-        // built-in encoding rather than CFString round-tripping —
-        // `String(scalar).utf16` is a static two-or-fewer-element
-        // sequence with no allocation in the common case.
-        var chars: [UniChar] = []
-        chars.reserveCapacity(2)
-        for unit in String(scalar).utf16 { chars.append(unit) }
-        let count = chars.count
-        var glyphs = [CGGlyph](repeating: 0, count: count)
-        let ok = chars.withUnsafeBufferPointer { cb -> Bool in
-            glyphs.withUnsafeMutableBufferPointer { gb -> Bool in
-                CTFontGetGlyphsForCharacters(
-                    resolvedFont, cb.baseAddress!, gb.baseAddress!, count)
-            }
-        }
-        // For surrogate pairs `CTFontGetGlyphsForCharacters` writes
-        // the composed glyph into glyphs[0] and zero into glyphs[1]
-        // (the trailing-surrogate slot collapses into the lead). We
-        // take glyphs[0] either way. Real grapheme-cluster shaping
-        // (combining marks, ZWJ sequences) is M2+ shape-cache work.
-        if ok, glyphs[0] != 0 {
-            return (glyphs[0], resolvedFont)
-        }
-        // CoreText returned a font but couldn't map the scalar to a
-        // glyph in it. Should be unreachable — LastResort always
-        // produces a hex-code "tofu" rectangle — but defensive.
-        throw AtlasError.glyphMissing(scalar)
-    }
-
-    /// Resolve the best font for `scalar` via
-    /// `CTFontCreateForStringWithLanguage`, memoized per 256-codepoint
-    /// block. Always returns a non-nil font (CoreText falls back to
-    /// LastResort in the truly-unknown case). The primary font fast
-    /// path is handled by `resolveGlyph`; this method is only called
-    /// for cache misses.
-    private func resolveFont(for scalar: Unicode.Scalar) -> CTFont {
-        let block = scalar.value >> 8
-        if let cached = fontCacheByBlock[block] { return cached }
-
-        let cf = String(scalar) as CFString
-        let length = CFStringGetLength(cf)
-        let range = CFRange(location: 0, length: length)
-        // Pass `nil` for language — CoreText picks based on the
-        // scalar's script properties, which is the right default for
-        // terminal traffic. Language hints ("zh", "ja") would only
-        // change behaviour for Han-unified codepoints where the
-        // glyph form differs between Chinese and Japanese; that's
-        // M2+ territory (per-locale font config).
-        let resolved = CTFontCreateForStringWithLanguage(
-            self.font, cf, range, nil)
-        fontCacheByBlock[block] = resolved
-        return resolved
-    }
-
-    private struct RasterizedGlyph {
-        let bitmap: [UInt8]
-        let widthPx: Int
-        let heightPx: Int
-        let bearingPx: SIMD2<Int32>
-    }
-
-    /// Uniform downscale factor (≤ 1, aspect-preserving) so a CoreText
-    /// glyph bounding box `bbox` (in points, pen origin at x=0 on the
-    /// baseline) fits entirely inside a target box `boxWidthPt` wide,
-    /// with `cellAscentPt` of headroom above the baseline and
-    /// `cellDescentPt` below. Returns 1.0 when the glyph already fits
-    /// (so the common ASCII/CJK path stays bit-identical — no atlas
-    /// snapshot or metric drift), and never upscales.
-    ///
-    /// Covers BOTH axes plus overflow in either direction: the ink spans
-    /// `[bbox.minX, bbox.maxX]` horizontally (left-side bearing may be
-    /// negative) and `[bbox.minY, bbox.maxY]` vertically (descenders sit
-    /// below the baseline at y<0, ascenders above at y>maxY). Each
-    /// potential overflow contributes a candidate scale; the smallest
-    /// wins.
-    ///
-    /// Powerline / Nerd-Font cell-bleed glyphs (separators *designed* to
-    /// touch the cell edge) are unaffected: ink that exactly reaches the
-    /// box edge yields ratio == 1.0, so the min stays 1.0 and no scaling
-    /// occurs. Only glyphs that genuinely exceed the box shrink.
-    static func fitScale(
-        bbox: CGRect,
-        boxWidthPt: CGFloat,
-        cellAscentPt: CGFloat,
-        cellDescentPt: CGFloat
-    ) -> CGFloat {
-        var scale: CGFloat = 1.0
-        // Horizontal: right overflow past the box edge.
-        if bbox.maxX > boxWidthPt, bbox.maxX > 0 {
-            scale = min(scale, boxWidthPt / bbox.maxX)
-        }
-        // Left-side bearing pushes ink left of the pen; bound the total
-        // ink width so nothing clips at x<0.
-        if bbox.minX < 0 {
-            let inkWidth = bbox.maxX - bbox.minX
-            if inkWidth > boxWidthPt, inkWidth > 0 {
-                scale = min(scale, boxWidthPt / inkWidth)
-            }
-        }
-        // Vertical: ascender above the cell ascent (the original Thai
-        // SARA AM constraint), descender below the cell descent.
-        if bbox.maxY > cellAscentPt, bbox.maxY > 0 {
-            scale = min(scale, cellAscentPt / bbox.maxY)
-        }
-        if bbox.minY < -cellDescentPt, bbox.minY < 0 {
-            scale = min(scale, cellDescentPt / -bbox.minY)
-        }
-        return scale
-    }
-
-    private func rasterize(
-        glyphId: CGGlyph, font: CTFont
-    ) throws -> RasterizedGlyph {
-        let widthPx = Int(cellSizePx.x)
-        let heightPx = Int(cellSizePx.y)
-
-        // Fit-to-box: when the resolved fallback font draws a glyph that
-        // overflows the cell — above the ascent (e.g. SARA AM ำ's
-        // NIKHAHIT circle, MAI HAN-AKAT + tone stacks, tall CJK), below
-        // the descent, or past the left/right edge (wide fallback
-        // symbols, color-glyph-shaped Dingbats resolved into the gray
-        // path) — the cell-sized bitmap clips it. Scale the font down
-        // uniformly so the ink fits. Glyph IDs are stable across
-        // same-face size changes so the existing glyph ID still resolves
-        // in the scaled copy. A glyph that already fits gets scale==1.0
-        // and is left untouched (the common ASCII/CJK path is
-        // bit-identical).
-        let cellAscentPt = CTFontGetAscent(self.font)
-        let cellDescentPt = CTFontGetDescent(self.font)
-        let boxWidthPt = CGFloat(cellSizePx.x) / contentsScale
-        var renderFont = font
-        var bbox = CGRect.zero
-        var localGlyph = glyphId
-        CTFontGetBoundingRectsForGlyphs(font, .horizontal, &localGlyph, &bbox, 1)
-        let scale = Self.fitScale(
-            bbox: bbox,
-            boxWidthPt: boxWidthPt,
-            cellAscentPt: cellAscentPt,
-            cellDescentPt: cellDescentPt)
-        if scale < 1.0 {
-            let newSize = CTFontGetSize(font) * scale
-            renderFont = CTFontCreateCopyWithAttributes(font, newSize, nil, nil) ?? font
-        }
-
-        var bitmap = [UInt8](repeating: 0, count: widthPx * heightPx)
-
-        // Color emoji (AppleColorEmoji) is dispatched in `entry(for:)`
-        // BEFORE reaching this function — it goes through the dedicated
-        // RGBA color atlas instead. This path is grayscale-only.
-        let success: Bool = bitmap.withUnsafeMutableBytes { ptr -> Bool in
-            guard let base = ptr.baseAddress,
-                let ctx = CGContext(
-                    data: base,
-                    width: widthPx,
-                    height: heightPx,
-                    bitsPerComponent: 8,
-                    bytesPerRow: widthPx,
-                    space: CGColorSpaceCreateDeviceGray(),
-                    bitmapInfo: CGImageAlphaInfo.none.rawValue)
-            else { return false }
-            ctx.setShouldAntialias(true)
-            ctx.setAllowsAntialiasing(true)
-            ctx.setShouldSmoothFonts(false)  // grayscale, no subpixel
-            ctx.setFillColor(gray: 1.0, alpha: 1.0)
-            ctx.scaleBy(x: contentsScale, y: contentsScale)
-            let descent = CTFontGetDescent(renderFont)
-            var pos = CGPoint(x: 0, y: descent)
-            var drawGlyph = glyphId
-            CTFontDrawGlyphs(renderFont, &drawGlyph, &pos, 1, ctx)
-            return true
-        }
-        guard success else { throw AtlasError.rasterizationFailed }
-
-        // Compute the glyph's bounding rect in pixel space for bearing
-        // — use the post-scale font so the bearing matches what we
-        // actually drew.
-        var rectGlyph = glyphId
-        var rect = CGRect.zero
-        CTFontGetBoundingRectsForGlyphs(renderFont, .horizontal, &rectGlyph, &rect, 1)
-        let bearingX = Int32(round(rect.minX * contentsScale))
-        let bearingY = Int32(round(rect.minY * contentsScale))
-
-        // The CG transform above flipped the coordinate system so the
-        // glyph is drawn directly into the bitmap's row-major top-down
-        // memory layout, matching Metal's top-left atlas sampling.
-        // No post-rasterization flip is needed.
-        return RasterizedGlyph(
-            bitmap: bitmap,
-            widthPx: widthPx,
-            heightPx: heightPx,
-            bearingPx: SIMD2(bearingX, bearingY))
-    }
-
-    // MARK: - Pinned blank slot
-
-    /// Reserve atlas position (0, 0) as the canonical "blank" slot.
-    /// `GridPipeline.setGrid/setRegion/setCell` write `(0, 0)` UV for
-    /// cells with `slot.glyph == nil`; the shader samples that and
-    /// expects alpha=0 (the texture is zero-initialized in private
-    /// storage). Pre-rasterizing any glyph at (0, 0) would make every
-    /// blank cell render that glyph tinted to the cell's fg.
-    ///
-    /// Reservation width = `cellSizePx.x + 1` (one full cell + a
-    /// 1-texel guard). The +1 is load-bearing: the shader uses
-    /// `linear` filter on the atlas (Shaders.metal:154) so a blank
-    /// cell sampling UVs in [0, cellSize/atlasSize] bleeds into the
-    /// texel at exactly `cellSize` via the linear interpolation tap.
-    /// Without the guard, the first rasterized glyph at x=cellSize
-    /// tints every blank cell ~50 %.
-    ///
-    /// Pinned per task 4.2: LRU eviction MUST NOT recycle this rect,
-    /// and the fragmentation-cliff full-reset MUST re-pin it.
-    private func pinBlankSlot() {
-        let blankWidth = cellSizePx.x + 1
-        let blankHeight = cellSizePx.y
-        pinnedRegions.append(
-            PinnedRegion(
-                originPx: SIMD2(0, 0),
-                sizePx: SIMD2(blankWidth, blankHeight)))
-        // Initialise the shelf cursor past the pinned region so the
-        // first allocation lands at `(blankWidth, 0)`. shelfHeight
-        // matches so subsequent glyphs share the row until wrap.
-        shelfX = blankWidth
-        shelfY = 0
-        shelfHeight = blankHeight
-
-        // Explicit-zero the pinned region. Apple Silicon does NOT
-        // guarantee zero-init for `.private` storage textures; initial
-        // contents are documented as undefined. Without this upload,
-        // blank-cell sampling at UV ≈ (0, 0) reads garbage — commonly
-        // returning alpha ≈ 1, which makes the grid shader's
-        // `mix(bg, fg, alpha)` produce text-primary instead of bg-base
-        // for every untouched cell. The whole content area would
-        // appear in the foreground color.
-        //
-        // Private storage requires a blit upload via a staging buffer;
-        // direct `texture.replace(region:)` raises EXC_BAD_ACCESS.
-        let widthInt = Int(blankWidth)
-        let heightInt = Int(blankHeight)
-        let length = widthInt * heightInt
-        if let queue = device.makeCommandQueue(),
-            let staging = device.makeBuffer(
-                length: length, options: [.storageModeShared])
-        {
-            staging.label = "GlyphAtlas pin-blank zero staging"
-            let stagingPtr = staging.contents()
-                .bindMemory(to: UInt8.self, capacity: length)
-            for i in 0..<length { stagingPtr[i] = 0 }
-            if let buffer = queue.makeCommandBuffer(),
-                let blit = buffer.makeBlitCommandEncoder()
-            {
-                buffer.label = "GlyphAtlas pin-blank zero blit"
-                blit.copy(
-                    from: staging,
-                    sourceOffset: 0,
-                    sourceBytesPerRow: widthInt,
-                    sourceBytesPerImage: length,
-                    sourceSize: MTLSize(
-                        width: widthInt, height: heightInt, depth: 1),
-                    to: texture,
-                    destinationSlice: 0,
-                    destinationLevel: 0,
-                    destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
-                blit.endEncoding()
-                buffer.commit()
-                buffer.waitUntilCompleted()
-            }
-        }
-    }
-
-    // MARK: - Shelf packer + LRU eviction + blit upload
-
-    private func place(raster: RasterizedGlyph, queue: MTLCommandQueue) throws -> AtlasEntry {
-        let w = UInt32(raster.widthPx)
-        let h = UInt32(raster.heightPx)
-        let bytes = UInt64(w) * UInt64(h) * Self.bytesPerPixel
-
-        // Hard ceiling check — defensive at the production 512² shelf
-        // (unreachable in practice) but contract-pinned for post-M1. The
-        // 64 MiB ceiling is SHARED with the color atlas, so account for
-        // both sides here (placeColor does the same); checking only
-        // bytesAllocated would let gray + color together exceed it once
-        // the post-M1 4096² heaps make the ceiling load-bearing.
-        if bytesAllocated + colorBytesAllocated + bytes > Self.maxBytes {
-            throw AtlasError.bytesCeilingExceeded(
-                needed: bytesAllocated + colorBytesAllocated + bytes,
-                ceiling: Self.maxBytes)
-        }
-
-        let origin = try allocateOrigin(width: w, height: h, queue: queue)
-
-        try uploadBitmap(
-            raster.bitmap,
-            widthPx: raster.widthPx,
-            heightPx: raster.heightPx,
-            originX: origin.x,
-            originY: origin.y,
-            queue: queue)
-
-        bytesAllocated += bytes
-        return AtlasEntry(
-            originPx: origin,
-            sizePx: SIMD2(w, h),
-            bearingPx: raster.bearingPx)
-    }
-
-    /// Try the free-list, then shelf advance, then LRU eviction. If
-    /// even evicting all evictable entries can't yield a fitting rect
-    /// (free-list fragmentation), reset the atlas wholesale and retry.
-    private func allocateOrigin(
-        width w: UInt32, height h: UInt32, queue: MTLCommandQueue
-    ) throws -> SIMD2<UInt32> {
-        if let origin = takeFromFreeList(width: w, height: h) {
-            return origin
-        }
-        if let origin = advanceShelf(width: w, height: h) {
-            return origin
-        }
-        // Shelf is full. Evict LRU entries one at a time, refunding
-        // their rects to the free list, until either (a) the free
-        // list serves the request or (b) we run out of evictable
-        // entries.
-        while evictOneLRU() {
-            if let origin = takeFromFreeList(width: w, height: h) {
-                return origin
-            }
-        }
-        // No evictable (pre-batch) entry remains. If glyphs resolved THIS
-        // batch still occupy the atlas, the frame's working set exceeds
-        // capacity — resetting would free their rects and alias the
-        // already-resolved CellSlots (garble). Fail safe: this glyph
-        // renders blank. (Cure = a larger atlas; tracked tech-debt.)
-        if entries.contains(where: { $0.value.lastAccess > frameAccessFloor }) {
-            throw AtlasError.atlasFull(needed: SIMD2(w, h))
-        }
-        // Free-list fragmentation cliff: only stale entries remained and
-        // the request still won't fit. Reset wholesale and try once more.
-        // A reset re-pins the blank slot.
-        NSLog(
-            "GlyphAtlas: fragmentation cliff — full atlas reset (needed %ux%u)",
-            w, h)
-        resetAtlas()
-        if let origin = advanceShelf(width: w, height: h) {
-            return origin
-        }
-        // The reset cleared shelf state too — if even a fresh atlas
-        // can't fit the request, the glyph is genuinely too large for
-        // this atlas. (Unreachable at the cell-sized rasters we
-        // currently emit; defensive.)
-        throw AtlasError.atlasFull(needed: SIMD2(w, h))
-    }
-
-    /// First-fit scan over `freeRects`. Returns the rect's origin and
-    /// removes it from the list on hit. Any-fit is fine: cells are
-    /// uniform-sized at this scale so first-fit is also best-fit.
-    private func takeFromFreeList(width w: UInt32, height h: UInt32) -> SIMD2<UInt32>? {
-        for i in 0..<freeRects.count
-        where freeRects[i].sizePx.x >= w && freeRects[i].sizePx.y >= h {
-            let rect = freeRects.remove(at: i)
-            return rect.originPx
-        }
-        return nil
-    }
-
-    /// Wrap to the next shelf if needed; bail with nil if the next
-    /// shelf overflows the texture height. Caller decides whether to
-    /// trigger eviction or reset.
-    private func advanceShelf(width w: UInt32, height h: UInt32) -> SIMD2<UInt32>? {
-        var x = shelfX
-        var y = shelfY
-        var shelfH = shelfHeight
-        if x + w > atlasSize.x {
-            y += shelfH
-            x = 0
-            shelfH = 0
-        }
-        if y + h > atlasSize.y {
-            return nil
-        }
-        let originX = x
-        let originY = y
-        shelfX = x + w
-        shelfY = y
-        shelfHeight = max(shelfH, h)
-        return SIMD2(originX, originY)
-    }
-
-    /// Evict the single oldest (lowest `lastAccess`) entry, refunding
-    /// its rect to the free list. Pinned regions are never in
-    /// `entries`, so they're inherently safe.
-    /// Evict the least-recently-used entry that is NOT pinned by the
-    /// current resolve batch (`lastAccess <= frameAccessFloor`). Returns
-    /// `false` when no such entry exists — the caller must NOT then reset
-    /// or alias the remaining (this-batch) entries.
-    @discardableResult
-    private func evictOneLRU() -> Bool {
-        guard
-            let victim = entries.lazy
-                .filter({ $0.value.lastAccess <= self.frameAccessFloor })
-                .min(by: { $0.value.lastAccess < $1.value.lastAccess })
-        else { return false }
-        let rect = victim.value.entry
-        freeRects.append(
-            FreeRect(originPx: rect.originPx, sizePx: rect.sizePx))
-        let bytes = UInt64(rect.sizePx.x) * UInt64(rect.sizePx.y) * Self.bytesPerPixel
-        bytesAllocated -= min(bytesAllocated, bytes)
-        entries.removeValue(forKey: victim.key)
-        pendingEviction = true
-        return true
-    }
-
-    /// Full-atlas reset: clear all entries + free-list, reset shelf
-    /// cursor, re-pin the blank slot. Used as the fragmentation-cliff
-    /// fallback. The texture itself is not zeroed — newly-allocated
-    /// regions are unconditionally overwritten by the next blit. The
-    /// pinned `(0,0)` blank region was never written by anything other
-    /// than the zero-init of the private-storage texture, so its
-    /// alpha=0 contract is preserved across the reset.
-    private func resetAtlas() {
-        entries.removeAll(keepingCapacity: true)
-        freeRects.removeAll(keepingCapacity: true)
-        pinnedRegions.removeAll(keepingCapacity: true)
-        bytesAllocated = 0
-        shelfX = 0
-        shelfY = 0
-        shelfHeight = 0
-        pinBlankSlot()
-        pendingEviction = true
-    }
-
-    private func uploadBitmap(
-        _ bytes: [UInt8],
-        widthPx: Int,
-        heightPx: Int,
-        originX: UInt32,
-        originY: UInt32,
-        queue: MTLCommandQueue
-    ) throws {
-        let length = widthPx * heightPx
-        guard
-            let staging = device.makeBuffer(length: length, options: [.storageModeShared])
-        else {
-            throw AtlasError.textureAllocFailed
-        }
-        staging.label = "GlyphAtlas staging"
-        let stagingPtr = staging.contents().bindMemory(to: UInt8.self, capacity: length)
-        for i in 0..<length { stagingPtr[i] = bytes[i] }
-
-        guard let buffer = queue.makeCommandBuffer() else {
-            throw AtlasError.rasterizationFailed
-        }
-        buffer.label = "GlyphAtlas blit upload"
-        guard let encoder = buffer.makeBlitCommandEncoder() else {
-            throw AtlasError.rasterizationFailed
-        }
-        encoder.copy(
-            from: staging,
-            sourceOffset: 0,
-            sourceBytesPerRow: widthPx,
-            sourceBytesPerImage: length,
-            sourceSize: MTLSize(width: widthPx, height: heightPx, depth: 1),
-            to: texture,
-            destinationSlice: 0,
-            destinationLevel: 0,
-            destinationOrigin: MTLOrigin(x: Int(originX), y: Int(originY), z: 0))
-        encoder.endEncoding()
-        buffer.commit()
-        buffer.waitUntilCompleted()
-    }
-
-    // MARK: - Color atlas (A-emoji-1)
-    //
-    // Parallel allocator + uploader for the rgba8Unorm color emoji
-    // atlas. Same shelf-pack + LRU + reset semantics as the gray
-    // atlas; independent state so emoji evictions can't displace
-    // ASCII glyphs. Atomic 4 wires `entry(for:)` / cluster path to
-    // route AppleColorEmoji here; atomics 1-3 keep this surface
-    // standalone (covered by tests).
-
-    /// Rasterize a color emoji glyph into an RGBA8 buffer
-    /// (premultipliedLast). The buffer is `cellWidthPx × cellHeightPx ×
-    /// 4` bytes. Bearing is computed from the glyph's bbox in the
-    /// passed-in font (post any future scale adjustments).
-    private struct RasterizedColorGlyph {
-        let bytes: [UInt8]  // RGBA premultipliedLast
-        let widthPx: Int
-        let heightPx: Int
-        let bearingPx: SIMD2<Int32>
-    }
-
-    private func rasterizeColor(
-        glyphId: CGGlyph, font: CTFont
-    ) throws -> RasterizedColorGlyph {
-        let widthPx = Int(cellSizePx.x)
-        let heightPx = Int(cellSizePx.y)
-        let bytesPerRow = widthPx * 4
-        var bytes = [UInt8](repeating: 0, count: bytesPerRow * heightPx)
-
-        // Fit-to-box (same contract as the gray `rasterize` path). A
-        // single-scalar color emoji the engine reports as width-1 can
-        // still carry a glyph wider or taller than one cell (most Apple
-        // Color Emoji are square-ish but a few resolve slightly past the
-        // monospace cell). Without this, the sbix bitmap clips at the
-        // right/top edge. Scale the AppleColorEmoji font copy down so the
-        // glyph fits one cell; a glyph that already fits gets scale==1.0
-        // and renders unchanged.
-        let cellAscentPt = CTFontGetAscent(self.font)
-        let cellDescentPt = CTFontGetDescent(self.font)
-        let boxWidthPt = CGFloat(cellSizePx.x) / contentsScale
-        var renderFont = font
-        var bbox = CGRect.zero
-        var measureGlyph = glyphId
-        CTFontGetBoundingRectsForGlyphs(
-            font, .horizontal, &measureGlyph, &bbox, 1)
-        let scale = Self.fitScale(
-            bbox: bbox,
-            boxWidthPt: boxWidthPt,
-            cellAscentPt: cellAscentPt,
-            cellDescentPt: cellDescentPt)
-        if scale < 1.0 {
-            let newSize = CTFontGetSize(font) * scale
-            renderFont =
-                CTFontCreateCopyWithAttributes(font, newSize, nil, nil) ?? font
-        }
-
-        let drew: Bool = bytes.withUnsafeMutableBytes { ptr -> Bool in
-            guard let base = ptr.baseAddress,
-                let ctx = CGContext(
-                    data: base,
-                    width: widthPx,
-                    height: heightPx,
-                    bitsPerComponent: 8,
-                    bytesPerRow: bytesPerRow,
-                    space: CGColorSpaceCreateDeviceRGB(),
-                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
-            else { return false }
-            ctx.setShouldAntialias(true)
-            ctx.setAllowsAntialiasing(true)
-            ctx.scaleBy(x: contentsScale, y: contentsScale)
-            let descent = CTFontGetDescent(renderFont)
-            var pos = CGPoint(x: 0, y: descent)
-            var localGlyph = glyphId
-            CTFontDrawGlyphs(renderFont, &localGlyph, &pos, 1, ctx)
-            return true
-        }
-        guard drew else { throw AtlasError.rasterizationFailed }
-
-        var rectGlyph = glyphId
-        var rect = CGRect.zero
-        CTFontGetBoundingRectsForGlyphs(
-            renderFont, .horizontal, &rectGlyph, &rect, 1)
-        let bearingX = Int32(round(rect.minX * contentsScale))
-        let bearingY = Int32(round(rect.minY * contentsScale))
-
-        return RasterizedColorGlyph(
-            bytes: bytes,
-            widthPx: widthPx,
-            heightPx: heightPx,
-            bearingPx: SIMD2(bearingX, bearingY))
-    }
-
-    /// Color-atlas counterpart to `place(raster:queue:)`. Allocates a
-    /// rect in the color atlas via the parallel shelf allocator and
-    /// blits the RGBA buffer to `colorTexture`.
-    private func placeColor(
-        raster: RasterizedColorGlyph, queue: MTLCommandQueue
-    ) throws -> AtlasEntry {
-        let w = UInt32(raster.widthPx)
-        let h = UInt32(raster.heightPx)
-        let bytes = UInt64(w) * UInt64(h) * Self.colorBytesPerPixel
-
-        // 64 MiB hard ceiling check shared with the gray atlas — the
-        // production 1024² × 4 B = 4 MiB color atlas can't approach it
-        // even when fully populated, but the contract is pinned.
-        if bytesAllocated + colorBytesAllocated + bytes > Self.maxBytes {
-            throw AtlasError.bytesCeilingExceeded(
-                needed: bytesAllocated + colorBytesAllocated + bytes,
-                ceiling: Self.maxBytes)
-        }
-
-        let origin = try allocateColorOrigin(width: w, height: h, queue: queue)
-
-        try uploadColorBitmap(
-            raster.bytes,
-            widthPx: raster.widthPx,
-            heightPx: raster.heightPx,
-            originX: origin.x,
-            originY: origin.y,
-            queue: queue)
-
-        colorBytesAllocated += bytes
-        return AtlasEntry(
-            originPx: origin,
-            sizePx: SIMD2(w, h),
-            bearingPx: raster.bearingPx,
-            atlasIndex: 1)
-    }
-
-    /// Mirrors `allocateOrigin` but against the color-atlas state.
-    /// Eviction picks the LRU entry from `colorEntries`; reset clears
-    /// only the color side, leaving the gray atlas alone.
-    private func allocateColorOrigin(
-        width w: UInt32, height h: UInt32, queue: MTLCommandQueue
-    ) throws -> SIMD2<UInt32> {
-        if let origin = takeFromColorFreeList(width: w, height: h) {
-            return origin
-        }
-        if let origin = advanceColorShelf(width: w, height: h) {
-            return origin
-        }
-        while evictOneColorLRU() {
-            if let origin = takeFromColorFreeList(width: w, height: h) {
-                return origin
-            }
-        }
-        if colorEntries.contains(where: { $0.value.lastAccess > frameAccessFloor }) {
-            throw AtlasError.atlasFull(needed: SIMD2(w, h))
-        }
-        NSLog(
-            "GlyphAtlas: color atlas fragmentation cliff — reset (needed %ux%u)",
-            w, h)
-        resetColorAtlas()
-        if let origin = advanceColorShelf(width: w, height: h) {
-            return origin
-        }
-        throw AtlasError.atlasFull(needed: SIMD2(w, h))
-    }
-
-    private func takeFromColorFreeList(
-        width w: UInt32, height h: UInt32
-    ) -> SIMD2<UInt32>? {
-        for i in 0..<colorFreeRects.count
-        where colorFreeRects[i].sizePx.x >= w && colorFreeRects[i].sizePx.y >= h {
-            let rect = colorFreeRects.remove(at: i)
-            return rect.originPx
-        }
-        return nil
-    }
-
-    private func advanceColorShelf(
-        width w: UInt32, height h: UInt32
-    ) -> SIMD2<UInt32>? {
-        var x = colorShelfX
-        var y = colorShelfY
-        var shelfH = colorShelfHeight
-        if x + w > colorAtlasSize.x {
-            y += shelfH
-            x = 0
-            shelfH = 0
-        }
-        if y + h > colorAtlasSize.y {
-            return nil
-        }
-        let originX = x
-        let originY = y
-        colorShelfX = x + w
-        colorShelfY = y
-        colorShelfHeight = max(shelfH, h)
-        return SIMD2(originX, originY)
-    }
-
-    @discardableResult
-    private func evictOneColorLRU() -> Bool {
-        // Same batch-pinning rule as the gray atlas: don't evict a glyph
-        // touched this resolve batch (lastAccess > frameAccessFloor).
-        guard
-            let victim = colorEntries.lazy
-                .filter({ $0.value.lastAccess <= self.frameAccessFloor })
-                .min(by: { $0.value.lastAccess < $1.value.lastAccess })
-        else { return false }
-        let entry = victim.value.entry
-        colorEntries.removeValue(forKey: victim.key)
-        colorFreeRects.append(
-            FreeRect(originPx: entry.originPx, sizePx: entry.sizePx))
-        let bytes =
-            UInt64(entry.sizePx.x) * UInt64(entry.sizePx.y)
-            * Self.colorBytesPerPixel
-        colorBytesAllocated =
-            colorBytesAllocated >= bytes
-            ? colorBytesAllocated - bytes : 0
-        pendingEviction = true
-        return true
-    }
-
-    private func resetColorAtlas() {
-        colorEntries.removeAll(keepingCapacity: true)
-        colorFreeRects.removeAll(keepingCapacity: true)
-        colorBytesAllocated = 0
-        colorShelfX = 0
-        colorShelfY = 0
-        colorShelfHeight = 0
-        pendingEviction = true
-    }
-
-    private func uploadColorBitmap(
-        _ bytes: [UInt8],
-        widthPx: Int,
-        heightPx: Int,
-        originX: UInt32,
-        originY: UInt32,
-        queue: MTLCommandQueue
-    ) throws {
-        let length = widthPx * heightPx * 4
-        guard
-            let staging = device.makeBuffer(
-                length: length, options: [.storageModeShared])
-        else {
-            throw AtlasError.textureAllocFailed
-        }
-        staging.label = "GlyphAtlas color staging"
-        let stagingPtr = staging.contents().bindMemory(
-            to: UInt8.self, capacity: length)
-        for i in 0..<length { stagingPtr[i] = bytes[i] }
-
-        guard let buffer = queue.makeCommandBuffer() else {
-            throw AtlasError.rasterizationFailed
-        }
-        buffer.label = "GlyphAtlas color blit upload"
-        guard let encoder = buffer.makeBlitCommandEncoder() else {
-            throw AtlasError.rasterizationFailed
-        }
-        encoder.copy(
-            from: staging,
-            sourceOffset: 0,
-            sourceBytesPerRow: widthPx * 4,
-            sourceBytesPerImage: length,
-            sourceSize: MTLSize(width: widthPx, height: heightPx, depth: 1),
-            to: colorTexture,
-            destinationSlice: 0,
-            destinationLevel: 0,
-            destinationOrigin: MTLOrigin(
-                x: Int(originX), y: Int(originY), z: 0))
-        encoder.endEncoding()
-        buffer.commit()
-        buffer.waitUntilCompleted()
-    }
-
-    // MARK: - Color-atlas public surface (test seam)
-
-    /// Look up or rasterize-and-insert a single color glyph (Apple
-    /// Color Emoji single-codepoint). Standalone API used by tests
-    /// at A-emoji-1. The `entry(for:)` routing path that swaps this
-    /// in for emoji scalars lands at A-emoji-4.
-    func colorEntry(
-        for scalar: Unicode.Scalar, commandQueue: MTLCommandQueue
-    ) throws -> AtlasEntry {
-        let font = resolveFont(for: scalar)
-        // Astral-plane emoji (e.g. 🎉 U+1F389) need surrogate-pair
-        // UTF-16 encoding for `CTFontGetGlyphsForCharacters` — passing
-        // `UniChar(scalar.value)` overflows UInt16 and traps. Mirrors
-        // the encoding pattern in `resolveGlyph`'s fallback branch.
-        var chars: [UniChar] = []
-        chars.reserveCapacity(2)
-        for unit in String(scalar).utf16 { chars.append(unit) }
-        let count = chars.count
-        var glyphs = [CGGlyph](repeating: 0, count: count)
-        _ = chars.withUnsafeBufferPointer { cb -> Bool in
-            glyphs.withUnsafeMutableBufferPointer { gb -> Bool in
-                CTFontGetGlyphsForCharacters(
-                    font, cb.baseAddress!, gb.baseAddress!, count)
-            }
-        }
-        // Surrogate pair returns the primary glyph at index 0.
-        let glyph = glyphs[0]
-        let resolvedFontHash = cachedFontHash(for: font)
-        let key = GlyphKey(
-            fontHash: resolvedFontHash,
-            glyphId: UInt32(glyph),
-            pxSize: UInt16(
-                round(min(CTFontGetSize(font) * 100, Double(UInt16.max)))),
-            contentsScale: UInt8(contentsScale))
-
-        accessCounter &+= 1
-        if var cached = colorEntries[key] {
-            cached.lastAccess = accessCounter
-            colorEntries[key] = cached
-            return cached.entry
-        }
-
-        let raster = try rasterizeColor(glyphId: glyph, font: font)
-        let entry = try placeColor(raster: raster, queue: commandQueue)
-        colorEntries[key] = Record(entry: entry, lastAccess: accessCounter)
-        return entry
-    }
-
-    /// Read-only accessors for tests.
-    var colorEntryCount: Int { colorEntries.count }
-    var colorBytesAllocatedForTesting: UInt64 { colorBytesAllocated }
 }

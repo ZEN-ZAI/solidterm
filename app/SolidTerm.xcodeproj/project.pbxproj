@@ -28,6 +28,7 @@
 		389AF065C1B367665973D490 /* FontSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEEDEF47704D4FDA33D6A922 /* FontSettings.swift */; };
 		3AD74DDED57DC33BCF3228A6 /* MetalRendererFontSizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F63B4601C5A4F9EC538F29C /* MetalRendererFontSizeTests.swift */; };
 		3FB8A5225E908F81EF2EB6AE /* ThemeTOMLLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C172052716A0A95D3EB3E8A /* ThemeTOMLLoader.swift */; };
+		470B6F154E47D38DB9EA23D4 /* GlyphAtlas+Packing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 213EBB390C52FD34F7C0F628 /* GlyphAtlas+Packing.swift */; };
 		4B01A0409DCD45E246A21082 /* Themes in Resources */ = {isa = PBXBuildFile; fileRef = 78CBA8FC329051C52C53A906 /* Themes */; };
 		4B8ED2968C249A5E3B29693E /* TerminalSwitcherController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A680DC57DAF2CB49637100B /* TerminalSwitcherController.swift */; };
 		526614FCE376E3E9B1591DE6 /* InputEventEncodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F024D3776FDCB0DEDC721C97 /* InputEventEncodingTests.swift */; };
@@ -88,6 +89,7 @@
 		C3B1623B31DE1CAE63CAF483 /* WindowRestoration.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6935E99F77F33F2A86C6226 /* WindowRestoration.swift */; };
 		C4A5A3F97D7044F50018D3A5 /* DragDropTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2486E72F2FF59C80DB3C4B4 /* DragDropTests.swift */; };
 		C7B085DE7B230B932EE3FD31 /* SessionJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FD9C86FE375FC1849948D38 /* SessionJournal.swift */; };
+		C7B341C38F78DF67C9EF3340 /* GlyphAtlas+ColorAtlas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1950942E08F8AD0C5ECCF3 /* GlyphAtlas+ColorAtlas.swift */; };
 		CBD5C4D971359AC0202D08E7 /* ProcessSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB6784CDFA05421B54E7396 /* ProcessSnapshot.swift */; };
 		CF316640119CDA3ED76ECD8C /* WindowChromeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D58AAFDA47AEB2FF44AEDB3 /* WindowChromeTests.swift */; };
 		CF484BF81571E834998CDA05 /* MetalRenderer+FrameDelta.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF008080DB70D476A997803 /* MetalRenderer+FrameDelta.swift */; };
@@ -96,6 +98,7 @@
 		D5ABCECB8AC2421ED713E059 /* AppMenuSelfHealTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4DE2BA37EE51C849438BFC0 /* AppMenuSelfHealTests.swift */; };
 		D6904C6AE2AD20026FFC255F /* ThaiBackspaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4737C57E0719A5C0C48C257 /* ThaiBackspaceTests.swift */; };
 		DB02D75D43B1BB4485603A91 /* AppMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 675D39C16CD0B6757A75F3E6 /* AppMenu.swift */; };
+		DE2B67C0AEC3B3A6F5ED5F90 /* GlyphAtlas+Rasterization.swift in Sources */ = {isa = PBXBuildFile; fileRef = B639487937582F82F443AE72 /* GlyphAtlas+Rasterization.swift */; };
 		DF72604CBB65E8D64646710A /* TerminalSurfaceView+Selection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F781B4B3EB96D4732FEB90A1 /* TerminalSurfaceView+Selection.swift */; };
 		E172234861AAE4728D2A6706 /* BoxDrawing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 006BDA261BEA89B4F14BFF82 /* BoxDrawing.swift */; };
 		E2A9975EFD86BF097588F6EE /* SearchPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C72FC38F6ABEB528ED1F6C53 /* SearchPanelController.swift */; };
@@ -131,6 +134,7 @@
 		05C5239CDCE859BF62656C4D /* SearchMatchDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchMatchDecodingTests.swift; sourceTree = "<group>"; };
 		095EDDA702FC6AC41EF43744 /* FontSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontSettingsTests.swift; sourceTree = "<group>"; };
 		09923077759D4E43EACEC626 /* CellPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CellPipelineTests.swift; sourceTree = "<group>"; };
+		0A1950942E08F8AD0C5ECCF3 /* GlyphAtlas+ColorAtlas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GlyphAtlas+ColorAtlas.swift"; sourceTree = "<group>"; };
 		0C39925617CEB22829A05AF3 /* IdlePumpTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdlePumpTests.swift; sourceTree = "<group>"; };
 		0D58AAFDA47AEB2FF44AEDB3 /* WindowChromeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowChromeTests.swift; sourceTree = "<group>"; };
 		0FBA59483CBF79E90D753DA6 /* FFIRoundTripTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFIRoundTripTests.swift; sourceTree = "<group>"; };
@@ -141,6 +145,7 @@
 		1DF008080DB70D476A997803 /* MetalRenderer+FrameDelta.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MetalRenderer+FrameDelta.swift"; sourceTree = "<group>"; };
 		1E21F21BF613B7255A284B2E /* TerminalSurfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSurfaceView.swift; sourceTree = "<group>"; };
 		20FB2D7C48C2493FE6513F00 /* GridPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridPipelineTests.swift; sourceTree = "<group>"; };
+		213EBB390C52FD34F7C0F628 /* GlyphAtlas+Packing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GlyphAtlas+Packing.swift"; sourceTree = "<group>"; };
 		22115104B622284C62B2A116 /* SolidTermTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SolidTermTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2404C2119939C8C3DCFF9E27 /* SwiftBridgeCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftBridgeCore.swift; sourceTree = "<group>"; };
 		27DCC8B3B21D91831020DB9F /* PlainLinkDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlainLinkDetectorTests.swift; sourceTree = "<group>"; };
@@ -211,6 +216,7 @@
 		B2298C359430D43216EEF900 /* PaneSplitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaneSplitter.swift; sourceTree = "<group>"; };
 		B4737C57E0719A5C0C48C257 /* ThaiBackspaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThaiBackspaceTests.swift; sourceTree = "<group>"; };
 		B61EAE50315A04D514EEE64F /* SelectionInputTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionInputTests.swift; sourceTree = "<group>"; };
+		B639487937582F82F443AE72 /* GlyphAtlas+Rasterization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GlyphAtlas+Rasterization.swift"; sourceTree = "<group>"; };
 		C1CD2451515F8899CC987209 /* MetalRendererFontTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalRendererFontTests.swift; sourceTree = "<group>"; };
 		C72FC38F6ABEB528ED1F6C53 /* SearchPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchPanelController.swift; sourceTree = "<group>"; };
 		C8AEBF60469A78F7F9A26577 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -361,6 +367,9 @@
 				DEEDEF47704D4FDA33D6A922 /* FontSettings.swift */,
 				922172A9E9573D058C7E632E /* FrameDeltaDecoding.swift */,
 				68E5B5706A44FAE0D773E905 /* GlyphAtlas.swift */,
+				0A1950942E08F8AD0C5ECCF3 /* GlyphAtlas+ColorAtlas.swift */,
+				213EBB390C52FD34F7C0F628 /* GlyphAtlas+Packing.swift */,
+				B639487937582F82F443AE72 /* GlyphAtlas+Rasterization.swift */,
 				01B8863623E795A4E0714FE3 /* GraphemeClusterCoalescer.swift */,
 				A025AE864143B49B3525FB78 /* GridPipeline.swift */,
 				D7A90792BD4D8B10C267387F /* InputEventEncoding.swift */,
@@ -563,6 +572,9 @@
 				68B8C81CAA25FE4F3AC2CCCF /* CellPipeline.swift in Sources */,
 				389AF065C1B367665973D490 /* FontSettings.swift in Sources */,
 				8D1983513D39151550E8FC4F /* FrameDeltaDecoding.swift in Sources */,
+				C7B341C38F78DF67C9EF3340 /* GlyphAtlas+ColorAtlas.swift in Sources */,
+				470B6F154E47D38DB9EA23D4 /* GlyphAtlas+Packing.swift in Sources */,
+				DE2B67C0AEC3B3A6F5ED5F90 /* GlyphAtlas+Rasterization.swift in Sources */,
 				9B9E098941563CD37768409C /* GlyphAtlas.swift in Sources */,
 				369ED42432F426075C6D3817 /* GraphemeClusterCoalescer.swift in Sources */,
 				B7D1C79CA79D840FA095D2E3 /* GridPipeline.swift in Sources */,
