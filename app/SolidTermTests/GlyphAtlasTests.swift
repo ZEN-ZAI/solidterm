@@ -1,4 +1,4 @@
-// Implements spec/metal-renderer.md §Glyph atlas — observable contracts:
+// The glyph atlas — observable contracts:
 // rasterization populates the entry map, atlas rect is non-zero, multiple
 // glyphs co-exist in the texture without crashing the blit upload, and
 // (M1 task 4.2) LRU eviction recycles rects when the shelf overflows.

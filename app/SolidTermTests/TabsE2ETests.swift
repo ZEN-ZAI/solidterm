@@ -1,6 +1,6 @@
 // M7-5 — End-to-end tests for native NSWindowTabGroup integration.
 //
-// Architecture (per `decisions/17-tab-model.md`): each tab is a separate
+// Architecture: each tab is a separate
 // `TerminalWindowController` (one NSWindow). macOS's `NSWindowTabGroup`
 // joins them via `addTabbedWindow(_:ordered:)`. ⌘T / ⌘W / ⌘⇧[ / ⌘⇧] /
 // drag-out are system-handled; ⌘1-9 routes through

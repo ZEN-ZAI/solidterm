@@ -1,12 +1,10 @@
-// Pin spec/design-tokens.md token values to code. If a token's value
-// changes here without a corresponding spec update, this fails — forces
-// spec ↔ implementation drift to surface in CI rather than at design-
-// review time.
+// Pin the design token values to code. If a token's value changes here
+// without a deliberate decision behind it, this fails — token drift
+// surfaces in CI rather than at design-review time.
 //
-// The token vocabulary is documented in spec/design-tokens.md; the
-// rationale for the values (warm-shifted Zenzai Dark base, Tokyo Night
-// accent family, 8-point spacing grid, 150ms motion baseline) lives in
-// decisions/13-visual-design-direction.md §Locks.
+// The token vocabulary is ADR-0004; the values themselves (warm-shifted
+// Zenzai Dark base, Tokyo Night accent family, 8-point spacing grid,
+// 150ms motion baseline) were locked 2026-05.
 
 import XCTest
 import simd
@@ -24,31 +22,32 @@ final class ThemeTokenTests: XCTestCase {
         assertLinearMatchesHex(Theme.Color.bgBaseLinear, hex: 0x1c24_18ff)
     }
 
-    /// `bg-elevated` — `#16161e` per spec/design-tokens.md §"Surface
-    /// levels". Sidebar, command palette container, settings panel.
+    /// `bg-elevated` — `#16161e`, a surface-level design token (locked
+    /// 2026-05). Sidebar, command palette container, settings panel.
     func testBgElevatedMatchesSpec() {
         assertLinearMatchesHex(Theme.Color.bgElevatedLinear, hex: 0x1616_1eff)
     }
 
-    /// `bg-overlay` — `#1a1b26` per spec/design-tokens.md §"Surface
-    /// levels". Modal, dialog, permission prompt sheet.
+    /// `bg-overlay` — `#1a1b26`, a surface-level design token (locked
+    /// 2026-05). Modal, dialog, permission prompt sheet.
     func testBgOverlayMatchesSpec() {
         assertLinearMatchesHex(Theme.Color.bgOverlayLinear, hex: 0x1a1b_26ff)
     }
 
-    /// `bg-tint-subtle` — `#16161a` per spec/design-tokens.md §"Surface
-    /// levels" ("`bg-base` + 4% lightness | Block hover; list-item
-    /// rest"). M2-5b uses this as the AltScreenStub container
+    /// `bg-tint-subtle` — `#16161a`, a surface-level design token
+    /// (locked 2026-05): `bg-base` + 4% lightness, for block hover and
+    /// list-item rest. M2-5b uses this as the AltScreenStub container
     /// background; M2-5c reuses it for the block hover state.
     func testBgTintSubtleMatchesSpec() {
         assertLinearMatchesHex(
             Theme.Color.bgTintSubtleLinear, hex: 0x1616_1aff)
     }
 
-    /// `bg-tint-active` — `#1f1e22` per spec/design-tokens.md §"Surface
-    /// levels" ("`bg-base` + 8% lightness | Block focused; list-item
-    /// selected"). M2-5c uses this as the keyboard-focus background
-    /// on `BlockContainerView`. Concrete value derives from doubling
+    /// `bg-tint-active` — `#1f1e22`, a surface-level design token
+    /// (locked 2026-05): `bg-base` + 8% lightness, for block focused
+    /// and list-item selected. M2-5c uses this as the keyboard-focus
+    /// background on `BlockContainerView`. Concrete value derives from
+    /// doubling
     /// `bg-tint-subtle`'s channel-shift over `bg-base` (+8% vs +4%
     /// lightness), staying inside the surface stack rather than
     /// crossing into the `bg-elevated` register.
@@ -58,7 +57,7 @@ final class ThemeTokenTests: XCTestCase {
     }
 
     /// `bg-tint-active` MUST sit above `bg-tint-subtle` in lightness
-    /// per spec/design-tokens.md §"Surface levels" (+8% vs +4%). The
+    /// (+8% vs +4%, locked 2026-05). The
     /// visual distinction between hover (passive pointer-over) and
     /// focus (deliberate keyboard target) is load-bearing for the
     /// M2-5c interaction-state contract — if a future palette tweak
@@ -83,37 +82,37 @@ final class ThemeTokenTests: XCTestCase {
         assertLinearMatchesHex(Theme.Color.textPrimaryLinear, hex: 0xc8d0_b8ff)
     }
 
-    /// `text-secondary` — `#a9b1d6` per spec/design-tokens.md §"Text
-    /// levels". Metadata, captions.
+    /// `text-secondary` — `#a9b1d6`, design token text-secondary
+    /// (locked 2026-05). Metadata, captions.
     func testTextSecondaryMatchesSpec() {
         assertLinearMatchesHex(
             Theme.Color.textSecondaryLinear, hex: 0xa9b1_d6ff)
     }
 
-    /// `accent-running` — `#7aa2f7` per spec/design-tokens.md §"Accents".
+    /// `accent-running` — `#7aa2f7`, an accent design token (locked 2026-05).
     func testAccentRunningMatchesSpec() {
         assertLinearMatchesHex(
             Theme.Color.accentRunningLinear, hex: 0x7aa2_f7ff)
     }
 
-    /// `accent-success` — `#9ece6a` per spec/design-tokens.md §"Accents".
+    /// `accent-success` — `#9ece6a`, an accent design token (locked 2026-05).
     func testAccentSuccessMatchesSpec() {
         assertLinearMatchesHex(
             Theme.Color.accentSuccessLinear, hex: 0x9ece_6aff)
     }
 
-    /// `accent-error` — `#f7768e` per spec/design-tokens.md §"Accents".
+    /// `accent-error` — `#f7768e`, an accent design token (locked 2026-05).
     func testAccentErrorMatchesSpec() {
         assertLinearMatchesHex(Theme.Color.accentErrorLinear, hex: 0xf776_8eff)
     }
 
-    /// `accent-warning` — `#e0af68` per spec/design-tokens.md §"Accents".
+    /// `accent-warning` — `#e0af68`, an accent design token (locked 2026-05).
     func testAccentWarningMatchesSpec() {
         assertLinearMatchesHex(
             Theme.Color.accentWarningLinear, hex: 0xe0af_68ff)
     }
 
-    /// `accent-thinking` — `#bb9af7` per spec/design-tokens.md §"Accents".
+    /// `accent-thinking` — `#bb9af7`, an accent design token (locked 2026-05).
     func testAccentThinkingMatchesSpec() {
         assertLinearMatchesHex(
             Theme.Color.accentThinkingLinear, hex: 0xbb9a_f7ff)
@@ -125,7 +124,6 @@ final class ThemeTokenTests: XCTestCase {
             Theme.Color.selectionBgLinear, hex: 0x2a34_24ff)
     }
 
-    /// `cursor-default` ≡ `accent-running` per spec/design-tokens.md
     /// `cursor-default` — `#7dac7d` (user's zenzai cursor color).
     /// A desaturated green that contrasts against the zenzai bg
     /// `#1a1e1a` and stays visible on light-bg TUIs.
@@ -134,9 +132,8 @@ final class ThemeTokenTests: XCTestCase {
             Theme.Color.cursorDefaultLinear, hex: 0xc491_9fff)
     }
 
-    /// IME preedit underline aliases `text-primary` per
-    /// `spec/swift-app-modules.md:200`. Users perceive preedit as
-    /// "in-flight typing".
+    /// IME preedit underline aliases `text-primary` (ADR-0004). Users
+    /// perceive preedit as "in-flight typing".
     func testImeUnderlineAliasesTextPrimary() {
         XCTAssertEqual(
             Theme.Color.imeUnderlineLinear,
@@ -156,8 +153,8 @@ final class ThemeTokenTests: XCTestCase {
                 + "⌘+hovered file path reads as 'this is clickable'.")
     }
 
-    /// Team palette — five reuse the accent palette per
-    /// spec/design-tokens.md §"Team mode" rationale. Pinning the alias
+    /// Team palette — five reuse the accent palette (ADR-0004).
+    /// Pinning the alias
     /// guards against a future drift where one of the team-* values
     /// gets a parallel hex literal that disagrees with its accent twin.
     func testTeamPaletteAliasesAccents() {
@@ -174,8 +171,8 @@ final class ThemeTokenTests: XCTestCase {
 
     /// Team-cyan / team-orange / team-pink — the three non-aliased
     /// team colors. Cyan is the existing `ansi_cyan`; orange + pink
-    /// are sprint-stage candidates per spec/design-tokens.md §"Team
-    /// mode" §"Contrast verification". Test pins their candidate
+    /// are sprint-stage candidates whose AA contrast verification is
+    /// still deferred. Test pins their candidate
     /// values so a sprint-time substitution surfaces here.
     func testTeamCandidatesPinSpecValues() {
         assertLinearMatchesHex(Theme.Color.teamCyanLinear, hex: 0x7dcf_ffff)
@@ -185,8 +182,8 @@ final class ThemeTokenTests: XCTestCase {
 
     // MARK: Spacing scale
 
-    /// 8-point grid with 4-point half-step per spec/design-tokens.md
-    /// §"Spacing tokens".
+    /// 8-point grid with 4-point half-step — the spacing scale
+    /// (ADR-0004, locked 2026-05).
     func testSpacingScaleMatchesSpec() {
         XCTAssertEqual(Theme.Spacing.zero, 0)
         XCTAssertEqual(Theme.Spacing.half, 4)
@@ -200,9 +197,8 @@ final class ThemeTokenTests: XCTestCase {
 
     // MARK: Radius scale
 
-    /// Radius scale per spec/design-tokens.md §"Border radius tokens".
-    /// `radius-md = 6pt` is the load-bearing block-container value
-    /// from decisions/13 §Locks.
+    /// Radius scale (ADR-0004). `radius-md = 6pt` is the load-bearing
+    /// block-container value, locked 2026-05.
     func testRadiusScaleMatchesSpec() {
         XCTAssertEqual(Theme.Radius.none, 0)
         XCTAssertEqual(Theme.Radius.sm, 2)
@@ -213,9 +209,9 @@ final class ThemeTokenTests: XCTestCase {
 
     // MARK: Motion durations
 
-    /// Durations per spec/design-tokens.md §"Motion tokens" §"Duration".
-    /// `motion-base = 150ms` is the locked baseline per decisions/13
-    /// §Locks; the surrounding scale is derived (×0.67, ×2, ×3.3) so
+    /// Motion durations (ADR-0004). `motion-base = 150ms` is the
+    /// baseline locked 2026-05; the surrounding scale is derived
+    /// (×0.67, ×2, ×3.3) so
     /// the rhythm reads as one motion system.
     func testMotionDurationsMatchSpec() {
         XCTAssertEqual(Theme.Motion.instant, 0)
@@ -227,8 +223,8 @@ final class ThemeTokenTests: XCTestCase {
 
     // MARK: Easing curves
 
-    /// Bezier control points per spec/design-tokens.md §"Motion tokens"
-    /// §"Easing". `ease-out` is the default — appearing/opening reads
+    /// Bezier control points for the motion easing curves (ADR-0004).
+    /// `ease-out` is the default — appearing/opening reads
     /// natural with fast-start / slow-end.
     func testEasingCurvesMatchSpec() {
         XCTAssertEqual(Theme.Motion.easeOut.0, 0)

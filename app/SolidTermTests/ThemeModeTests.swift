@@ -6,8 +6,7 @@
 //   3. Programmatic WCAG AA contrast assertion for text-primary /
 //      bg-base. Dark-mode assertion is active and pinning the baseline;
 //      light-mode assertion is XCTSkip-gated until M6-4b lands the
-//      spec-keeper's light-token derivation per
-//      `spec/design-tokens.md:119-126`.
+//      light-token derivation.
 //
 // `contrastRatio(_:_:)` follows WCAG 2.1's "relative luminance" formula
 // — both inputs are linear-space SIMD4<Float> tokens, so the gamma
@@ -103,8 +102,7 @@ final class ThemeModeTests: XCTestCase {
     }
 
     /// Light-mode contrast pin (M6-4b activated). Catppuccin Latte
-    /// Text `#4c4f69` on Latte Base `#eff1f5` per
-    /// `spec/design-tokens.md:141` — 7.0:1 (AA + AAA).
+    /// Text `#4c4f69` on Latte Base `#eff1f5` — 7.0:1 (AA + AAA).
     func test_light_mode_text_primary_on_bg_base_meets_AA() {
         let fg = Theme.Color.textPrimaryLinear(for: .light)
         let bg = Theme.Color.bgBaseLinear(for: .light)
@@ -114,15 +112,14 @@ final class ThemeModeTests: XCTestCase {
             "light-mode text-primary on bg-base must meet WCAG AA (4.5:1); got \(ratio)")
     }
 
-    // MARK: M6-4b — pin the 6 spec-keeper darkening calls
+    // MARK: M6-4b — pin the 6 darkening calls
     //
     // Each of the 6 tokens darkened from raw Catppuccin Latte for AA on
     // `bg-base #eff1f5` gets an explicit contrast pin. If a future drift
     // reverts to the raw Latte value (or any other lighter shade), the
-    // pin fires before the visual regression ships. Spec ratios per
-    // `spec/design-tokens.md` §"Accents" + §"Team mode" — pinned to
-    // 4.5:1 which is the WCAG AA floor; the spec calls out specific
-    // higher ratios in its rationale column.
+    // pin fires before the visual regression ships. Pinned to 4.5:1,
+    // the WCAG AA floor; each token's own ratio is higher and is
+    // recorded in its doc-comment in Theme.swift.
 
     func test_light_accent_running_meets_AA() {
         let r = contrastRatio(
@@ -179,7 +176,7 @@ final class ThemeModeTests: XCTestCase {
             Theme.Color.bgBaseLinear(for: .light))
         XCTAssertGreaterThanOrEqual(
             r, 4.5,
-            "team-cyan re-darkened to #06768c (4.67:1) per spec-keeper's programmatic verification; prior #0893b0 was 3.20:1; got \(r)"
+            "team-cyan re-darkened to #06768c (4.67:1) by programmatic contrast verification; prior #0893b0 was 3.20:1; got \(r)"
         )
     }
 }

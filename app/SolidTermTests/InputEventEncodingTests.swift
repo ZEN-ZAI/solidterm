@@ -1,4 +1,4 @@
-// Implements spec/ffi-boundary.md §Input path round-trip on the Swift
+// The FFI input-path round-trip (ADR-0006) on the Swift
 // half. Exercises `InputEventEncoder.makeKeyInputEvent(...)` — the
 // AppKit-free overload that the `NSEvent`-taking entry point delegates
 // to. Tests target the lower-level overload so the synthetic-NSEvent

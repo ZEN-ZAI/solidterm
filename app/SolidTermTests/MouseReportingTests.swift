@@ -94,7 +94,7 @@ final class MouseReportingTests: XCTestCase {
     // which take an NSEvent + session. We can't construct a real
     // session here cheaply, so the tests pin the format by replicating
     // the encoding inline — the assertions catch any drift between
-    // production code and the spec.
+    // production code and the format pinned here.
     //
     // (If the helpers move to public, swap these to direct calls.)
 

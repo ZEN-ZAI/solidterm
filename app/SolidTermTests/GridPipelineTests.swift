@@ -1,4 +1,4 @@
-// Implements spec/metal-renderer.md §Stage 1 — confirms the pipeline
+// Stage 1 cell pass — confirms the pipeline
 // state constructs from `default.metallib`, that `setGrid` accepts a
 // correctly-sized cell array, and that the encode method runs against
 // an offscreen render target without raising a Metal validation

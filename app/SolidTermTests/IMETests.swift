@@ -1,4 +1,4 @@
-// Implements spec/swift-app-modules.md §IME on the Swift half. Phase 1
+// IME on the Swift half. Phase 1
 // task 3.11 / #19 — `NSTextInputClient` skeleton on `TerminalSurfaceView`:
 // protocol conformance + `insertText` routing + sentinel returns from
 // the 9 stubbed methods.
@@ -30,7 +30,7 @@ final class IMETests: XCTestCase {
         let view = TerminalSurfaceView(frame: Self.initialBounds)
         XCTAssertTrue(
             view is NSTextInputClient,
-            "TerminalSurfaceView must adopt NSTextInputClient (spec/swift-app-modules.md:171)")
+            "TerminalSurfaceView must adopt NSTextInputClient")
     }
 
     // MARK: - insertText routing
@@ -368,7 +368,7 @@ final class IMETests: XCTestCase {
 
     func testValidAttributesIncludesMarkedClauseSegment() {
         // **macOS Dictation fails silently without `.markedClauseSegment`**
-        // (spec/swift-app-modules.md:210, research/04 §87). This is the
+        // This is the
         // single most-likely-to-rot detail in the IME skeleton — easy
         // to "clean up" by future agents who see no obvious consumer
         // and remove it. This test is the regression guard.
@@ -376,7 +376,7 @@ final class IMETests: XCTestCase {
         XCTAssertTrue(
             view.validAttributesForMarkedText().contains(.markedClauseSegment),
             ".markedClauseSegment is REQUIRED for macOS Dictation; do not "
-                + "remove without updating spec/swift-app-modules.md:210")
+                + "remove it — Dictation fails silently without it")
     }
 
     // MARK: - keyDown still routes (no regression vs 979f331)

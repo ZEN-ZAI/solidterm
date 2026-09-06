@@ -17,7 +17,7 @@
 //
 //  3. **Shader pixel readback** — drives the kind=2 (selection) path
 //     of the unified overlay shader against an offscreen render target
-//     and asserts the spec'd `#3d4254` × 0.35 alpha-blended tint
+//     and asserts the `selection-bg` token × 0.35 alpha-blended tint
 //     appears where expected. Substitutes for "screencap + sample
 //     pixels" when the agent shell can't synthesize live mouse events
 //     — pixel-level signal is preserved by sampling our own MSL output
@@ -128,7 +128,7 @@ final class SelectionInputTests: XCTestCase {
     // MARK: - 3. Shader pixel readback (kind=2 selection tint)
 
     /// Drive the kind=2 path of the unified overlay shader at the
-    /// theme-spec'd selection color (`#3d4254`) and assert the
+    /// `selection-bg` theme token and assert the
     /// resulting pixels match the expected `colorLinear * 0.35`
     /// straight-alpha-over-clear blend.
     ///

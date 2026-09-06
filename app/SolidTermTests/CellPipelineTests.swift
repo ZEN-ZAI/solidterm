@@ -1,4 +1,4 @@
-// Implements spec/metal-renderer.md §MSL pipeline — confirms the
+// The MSL pipeline — confirms the
 // pipeline state constructs cleanly from the bundled `default.metallib`
 // and that the encode method runs without raising a Metal validation
 // error against an offscreen render target. Pixel correctness is

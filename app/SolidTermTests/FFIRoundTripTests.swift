@@ -1,4 +1,4 @@
-// Implements spec/ffi-boundary.md — proves the swift-bridge boundary round-trips end-to-end.
+// Proves the swift-bridge boundary (ADR-0006) round-trips end-to-end.
 // Smoke test: exercise the swift-bridge → Rust → swift-bridge round-trip.
 // This is the Phase 0 Day 3-4 proof that the cargo build phase wired the
 // static lib + generated Swift shims correctly.

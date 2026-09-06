@@ -1,4 +1,4 @@
-// Implements spec/ffi-boundary.md §Session lifecycle for the Swift
+// Session lifecycle (ADR-0006) on the Swift
 // consumer side. Exercises `TerminalSession.new(config)` factory, the
 // generated read-back accessors, and the swift-bridge-generated
 // destructor that fires on Swift `deinit`.
@@ -68,7 +68,7 @@ final class TerminalSessionLifecycleTests: XCTestCase {
     }
 
     func testHandleHonorsExplicitlyReleasedReference() {
-        // Demonstrate the spec contract that an opaque handle bound to
+        // Demonstrate the FFI contract that an opaque handle bound to
         // a single Swift owner is released the moment that owner goes
         // out of scope. Re-binding to a new `let` after `_ = session`
         // is enough for ARC to release the prior instance.

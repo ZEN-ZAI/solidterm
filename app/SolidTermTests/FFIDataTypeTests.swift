@@ -1,4 +1,4 @@
-// Implements spec/ffi-boundary.md round-trip contract for the renderer
+// The FFI round-trip contract (ADR-0006) for the renderer
 // data types (CellDelta / FrameDelta / BlockDelta / InputEvent /
 // SessionConfig). Exercises the swift-bridge surface end-to-end:
 // Swift constructs a value, hands it to Rust via an `echo_*` function,
@@ -68,9 +68,9 @@ final class FFIDataTypeTests: XCTestCase {
     // MARK: - FrameDelta
 
     func testFrameDeltaRoundTripWithCellsPayload() throws {
-        // `cells: Vec<u8>` carries CellDeltaWire records (48 bytes each)
-        // with the layout from spec/ffi-boundary.md, encoded by
-        // FrameDeltaDecoding.encodeCells / decoded by .decodeCells.
+        // `cells: Vec<u8>` carries CellDeltaWire records (48 bytes each,
+        // ADR-0006), encoded by FrameDeltaDecoding.encodeCells and
+        // decoded by .decodeCells.
         let cells: [CellDeltaSwift] = [
             CellDeltaSwift(
                 row: 0, col: 0, grapheme: padded(Array("X".utf8)),

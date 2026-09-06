@@ -1,4 +1,4 @@
-// Implements spec/cross-cell-shaping.md test matrix.
+// The cross-cell shaping test matrix (ADR-0003).
 
 import XCTest
 

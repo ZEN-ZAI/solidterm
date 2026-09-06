@@ -1,7 +1,7 @@
-// Implements spec/metal-renderer.md §Stage 2 Overlay Pass — confirms
+// The Stage 2 overlay pass — confirms
 // the unified overlay pipeline constructs against the bundled
-// `default.metallib`, that the cursor color matches
-// `spec/theme-appearance.md`, and that the renderer's cursor
+// `default.metallib`, that the cursor color matches the
+// `cursor-default` design token, and that the renderer's cursor
 // shape-mapping + blink-phase logic match the M1 4.7 contract.
 //
 // Pixel correctness for each cursor shape (block / beam / underline)
@@ -60,8 +60,8 @@ final class OverlayPipelineTests: XCTestCase {
     }
 
     /// Cursor blink alpha cycles 1.0 → 0.0 → 1.0 over a 2 × period
-    /// span, with the visible half coming first. Per
-    /// `spec/metal-renderer.md:105` the period is 500 ms; tests pin the
+    /// span, with the visible half coming first. The period is 500 ms
+    /// by default; tests pin the
     /// shape against any period so future configurability doesn't break
     /// the contract.
     func testBlinkAlphaTogglesAtPeriodBoundaries() {
@@ -135,7 +135,7 @@ final class OverlayPipelineTests: XCTestCase {
             // Cell at origin (0, 0), 16×16 px. Cursor uniform alpha=1
             // and color is pure (1, 0, 1, 1) so we can detect cursor
             // pixels via the magenta R+B channels — distinct from both
-            // the black clear (0, 0, 0) and the spec'd #7aa2f7 (which
+            // the black clear (0, 0, 0) and `accent-running` #7aa2f7 (which
             // also has R+B but mid-G; we want unambiguous hits here).
             let uniforms = OverlayUniforms(
                 screenSizePx: SIMD2<Float>(32, 32),

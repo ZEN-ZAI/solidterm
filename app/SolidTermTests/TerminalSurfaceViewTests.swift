@@ -1,4 +1,3 @@
-// Implements spec/swift-app-modules.md §TerminalSurfaceView.
 // Smoke tests for the CAMetalLayer host: confirms the layer attaches with
 // a Metal device and that the drawable size tracks bounds × backing scale
 // when AppKit fires resize hooks. Pixel-output verification is manual
