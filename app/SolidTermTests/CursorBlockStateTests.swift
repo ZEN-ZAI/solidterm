@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Pins `MetalRenderer.computeCursorBlockState()`, the per-frame cursor
 // resolution both passes read: the grid pass reverse-videos the BLOCK
 // cell from it, the overlay pass encodes the BEAM / UNDERLINE quad from

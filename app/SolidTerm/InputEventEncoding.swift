@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Swift half of the FFI input path (ADR-0006). Translates
 // AppKit `NSEvent.keyDown` into the FFI `InputEvent` shared struct that
 // rust-expert's `TerminalSession.send_input` (#16-rust, commit 4706213)

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Q3 — transient toast overlay shown on theme hot-reload (TOML edit
 // applied) and any future "settings applied" notifications. Lives as
 // a borderless child window so it floats above the Metal surface

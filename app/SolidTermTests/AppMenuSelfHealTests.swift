@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Pins the main-menu self-heal: SwiftUI's hosting views (find bar /
 // switcher) intermittently strip the File/Edit submenus out of
 // NSApp.mainMenu, killing every menu shortcut. AppDelegate.applicationDidUpdate

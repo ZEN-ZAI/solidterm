@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Pins the Finder → terminal drop path on `TerminalSurfaceView`:
 // `shellQuote`, the two `NSDraggingDestination` answer methods, and the
 // payload `performDragOperation` hands to the session. Ticket 13 moves

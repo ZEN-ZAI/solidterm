@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Minimal solidterm window controller. One pane per window; tabs +
 // find bar + font-size hotkeys are preserved.
 //

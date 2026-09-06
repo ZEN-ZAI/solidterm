@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // App lifecycle.
 // AppDelegate creates the first TerminalWindowController on launch and
 // terminates the process when the last window closes.

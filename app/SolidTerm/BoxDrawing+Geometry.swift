@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // The stroke, fill and trace primitives every `BoxDrawing` range
 // function paints through, split out of the one big
 // `BoxDrawing.rasterize` switch together with the two direction enums

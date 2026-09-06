@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 use super::{encode_color, pack_rgba, CellView, ColorRole, Hyperlink, XTERM_256_PALETTE};
 use alacritty_terminal::term::cell::{Cell, Flags, Hyperlink as AlacrittyHyperlink};
 use alacritty_terminal::vte::ansi::{Color, NamedColor, Rgb};

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // App lifecycle and `@main`.
 // SwiftUI's `@main` only satisfies the entry-point requirement; AppDelegate
 // owns NSWindow creation and all real lifecycle.

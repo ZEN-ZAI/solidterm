@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // M7-3 — Font settings store. Single source of truth for the
 // terminal-cell font (family, point size, ligatures), backed by
 // `UserDefaults` so the choice round-trips across launches.

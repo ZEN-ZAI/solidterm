@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // M7-2 ⌘F find-in-scrollback — `NSPanel` controller hosting the search
 // UI. Mirrors `CommandPaletteController`'s panel pattern (regression
 // `d2a966d` — `canBecomeKey` override + deferred `makeFirstResponder`)

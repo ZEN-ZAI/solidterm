@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // ⌘⇧O fuzzy terminal switcher — SwiftUI body, model, and entry type.
 //
 // A floating overlay (sibling to the ⌘F search panel; see

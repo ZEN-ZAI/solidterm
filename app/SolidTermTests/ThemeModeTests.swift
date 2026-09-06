@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // M6-4a — Theme.Mode + ThemeManager + WCAG AA contrast scaffolding.
 //
 // Three concerns:

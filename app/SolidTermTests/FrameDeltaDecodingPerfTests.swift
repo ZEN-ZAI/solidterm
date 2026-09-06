@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Performance regression guard for `FrameDeltaDecoding.decodeCells(RustVec<UInt8>)`.
 // The decoder sits on the renderer hot path (CAMetalDisplayLink → take_frame_delta
 // → decodeCells), so it MUST avoid per-byte FFI calls. A previous implementation

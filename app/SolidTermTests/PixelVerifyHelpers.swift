@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // M5.5-5: shared pixel-verify helpers extracted from
 // `GutterViewTests` + `BlockOverlayManagerTests`. Both files run the
 // same off-screen `NSHostingView.cacheDisplay(in:to:)` → bitmap-rep →

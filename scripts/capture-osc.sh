@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright © 2026 Zen Kiattikhunnawong
+
 # Capture an OSC byte stream for the test fixtures corpus.
 #
 # Usage: ./scripts/capture-osc.sh <name>

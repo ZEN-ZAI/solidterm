@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // PG1 mouse-reporting encoder unit tests. The encode helpers are pure
 // (event → byte string); the tests pin the byte form against xterm /
 // SGR-1006 spec so a typo would be caught before regression in

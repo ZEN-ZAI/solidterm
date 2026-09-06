@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright © 2026 Zen Kiattikhunnawong
+
 # Regenerate the AppIcon asset catalog from the master 1024px PNG.
 #
 #  1. Re-render the master PNG via gen-icon.swift.

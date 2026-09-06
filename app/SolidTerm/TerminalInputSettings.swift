@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Persistence namespace for keyboard-input behaviour preferences.
 // Follows the per-feature UserDefaults-key convention used elsewhere
 // (Theme.OSC133.userDefaultsKey, ScrollbackSettings.userDefaultsKey,

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Q2 — UserDefaults namespace for the configurable scrollback knob
 // plus the cross-cutting "Reset all settings" helper.
 

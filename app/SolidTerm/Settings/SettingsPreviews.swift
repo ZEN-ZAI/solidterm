@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Settings-pane previews — font sample + theme color swatches.
 //
 // Lives alongside `AppearanceTab` because both views are pure presentation

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // The glyph atlas — observable contracts:
 // rasterization populates the entry map, atlas rect is non-zero, multiple
 // glyphs co-exist in the texture without crashing the blit upload, and

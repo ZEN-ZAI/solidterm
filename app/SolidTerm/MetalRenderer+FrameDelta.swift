@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Frame-delta application for `MetalRenderer`, split out of the
 // single-file renderer by method cluster: the engine delta drain, the
 // run-coalescing region uploads, the CPU-side shadow copy, and the

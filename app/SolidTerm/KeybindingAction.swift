@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Action enumeration for menu items + keybindings.
 //
 // Named `KeybindingAction` for historical reasons — the M6 ship

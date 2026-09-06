@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Stage 1 cell pass (full-screen quad)
 // — owns the `MTLRenderPipelineState` for the grid shaders, the three
 // per-cell textures (cellFG / cellBG / cellAtlasUV), and the encode

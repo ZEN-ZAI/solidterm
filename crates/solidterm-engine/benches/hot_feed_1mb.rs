@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 //! M1 task 1.10 — Criterion baseline for
 //! the engine's hot path (`vte::ansi::Processor` →
 //! `Term::<EventListener>` grid mutation).

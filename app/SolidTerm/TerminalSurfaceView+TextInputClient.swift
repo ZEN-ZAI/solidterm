@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // `NSTextInputClient` for `TerminalSurfaceView`, split out of the
 // single-file view along its existing MARKs: the load-bearing protocol
 // methods, then the composition state (4.9) and the backing-layer /

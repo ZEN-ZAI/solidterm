@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 use super::{
     theme_color_for_index, ClipboardKind, EngineEvent, EventProxy, ThemeColors,
     ZENZAI_DARK_BACKGROUND, ZENZAI_DARK_CURSOR, ZENZAI_DARK_FOREGROUND,

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Session lifetime across the swift-bridge boundary, on the Swift
 // consumer side. Exercises `TerminalSession.new(config)` factory, the
 // generated read-back accessors, and the swift-bridge-generated

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // M7-3 — MetalRenderer font-observer wiring tests.
 //
 // Verifies the `FontSettings.didChange` → `atlasDirty` plumbing

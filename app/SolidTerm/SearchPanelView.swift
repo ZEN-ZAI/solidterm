@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // M7-2 ⌘F find-in-scrollback — SwiftUI body for the search panel.
 //
 // Layout: 480pt × 56pt, single-row search field + .* regex toggle +

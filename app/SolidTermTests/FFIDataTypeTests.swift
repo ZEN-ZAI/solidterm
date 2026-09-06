@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // The FFI round-trip contract (ADR-0006) for the renderer
 // data types (CellDelta / FrameDelta / BlockDelta / InputEvent /
 // SessionConfig). Exercises the swift-bridge surface end-to-end:

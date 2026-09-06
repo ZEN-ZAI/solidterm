@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 //! swift-bridge FFI surface — Stack A, data only.
 //!
 //! No Metal / `CAMetalLayer` / Obj-C types cross this boundary — the

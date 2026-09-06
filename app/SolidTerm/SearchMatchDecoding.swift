@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // M7-2 ⌘F find — Swift-side decoder for the
 // `TerminalSession.search(query, regex_flag) -> Vec<u8>` payload produced
 // by Rust's `encode_search_matches` (SearchMatchWire records, 8 bytes

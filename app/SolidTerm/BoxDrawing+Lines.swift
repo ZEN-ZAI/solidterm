@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // The single-stroke half of the Box Drawing block, split out of the
 // one big `BoxDrawing.rasterize` switch: U+2500-U+254F (light/heavy
 // and dashed horizontals and verticals, the four corner families, the

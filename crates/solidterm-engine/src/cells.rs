@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 //! M1 task 1.7 — `CellView`, the engine-side cell snapshot returned by
 //! [`crate::TerminalEngine::viewport_cells`]. Mirrors
 //! `solidterm_ffi::CellDeltaWire`'s 32-byte grapheme wire layout

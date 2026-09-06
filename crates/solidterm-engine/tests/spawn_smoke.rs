@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 //! Integration smoke for M1 tasks 1.3 + 1.4 —
 //! exercises `TerminalEngine::new` end-to-end: spawn `/bin/zsh -l`,
 //! `feed_input` a probe command, drain the PTY via `poll_output`

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 //! Terminal engine — PTY + VT parsing + grid + scrollback + OSC routing.
 //!
 //! Wraps `alacritty_terminal` (Apache-2.0) and adds OSC-routing for

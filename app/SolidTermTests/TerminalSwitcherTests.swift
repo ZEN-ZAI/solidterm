@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Tests for the ⌘⇧O fuzzy terminal switcher: the pure FuzzyMatch scorer
 // and the TerminalSwitcherModel filter/navigation logic.
 

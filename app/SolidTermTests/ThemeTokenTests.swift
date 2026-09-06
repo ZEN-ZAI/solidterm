@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Pin the design token values to code. If a token's value changes here
 // without a deliberate decision behind it, this fails — token drift
 // surfaces in CI rather than at design-review time.

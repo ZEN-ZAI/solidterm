@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // ⌘-hover / ⌘-click link opening for `TerminalSurfaceView`, split out
 // of the single-file view along its existing MARKs: M6-2 file paths and
 // M7-1 OSC 8 hyperlinks. Stored properties live in

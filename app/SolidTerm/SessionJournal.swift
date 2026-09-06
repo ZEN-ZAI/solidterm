@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // SessionJournal — a durable, main-thread-independent record of what each
 // terminal window was doing, so a relaunch can put it back.
 //

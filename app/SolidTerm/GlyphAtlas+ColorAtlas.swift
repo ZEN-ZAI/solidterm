@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // The rgba8Unorm color-emoji atlas for `GlyphAtlas`, split out of the
 // single-file atlas along its existing MARKs: the parallel allocator +
 // uploader (same shelf-pack + LRU + reset semantics as the gray atlas,

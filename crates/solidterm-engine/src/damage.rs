@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 //! M1 task 1.6 — `DirtyRows`, the
 //! engine-side damage snapshot returned by [`crate::TerminalEngine::take_damage`].
 //!

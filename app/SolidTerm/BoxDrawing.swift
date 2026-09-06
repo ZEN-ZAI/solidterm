@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Procedural box-drawing + block-element rasterizer for the Unicode
 // ranges U+2500-U+257F (box drawing) and U+2580-U+259F (block
 // elements). Intercepts these scalars BEFORE the GlyphAtlas font

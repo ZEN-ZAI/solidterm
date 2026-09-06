@@ -1,3 +1,4 @@
+# Palette: One Light, bright ramp from One Dark — MIT, https://github.com/atom/one-light-syntax
 name = "light"
 background = "#fafafa"
 foreground = "#383a42"

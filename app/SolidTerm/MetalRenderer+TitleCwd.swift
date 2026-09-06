@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Window title + working-directory tracking for `MetalRenderer`, split
 // out of the single-file renderer by method cluster: the per-frame OSC 0/2
 // title drain, the OSC 7 cwd drain and its `proc_pidinfo` fallback poll.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Task #16: Thai-aware backspace. Engine round-trip happens at the
 // Rust FFI boundary (`TerminalSession.cell_before_cursor()`), which
 // is exercised by solidterm-ffi unit tests. This file pins the pure

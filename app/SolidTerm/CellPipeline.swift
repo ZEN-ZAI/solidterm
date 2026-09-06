@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Stage 0 MSL pipeline — owns the
 // `MTLRenderPipelineState` for the cell vertex+fragment shaders and
 // encodes a single-glyph draw call against a bound `GlyphAtlas`.

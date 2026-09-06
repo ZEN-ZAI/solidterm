@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // `NSDraggingDestination` for `TerminalSurfaceView`, split out of the
 // single-file view along its existing MARK: Finder → terminal drops
 // (including `shellQuote`), Quick Look, menu-item validation and the

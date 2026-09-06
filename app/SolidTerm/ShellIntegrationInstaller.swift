@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Bundled shell integration installer. Copies zsh/bash/fish OSC 133
 // hooks from the app bundle (`Resources/Shell/`) to
 // `~/.config/solidterm/shell/`, then prints sourcing instructions in

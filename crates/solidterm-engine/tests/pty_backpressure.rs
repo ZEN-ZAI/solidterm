@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 //! Teardown must not deadlock when the bounded PTY channel is full and
 //! the reader thread is parked in `send` (the Drop disconnect-before-
 //! join contract from pty.rs).

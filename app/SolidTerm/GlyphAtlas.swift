@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Atlas LRU eviction — algorithm ported from Alacritty's
 // `alacritty/src/renderer/text/atlas.rs` (Apache-2.0). Original
 // copyright Joe Wilm and contributors; see

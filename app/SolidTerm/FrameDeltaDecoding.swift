@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Swift-side decoder (ADR-0006) for the
 // `FrameDelta.cells: Vec<u8>` payload produced by Rust's
 // `encode_cells` (CellDeltaWire records, 48 bytes each, little-endian

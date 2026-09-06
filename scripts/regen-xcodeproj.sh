@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright © 2026 Zen Kiattikhunnawong
+
 # Regenerate app/SolidTerm.xcodeproj from app/project.yml using XcodeGen.
 # Run this whenever you edit app/project.yml; commit the regenerated
 # .xcodeproj alongside the YAML change so a fresh clone builds out of the box.

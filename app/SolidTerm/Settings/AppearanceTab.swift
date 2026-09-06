@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Appearance tab — bundles M6-2 (file-path click) + M6-4a (theme picker).
 //
 // **Authorship note**: this file is the canonical AppearanceTab. M6-2's

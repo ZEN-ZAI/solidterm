@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 //! M1 tasks 1.1 through 1.8 —
 //! `TerminalEngine` skeleton, `EngineConfig` validation, PTY spawn via
 //! `alacritty_terminal::tty::new`, the stable `feed_input` /

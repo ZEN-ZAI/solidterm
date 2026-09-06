@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright © 2026 Zen Kiattikhunnawong
+
 # Performance smoke test — runs the in-scope, non-interactive measurements
 # against the budgets below and emits a markdown summary. The budgets are
 # the committed M1 targets (design archive).

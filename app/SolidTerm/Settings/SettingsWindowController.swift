@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // The Settings window.
 //
 // `SettingsWindowController : NSWindowController` wraps `SettingsView`

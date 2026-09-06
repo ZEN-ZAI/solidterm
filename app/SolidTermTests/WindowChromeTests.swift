@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Phase 1 Week 4 task 4.8: window-chrome plumbing.
 //
 // Coverage:

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // macOS window restoration: reopen the previous set of terminal windows
 // + native tabs on relaunch (and after crash / logout), each shell
 // respawned in its saved working directory. LAYOUT + CWD ONLY — not live

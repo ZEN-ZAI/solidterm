@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // M1 task 3.10 — drives 1000 synthetic NSEvent keystrokes through a
 // hosted `TerminalSurfaceView` and reads back the typing-to-pixel
 // render-path latency percentiles from the renderer's `LatencyMeter`.

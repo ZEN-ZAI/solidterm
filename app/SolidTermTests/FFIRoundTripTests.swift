@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Proves the swift-bridge boundary (ADR-0006) round-trips end-to-end.
 // Smoke test: exercise the swift-bridge → Rust → swift-bridge round-trip.
 // This is the Phase 0 Day 3-4 proof that the cargo build phase wired the

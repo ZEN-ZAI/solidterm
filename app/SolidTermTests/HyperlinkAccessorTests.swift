@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // M7-1 — OSC 8 hyperlink FFI accessor tests.
 //
 // Drives a /bin/cat-loopback session, feeds an `\e]8;;<URI>\e\\<text>\e]8;;\e\\`

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Stage 1 cell pass — confirms the pipeline
 // state constructs from `default.metallib`, that `setGrid` accepts a
 // correctly-sized cell array, and that the encode method runs against

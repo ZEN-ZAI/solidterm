@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // M7-2 — wire-format byte-level coverage for the
 // `TerminalSession.search` payload, matching the Rust-side
 // `SearchMatchWire` layout (8 bytes: i32 line, u16 col, u16 len).

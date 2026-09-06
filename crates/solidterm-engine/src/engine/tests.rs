@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 use super::{EngineError, KittyKeyboardFlags, SelectionMode, TerminalEngine};
 use crate::config::{EngineConfig, EngineConfigError};
 use crate::damage::DirtyRows;

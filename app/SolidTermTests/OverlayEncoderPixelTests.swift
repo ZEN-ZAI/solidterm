@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Pixel-level characterization of the eight overlay encoders on
 // `MetalRenderer`, added ahead of the renderer split (hygiene ticket 08,
 // spec D10) so the move of these methods into

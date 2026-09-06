@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // M6-5 KeybindingStore — load/save ~/.solidterm/keybindings.json,
 // resolve `KeybindingAction` cases against effective bindings.
 //

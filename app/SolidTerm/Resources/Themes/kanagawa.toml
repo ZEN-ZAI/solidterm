@@ -1,3 +1,4 @@
+# Palette: Kanagawa Wave — MIT, https://github.com/rebelot/kanagawa.nvim
 name = "kanagawa"
 background = "#1F1F28"
 foreground = "#DCD7BA"

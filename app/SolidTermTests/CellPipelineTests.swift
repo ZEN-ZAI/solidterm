@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // The MSL pipeline — confirms the
 // pipeline state constructs cleanly from the bundled `default.metallib`
 // and that the encode method runs without raising a Metal validation

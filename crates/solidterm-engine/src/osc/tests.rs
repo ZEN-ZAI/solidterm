@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 use super::OscPerform;
 use crate::events::EngineEvent;
 use alacritty_terminal::vte;

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Coverage for `BoxDrawing.swift`. Pins the procedural rasterizer's
 // observable contracts: range membership, pixel-exact line geometry,
 // block-element extents, and — load-bearing — the cross-cell

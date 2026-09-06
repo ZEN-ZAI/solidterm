@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 //! M1 task 1.2 — `EngineConfig`, validated configuration for
 //! `TerminalEngine` (rows / cols / env / command / cwd /
 //! `scrollback_lines`).

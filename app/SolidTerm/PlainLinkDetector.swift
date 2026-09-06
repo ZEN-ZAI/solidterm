@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // PlainLinkDetector — finds plain URLs and bare file paths in a terminal
 // row string so ⌘-hover / ⌘-click works on output that didn't emit an
 // OSC 8 hyperlink. OSC 8 still takes priority (the caller checks it

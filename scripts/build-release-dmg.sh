@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright © 2026 Zen Kiattikhunnawong
+
 # Build an unsigned SolidTerm.app and package it into a drag-to-Applications
 # DMG for beta distribution.
 #

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 //! M7-2 ⌘F find-in-scrollback. Walks the full alacritty grid (history +
 //! viewport) row-by-row, reconstructs each row's visible text, and
 //! returns plain-substring or regex matches as `(absolute_line, col,

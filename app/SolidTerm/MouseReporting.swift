@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // PG1 mouse reporting — xterm-compatible mouse-event encoder.
 //
 // When a TUI enables DEC 1000 / 1002 / 1003 mouse mode (typically via

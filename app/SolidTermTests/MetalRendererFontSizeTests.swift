@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Pins the per-window font-size controls on `MetalRenderer` — ⌘+ / ⌘- /
 // ⌘0 and the atlas rebuild behind them. Ticket 14 moves them out of
 // `MetalRenderer.swift` into an extension file, so the behaviour gets a

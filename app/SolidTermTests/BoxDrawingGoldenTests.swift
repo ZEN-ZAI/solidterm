@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // A golden-hash lock over `BoxDrawing.rasterize` for every scalar that
 // `BoxDrawing.handles` accepts (U+2500-U+259F today). `BoxDrawingTests`
 // pins a dozen shapes by inspecting individual pixels; that is the

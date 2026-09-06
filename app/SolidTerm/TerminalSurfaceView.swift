@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // The Metal-backed terminal surface — `CAMetalLayer` presentation for
 // the renderer plus the AppKit input responder chain.
 //

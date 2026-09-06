@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Tests for M1 task 4.5 — selection input + render path.
 //
 // Three layers of coverage live here:

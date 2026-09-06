@@ -1,3 +1,4 @@
+# Palette: Gruvbox Dark — MIT, https://github.com/morhetz/gruvbox
 name = "gruvbox"
 background = "#282828"
 foreground = "#ebdbb2"

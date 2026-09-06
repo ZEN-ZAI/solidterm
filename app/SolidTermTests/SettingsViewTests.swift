@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Settings shell — SwiftUI build smoke + tab descriptor invariants.
 
 import AppKit

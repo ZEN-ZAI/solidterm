@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Selection for `TerminalSurfaceView`, split out of the single-file
 // view along its existing MARKs: the keyboard arrow virtual keycodes
 // (4.5), then the mouse + keyboard selection handlers — keyDown

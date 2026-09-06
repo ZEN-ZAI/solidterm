@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // ProcessSnapshot — read another process's parent/child links and argv
 // straight from the kernel, using nothing but a pid.
 //

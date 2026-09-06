@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // M7-5 — End-to-end tests for native NSWindowTabGroup integration.
 //
 // Architecture: each tab is a separate

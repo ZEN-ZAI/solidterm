@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Menu bar and Services.
 // Programmatic menu bar — no MainMenu.xib.
 //

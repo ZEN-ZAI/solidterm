@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Shared offscreen render + readback harness for the Metal pixel tests.
 //
 // Renders into a private-storage `.rgba8Unorm` target, blits it to a

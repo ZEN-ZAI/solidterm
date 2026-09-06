@@ -1,4 +1,7 @@
 #!/usr/bin/env swift
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Generate the SolidTerm app icon as a 1024×1024 PNG.
 // Design: solid/minimal isometric cube on a dark rounded-square background.
 // Output: $REPO/app/SolidTerm/Resources/AppIcon.png — fed into sips for

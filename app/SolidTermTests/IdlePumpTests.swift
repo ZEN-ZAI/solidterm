@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Guards what the idle pump *does*. `DisplayLinkIdlePumpTests` covers
 // only the `displayLinkStalled` predicate; the action behind it —
 // `pumpIfDisplayLinkStalled()` — is what actually drains the bounded

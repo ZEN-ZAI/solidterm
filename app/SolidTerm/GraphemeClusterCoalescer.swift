@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Cross-cell shaping — Swift-side post-FFI grapheme
 // cluster shaper. Detects adjacent CellDeltaSwift records that belong
 // to one Unicode extended grapheme cluster (Thai SARA AM, regional

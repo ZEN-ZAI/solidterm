@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // SwiftUI body for the Settings window.
 //
 // Descriptor-driven `TabView` per team-lead-2 M5-2 follow-up: M5-4

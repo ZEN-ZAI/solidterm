@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 //! Fuzz-shaped integration tests for `TerminalEngine.feed_input` +
 //! `solidterm-claude::LineParser`. Salvages the zenzai-v2 fuzz-harness
 //! pattern (`49627a0` — cargo-fuzz on IPC decoder + OSC 133 parser)

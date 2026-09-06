@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Verifies M1 Week 4 task 4.1: 24-bit + 256-indexed + named SGR color
 // rendering. Drives `MetalRenderer.makeSlot` (the static, test-friendly
 // variant) end-to-end and confirms:

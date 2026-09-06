@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // E2E (in-process integration) tests for the ⌘F find-in-scrollback
 // search panel.
 //

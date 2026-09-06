@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Overlay encoding for `MetalRenderer`, split out of the single-file
 // renderer by method cluster: the eight `encode*Overlay` passes
 // (selection, cursor, IME underline, link underline, text underline,

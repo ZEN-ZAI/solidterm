@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright © 2026 Zen Kiattikhunnawong
+
 # Build solidterm-ffi as a static library and sync the swift-bridge-generated
 # shims (Swift + C header) into $SRCROOT/SolidTerm/Generated so Xcode's
 # Compile Sources phase can see them.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Font + theme colour plumbing for `MetalRenderer`, split out of the
 // single-file renderer by method cluster: the effective-font resolution,
 // the theme observers' `refreshClearColor`, the font-size steps

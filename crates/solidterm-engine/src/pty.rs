@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 //! M1 task 1.3 — PTY spawn + reader thread.
 //!
 //! `alacritty_terminal::tty::new` opens a pseudoterminal pair, fork/execs

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // IME on the Swift half. Phase 1
 // task 3.11 / #19 — `NSTextInputClient` skeleton on `TerminalSurfaceView`:
 // protocol conformance + `insertText` routing + sentinel returns from

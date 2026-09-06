@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 //! OSC routing — recognises shell-integration escape sequences and emits
 //! semantic events for the rest of the system.
 //!

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // The Block Elements block (U+2580-U+259F: half and fractional blocks,
 // the three shades, the quadrants) plus the curved and diagonal box-
 // drawing arms (U+256D-U+2573), split out of the one big

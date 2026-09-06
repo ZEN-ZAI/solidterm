@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Guards the stall detector behind `MetalRenderer`'s idle pump.
 // `poll_output` — the only drain of the bounded PTY reader channel —
 // runs from `draw(update:)`, which macOS stops calling whenever the

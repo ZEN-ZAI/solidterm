@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // M1 task 3.10 — typing-to-pixel latency measurement infrastructure.
 // The renderer feeds per-keystroke samples (one per visible state
 // change) into `LatencyMeter`, which keeps a fixed-capacity ring of

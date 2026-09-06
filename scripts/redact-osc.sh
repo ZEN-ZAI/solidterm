@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright © 2026 Zen Kiattikhunnawong
+
 # Redact secrets from an OSC capture before committing.
 # Phase 0 stub — full implementation lands when we have actual captures.
 set -euo pipefail

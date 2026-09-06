@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Tests for the durable session journal: command hygiene, prune/cap
 // rules, restore reconciliation, and the KERN_PROCARGS2 parser.
 //

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright © 2026 Zen Kiattikhunnawong
+
 # SolidTerm shell integration — fish
 #
 # Emits OSC 133 prompt / preexec / precmd sequences so SolidTerm can

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Minimal pane container — solidterm has no team-mode split panes.
 // Kept as a thin shim so the rest of the app (`TerminalWindowController`,
 // tests) doesn't need to special-case "is there a splitter?" everywhere.

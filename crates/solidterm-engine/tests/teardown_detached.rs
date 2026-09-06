@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 //! Regression tests for the 2026-08-22 whole-app hang: closing a
 //! window dropped the engine on the main thread, and alacritty's
 //! `Pty::Drop` blocked in `wait4` while the child was itself blocked

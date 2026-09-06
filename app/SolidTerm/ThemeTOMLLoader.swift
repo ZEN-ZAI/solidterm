@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Theme TOML loader + hot-reload watcher. Salvaged pattern from
 // zenzai-v2's Dango theme system per the 2026-04-22 postmortem:
 // "19 tokens, 3 built-in themes (matcha, tokyo-night, gruvbox),

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Stage 2 overlay pass — owns the
 // `MTLRenderPipelineState` for the unified overlay shaders (one MSL
 // fragment, `kind` discriminator) used to draw the cursor (4.7),

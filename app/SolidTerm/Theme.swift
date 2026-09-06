@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // The design token primitives, in Swift (ADR-0004).
 //
 // Every value here carries a token name. Implementation details

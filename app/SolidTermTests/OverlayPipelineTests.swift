@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // The Stage 2 overlay pass — confirms
 // the unified overlay pipeline constructs against the bundled
 // `default.metallib`, that the cursor color matches the

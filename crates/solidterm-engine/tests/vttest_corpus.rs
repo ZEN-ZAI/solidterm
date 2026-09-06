@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 //! Integration tests for M1 tasks 2.13 (initial corpus) and 4.10
 //! (full-corpus expansion). Pins `solidterm-engine` behaviour against
 //! the vttest categories that are in M1 scope:

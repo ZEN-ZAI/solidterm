@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // ⌘⇧O fuzzy terminal switcher — NSPanel controller.
 //
 // Sibling to SearchPanelController (⌘F): a floating, app-global overlay

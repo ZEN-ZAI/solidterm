@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Pins the OSC 8 scheme-allowlist WIRING (commit 06a38b6) end-to-end:
 // a remote-printed file:// hyperlink must produce no ⌘-hover, while
 // https:// must.

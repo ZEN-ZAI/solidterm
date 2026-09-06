@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Each pane in a `PaneSplitter` is a `PaneViewController`.
 // M4-2 scope ships the minimal shell — pane id +
 // view + metadata stub — needed for `PaneSplitter` to position and own

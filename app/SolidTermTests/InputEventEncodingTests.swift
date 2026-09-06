@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // The FFI input-path round-trip (ADR-0006) on the Swift
 // half. Exercises `InputEventEncoder.makeKeyInputEvent(...)` — the
 // AppKit-free overload that the `NSEvent`-taking entry point delegates

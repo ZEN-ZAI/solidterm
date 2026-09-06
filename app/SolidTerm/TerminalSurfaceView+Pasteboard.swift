@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Copy / paste for `TerminalSurfaceView` (4.6), split out of the
 // single-file view along its existing MARK: the ⌘C / ⌘V / paste-plain
 // selectors and the chunked bracketed-paste feed.

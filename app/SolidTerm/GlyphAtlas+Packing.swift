@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Shelf packing, LRU eviction and blit upload for `GlyphAtlas`, split
 // out of the single-file atlas along its existing MARK: the gray-atlas
 // allocator (`place`, `allocateOrigin`, the free list, the shelf

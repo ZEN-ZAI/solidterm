@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Frame pacing and the Stage 1 full-screen cell pass.
 // Per-frame work: clear the drawable to the
 // theme color, encode the entire grid through `GridPipeline` in a

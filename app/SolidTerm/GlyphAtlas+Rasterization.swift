@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Glyph resolution and rasterization for `GlyphAtlas`, split out of the
 // single-file atlas along its existing MARKs: the scalar → (glyphId,
 // font) fallback cascade, the CoreText rasterization into a deviceGray

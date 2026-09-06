@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // swift-bridge FFI surface. Pure data across the boundary — Stack A.
 // See ADR-0006.
 

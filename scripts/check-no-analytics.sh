@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright © 2026 Zen Kiattikhunnawong
+
 # Enforce zero-telemetry policy — block any import of analytics SDKs in tracked files.
 # Policy: docs/adr/0001-no-telemetry.md.
 set -euo pipefail

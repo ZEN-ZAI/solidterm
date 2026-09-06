@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // Verifies the block-cursor reverse-video fix (cursor visibility bug:
 // "สี cursor ทับตัวอักษรทำให้มองไม่เห็น" — the opaque block cursor used to
 // paint over the glyph and hide the character under it).

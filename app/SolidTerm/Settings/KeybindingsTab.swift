@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright © 2026 Zen Kiattikhunnawong
+
 // M6-5 Keybindings settings tab — UI for the 8 M6 actions.
 //
 // Settings → Keyboard is one of the three discoverability surfaces
