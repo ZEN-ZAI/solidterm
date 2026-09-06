@@ -1,6 +1,6 @@
 # 17 — Manual smoke, push, CI, ff-merge
 
-Status: ready-for-human
+Status: done — 2026-09-07
 Blocked by: 13, 14, 15, 16, 18, 19, 20
 Spec: ../spec.md (D11, D12)
 
@@ -28,3 +28,34 @@ Build: `cd app && xcodebuild build -scheme SolidTerm -configuration Release -des
 `git checkout main && git merge --ff-only chore/hygiene-2026-09 && git push origin main v0.4.12` (with approval). Then the maintainer may cut `0.4.13` with `scripts/build-release-dmg.sh 0.4.13`.
 
 ## Comments
+
+### 2026-09-07 — checkpoints pushed, smoke run, branch merged
+
+`main` and `chore/hygiene-2026-09` were pushed on 2026-09-07; the branch fast-forwarded
+into `main` at `6ede22f` and the `v0.4.12` tag was pushed with it. CI does not run on
+branch pushes (the workflow triggers on `main` and pull requests only), and the
+maintainer chose not to open a PR, so the first full CI run over this work is the one
+`main` gets after the merge.
+
+Smoke was driven against a Release build, copied aside and re-signed under the bundle id
+`com.zenzai.SolidTerm.smoke` with `SOLIDTERM_JOURNAL_PATH` pointed at a temp file, so the
+maintainer's own instance, window state and defaults were never touched.
+
+Verified with file-level oracles rather than by eye:
+
+- keystrokes reach the shell; `Ctrl-C` still interrupts after a `⌘C` (the wedge repro)
+- a 200-line paste arrives byte-for-byte identical
+- bracketed paste is exact: `PAYLOAD\n` with DECSET 2004 off, `ESC[200~PAYLOAD\nESC[201~` with it on
+- `⌘W` during a 50 MB flood closes the window, leaves the app alive and `⌘N` still works
+- the About panel reads "Built on alacritty_terminal + swift-bridge" plus the
+  Acknowledgements link, and the copyright line carries no lineage sentence
+- display sleep: a 2 s tick loop wrote 82 ticks across 163 s with a 3 s maximum gap, so
+  the pane never stalled while the screen was dark
+
+Three items were not reachable from a script and stay on the maintainer's eyes: dragging
+files out of Finder (covered by `DragDropTests`), the find bar's match counter (the panel
+is SwiftUI and exposes no accessibility labels), and confirming `ทำ` and `🇹🇭` each render
+as one cluster (screen capture is denied to the automation process). Real Thai IME
+composition also stays manual: the Thai source is a keyboard layout, not an input method,
+so there is no preedit to interrupt, and no CJK input method is installed on this machine.
+
