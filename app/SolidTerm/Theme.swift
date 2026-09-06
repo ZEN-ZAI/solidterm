@@ -382,8 +382,8 @@ enum Theme {
             }
         }
 
-        /// Mode-aware `cursor-default`. Aliases `accent-running` in
-        /// both modes (ADR-0004).
+        /// Mode-aware `cursor-default` (ADR-0004). Aliases
+        /// `accent-running` in both modes.
         static func cursorDefaultLinear(for mode: Theme.Mode.Resolved) -> SIMD4<Float> {
             accentRunningLinear(for: mode)
         }
@@ -537,7 +537,7 @@ enum Theme {
         /// single component.
         static let half: CGFloat = 4
         /// `space-1` — 8pt. Default gutter; block internal padding
-        /// (a locked value).
+        /// (a locked value, ADR-0004).
         static let one: CGFloat = 8
         /// `space-2` — 16pt. Section gap, list-item vertical padding.
         static let two: CGFloat = 16
@@ -561,7 +561,7 @@ enum Theme {
         /// `radius-base` — 4pt. Buttons, inputs, palette items.
         static let base: CGFloat = 4
         /// `radius-md` — 6pt. Block containers, modal corners
-        /// (a locked value).
+        /// (a locked value, ADR-0004).
         static let md: CGFloat = 6
         /// `radius-lg` — 12pt. Large modals, sheet-style overlays.
         static let lg: CGFloat = 12
@@ -576,7 +576,7 @@ enum Theme {
         /// `motion-fast` — 100ms. Hover state, focus ring.
         static let fast: TimeInterval = 0.100
         /// `motion-base` — 150ms. Existing baseline (palette, modal,
-        /// block collapse). A locked value.
+        /// block collapse). A locked value (ADR-0004).
         static let base: TimeInterval = 0.150
         /// `motion-slow` — 300ms. Multi-step orchestration, settings
         /// panel slide.

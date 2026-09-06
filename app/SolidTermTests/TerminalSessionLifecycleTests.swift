@@ -1,4 +1,4 @@
-// Session lifecycle (ADR-0006) on the Swift
+// Session lifetime across the swift-bridge boundary, on the Swift
 // consumer side. Exercises `TerminalSession.new(config)` factory, the
 // generated read-back accessors, and the swift-bridge-generated
 // destructor that fires on Swift `deinit`.

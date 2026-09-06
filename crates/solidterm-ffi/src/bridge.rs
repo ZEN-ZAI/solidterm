@@ -1,7 +1,7 @@
 //! swift-bridge FFI surface — Stack A, data only.
 //!
 //! No Metal / `CAMetalLayer` / Obj-C types cross this boundary — the
-//! Stack A commitment (ADR-0006).
+//! Stack A commitment.
 //!
 //! Minimal "solidterm" surface — basic terminal only (PTY + VT + grid +
 //! scrollback + selection + search + OSC routing). Claude / blocks /

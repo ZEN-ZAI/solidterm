@@ -26,5 +26,5 @@
     "  CSI ?1049l            — alt-screen off"
   ],
   "size_bytes": 3183,
-  "notes": "Critical fixture — exercises alt-screen entry/exit which our blocks state machine handles via RAW_ALT transition (see decisions/06-blocks-state-machine.md). Engine should: (1) not crash on the DECRQM queries, (2) suppress block UI during alt-screen, (3) restore block mode on exit."
+  "notes": "Critical fixture — exercises alt-screen entry/exit which our blocks state machine handles via RAW_ALT transition. Engine should: (1) not crash on the DECRQM queries, (2) suppress block UI during alt-screen, (3) restore block mode on exit."
 }

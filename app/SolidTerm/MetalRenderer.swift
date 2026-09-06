@@ -1504,13 +1504,13 @@ final class MetalRenderer {
 
     // MARK: - Keystroke → state mutation
     //
-    // Per spec/m1-task-breakdown §3.10, the typing-to-pixel measurement
-    // requires a visible state change per keystroke (rule 8). The
-    // smallest viable change: cycle cell (0, 0)'s glyph through the
-    // atlas's pre-rasterized A-Z + 0-9 set. The keystroke timestamp
-    // (`NSEvent.timestamp`, mach-time-derived) is queued for the next
-    // frame's completion handler, where `drawable.presentedTime` (also
-    // mach-time-derived) closes the latency loop.
+    // The typing-to-pixel measurement (M1 task 3.10) requires a visible
+    // state change per keystroke. The smallest viable change: cycle
+    // cell (0, 0)'s glyph through the atlas's pre-rasterized A-Z + 0-9
+    // set. The keystroke timestamp (`NSEvent.timestamp`,
+    // mach-time-derived) is queued for the next frame's completion
+    // handler, where `drawable.presentedTime` (also mach-time-derived)
+    // closes the latency loop.
 
     /// Called from `TerminalSurfaceView.keyDown`. The renderer doesn't
     /// care which key was pressed — every keystroke mutates the same

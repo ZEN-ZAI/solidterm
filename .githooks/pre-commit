@@ -35,9 +35,9 @@ if echo "$staged" | grep -q '\.rs$'; then
   fi
 fi
 
-# 3. Analytics-SDK block (enforces decisions/03-telemetry.md)
+# 3. Analytics-SDK block (enforces ADR-0001: no telemetry)
 if ! bash scripts/check-no-analytics.sh >/dev/null 2>&1; then
-  echo "::error:: analytics SDK reference — see decisions/03-telemetry.md"
+  echo "::error:: analytics SDK reference — see docs/adr/0001-no-telemetry.md"
   bash scripts/check-no-analytics.sh
   fail=1
 fi

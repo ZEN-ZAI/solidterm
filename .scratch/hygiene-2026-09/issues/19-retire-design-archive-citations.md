@@ -1,6 +1,6 @@
 # 19 — Retire `spec/…`, `decisions/…`, `research/…` citations in code comments
 
-Status: ready-for-agent
+Status: done — 2026-09-06
 Blocked by: 13, 14, 15, 16, 18
 Spec: ../spec.md (D14)
 
@@ -45,3 +45,54 @@ cargo test --workspace && (cd app && xcodebuild test -scheme SolidTerm -destinat
 Comment-only. One commit per area (Swift app / Swift tests / Rust / docs + scripts).
 
 ## Comments
+
+### 2026-09-06
+
+Landed in five commits, one per area, docs first so the ADRs exist in
+history before code points at them:
+
+- `e207efd docs: give three durable rules an ADR home`
+- `fc7cfd2 docs(app): replace archive citations with what they carried`
+- `88d28b4 test(app): replace archive citations in the Swift tests`
+- `0455229 refactor(engine): replace archive citations in the Rust crates`
+- the commit carrying this note — the stragglers plus the review fixes
+
+Three rules cited from code had no home outside the retired archive, so
+they got one before the citations went: ADR-0004 (design tokens in
+Swift), ADR-0005 (keybinding grammar), ADR-0006 (the FFI wire ABI).
+Everything else was carried in place — the section title, the value, the
+constraint the citation stood for.
+
+Judgement calls:
+
+- The `## Verify` grep is too narrow twice over. `spec/[a-z-]+\.md` cannot
+  match the digit in `spec/m1-task-breakdown.md`, and the path list omits
+  `.githooks/`, `tests/fixtures/` and extensionless forms (`spec/m7`,
+  `spec §Throughput`). Eleven files were only found by widening it. The
+  ticket's grep is left as written and now returns nothing; the wider
+  sweep `git grep -InE 'spec/|decisions/|research/'` also returns nothing
+  outside `.scratch/` and `Cargo.lock`.
+- Five citations carried a rationale not recoverable from the code or the
+  tests. Those end in `(design archive)` per the rule rather than getting
+  an invented reason, and `CLAUDE.md` now says what that marker means.
+- Four "the spec" mentions in `osc.rs` and `vttest_corpus.rs` mean ECMA-48
+  / the DEC VT documents, not the archive. Left alone.
+- Two citations quoted a hex that had drifted from the constant beside it
+  (`selection-bg`, `cursor-default`). The replacement names the token and
+  lets the code hold the value rather than repeating a stale number.
+- Non-comment text changed in five places, all of them a citation inside a
+  string a person reads: the `ScrollbackTooLarge` error in `config.rs`, a
+  pre-commit hook error line, two XCTest failure messages, and six budget
+  lines in `perf-smoke.sh`. No test asserts on any of them.
+- `bridge.rs:8` still carries wording the identity tickets own. Untouched
+  here.
+- Several `ThemeTokenTests` doc-comments quote palette hexes that have
+  drifted, on lines that carry no citation. Out of scope; not touched.
+
+Gates before every commit: `cargo test --workspace -j 8` → 273 passed;
+`xcodebuild test -scheme SolidTerm -destination 'platform=macOS'` →
+Executed 482 tests, 3 skipped, 0 failures. `cargo fmt --check`, `cargo
+clippy -D warnings`, `check-ffi-drift.sh` and `check-no-analytics.sh` all
+clean. `selection_text_rejoins_reflowed_lines` flaked once under load
+during the Rust crates commit and passed alone and on rerun; no test was
+changed to get green.

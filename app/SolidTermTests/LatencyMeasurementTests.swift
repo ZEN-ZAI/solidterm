@@ -1,7 +1,6 @@
-// Implements spec/m1-task-breakdown.md §3.10 — drives 1000 synthetic
-// NSEvent keystrokes through a hosted `TerminalSurfaceView` and reads
-// back the typing-to-pixel render-path latency percentiles from the
-// renderer's `LatencyMeter`.
+// M1 task 3.10 — drives 1000 synthetic NSEvent keystrokes through a
+// hosted `TerminalSurfaceView` and reads back the typing-to-pixel
+// render-path latency percentiles from the renderer's `LatencyMeter`.
 //
 // **Methodology scope (rule 9 applies):** the harness measures
 // **render-path latency** — the path from `view.keyDown(_:)` entry to

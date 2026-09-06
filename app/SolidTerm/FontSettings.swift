@@ -103,8 +103,8 @@ public final class FontSettings: ObservableObject {
     public func increaseSize() { setSize(size + 1) }
     /// ⌘- — drop size by 1pt, clamped.
     public func decreaseSize() { setSize(size - 1) }
-    /// ⌘0 — restore the built-in default size (not the last saved
-    /// value, per spec/m7 brief).
+    /// ⌘0 — restore the built-in default size, not the last saved
+    /// value (design archive).
     public func resetSize() { setSize(Self.defaultSize) }
 
     public func setLigatures(_ on: Bool) {

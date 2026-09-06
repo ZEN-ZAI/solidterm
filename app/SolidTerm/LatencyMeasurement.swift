@@ -1,8 +1,8 @@
-// Implements spec/m1-task-breakdown.md §3.10 — typing-to-pixel latency
-// measurement infrastructure. The renderer feeds per-keystroke samples
-// (one per visible state change) into `LatencyMeter`, which keeps a
-// fixed-capacity ring of milliseconds and reports p50 / p99 / min / max
-// once a target sample count lands.
+// M1 task 3.10 — typing-to-pixel latency measurement infrastructure.
+// The renderer feeds per-keystroke samples (one per visible state
+// change) into `LatencyMeter`, which keeps a fixed-capacity ring of
+// milliseconds and reports p50 / p99 / min / max once a target sample
+// count lands.
 //
 // Used by `LatencyMeasurementTests` to drive 1000 synthetic NSEvent
 // keystrokes through the renderer and read back the percentiles. The

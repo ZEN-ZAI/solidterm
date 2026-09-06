@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Performance smoke test — runs the in-scope, non-interactive measurements
-# against the budgets below and emits a markdown summary.
+# against the budgets below and emits a markdown summary. The budgets are
+# the committed M1 targets (design archive).
 #
-# Scope (M1 task 4.11 — see spec/m1-task-breakdown.md §4.11):
+# Scope (M1 task 4.11):
 #   1. Engine throughput  — `cargo bench` on `hot_feed_1mb`
 #   2. Typing-to-pixel    — XCTest `LatencyMeasurementTests.testTypingToPixelP99UnderTenMs`
 #   3. Release bundle size — `xcodebuild -configuration Release` + `du`
@@ -68,7 +69,7 @@ log ""
 # ── 1. Engine throughput — Criterion bench ───────────────────────────────────
 
 section "1. Engine throughput (cargo bench hot_feed_1mb)"
-log "Budget: ≥ 500 MB/s sustained (spec §Throughput)"
+log "Budget: ≥ 500 MB/s sustained"
 log ""
 log '```'
 # Capture full bench output via tee. Don't gate the section on bench
@@ -89,7 +90,7 @@ fi
 # ── 2. Typing-to-pixel — XCTest harness ──────────────────────────────────────
 
 section "2. Typing-to-pixel latency (XCTest LatencyMeasurementTests)"
-log "Budget: < 8 ms p99, < 4 ms p50 (spec §Latency)"
+log "Budget: < 8 ms p99, < 4 ms p50"
 log "Harness gate: 10.5 ms p99 (bimodal-floor accommodation;"
 log "see app/SolidTermTests/LatencyMeasurementTests.swift §gate"
 log "and ~/.claude/.../MEMORY.md reference_latency_harness_internals)."
@@ -112,7 +113,7 @@ fi
 # ── 3. Release bundle size ───────────────────────────────────────────────────
 
 section "3. Release bundle size"
-log "Budget: < 15 MB compressed DMG (spec §Binary size). DMG packaging is"
+log "Budget: < 15 MB compressed DMG. DMG packaging is"
 log "M5 (signing); we report the unsigned .app bundle as a proxy upper bound."
 log ""
 
@@ -151,7 +152,7 @@ fi
 # ── 4. Glyph atlas memory — static derivation ────────────────────────────────
 
 section "4. Glyph atlas memory (static)"
-log "Budget: ≤ 64 MB (spec §Memory)"
+log "Budget: ≤ 64 MB"
 log ""
 # Match the (W, H) tuple inside SIMD2(...) — strip the literal `SIMD2<UInt32>`
 # header that has its own `2` we don't want.
@@ -176,7 +177,7 @@ fi
 # ── 5. Scrollback memory — static derivation ─────────────────────────────────
 
 section "5. Scrollback memory (default config, static)"
-log "Budget: ≤ 100 MB per pane @ 100k lines (spec §Memory)"
+log "Budget: ≤ 100 MB per pane @ 100k lines"
 log ""
 # Pull the rhs literal from `pub const DEFAULT_SCROLLBACK_LINES: u32 = 100_000;`.
 # Naive `grep -oE '[0-9_]+'` matches the trailing `_LINES` underscore first.
@@ -192,7 +193,7 @@ log "- Live RSS measurement deferred to dogfood (4.13)."
 # ── 6. GPU full re-render ────────────────────────────────────────────────────
 
 section "6. GPU full re-render (Phase 0 baseline)"
-log "Budget: < 4 ms (spec §GPU)"
+log "Budget: < 4 ms"
 log ""
 log "Render-path p99 = 1.60 ms measured at Phase 0 exit (commit e7e7c28)."
 log "This run's typing-to-pixel test (above) re-validates the same harness."

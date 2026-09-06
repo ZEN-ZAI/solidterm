@@ -15,5 +15,5 @@
   ],
   "commands_run": ["echo hello", "pwd", "false", "exit"],
   "size_bytes": 305,
-  "notes": "Pure bash baseline. No bash-preexec installed. Useful for confirming that engine handles bash without integration gracefully (RAW_DEGRADED state in our blocks state machine per decisions/06)."
+  "notes": "Pure bash baseline. No bash-preexec installed. Useful for confirming that engine handles bash without integration gracefully (RAW_DEGRADED state in our blocks state machine)."
 }

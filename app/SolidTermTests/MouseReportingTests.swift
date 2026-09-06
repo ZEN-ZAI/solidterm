@@ -2,7 +2,7 @@
 // (event → byte string); the tests pin the byte form against xterm /
 // SGR-1006 spec so a typo would be caught before regression in
 // vim/htop/lazygit. Live FFI integration is exercised by manual
-// dogfood — see decisions/ for the gating.
+// dogfood rather than an automated gate (design archive).
 
 import AppKit
 import XCTest

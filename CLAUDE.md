@@ -11,7 +11,8 @@ A native macOS terminal emulator. Minimal, fast, solid. Terminal only.
 - **Min macOS**: 14 (Sonoma)
 
 Design decisions live in `docs/adr/`. Code and tests are authoritative for
-everything an ADR does not cover.
+everything an ADR does not cover. A few comments end in `(design archive)`:
+the rationale lived in a retired pre-1.0 design archive and did not survive it.
 
 ## Repo layout
 

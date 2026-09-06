@@ -1,8 +1,8 @@
-UAX #11 ambiguous-width characters — default to narrow per spec.
+UAX #11 ambiguous-width characters — we default to narrow.
 ★ ☆ ◆ ◇ ○ ● ◎ ◯ § ¶ † ‡ ‼ ‽
 ‥ … – — ' ' " " ′ ″ ‴
 Greek: αβγδ ΑΒΓΔ
 Cyrillic: абвг АБВГ
 Math: ∀∃∇∈∉∋∏∑−×÷≠≤≥≅≈
 Currency: ¢£¥€¤₿฿
-Some terminals render these double-width in CJK locales — we default narrow per [[../decisions/08-protocol-priorities]].
+Some terminals render these double-width in CJK locales — narrow is our committed default.
