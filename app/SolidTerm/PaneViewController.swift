@@ -36,7 +36,7 @@ public final class PaneViewController: NSViewController {
         }
     }
 
-    /// Engine-side pane id (matches `solidterm_engine::PaneId`).
+    /// Pane id, unique within the window that owns this pane.
     public let paneId: UInt64
     public var metadata: PaneMetadata
 

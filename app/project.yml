@@ -136,8 +136,8 @@ targets:
           - $(SRCROOT)/SolidTerm/Generated/solidterm_ffi.swift
           - $(SRCROOT)/SolidTerm/Generated/solidterm_ffi.h
         # Always run. inputFiles listed only the solidterm-ffi crate, so a
-        # change in solidterm-engine / solidterm-config did NOT invalidate
-        # the script and Xcode bound against a STALE libsolidterm_ffi.a
+        # change in solidterm-engine did NOT invalidate the script and Xcode
+        # bound against a STALE libsolidterm_ffi.a
         # (engine-only edits — DA1/XTVERSION, OSC routing — silently never
         # shipped). Enumerating every workspace source is fragile; instead
         # always invoke build-rust.sh and let cargo's own incremental

@@ -23,7 +23,7 @@ xcodebuild test  -scheme SolidTerm -destination 'platform=macOS'
 - Product name: `SolidTerm`
 - Bundle id: `com.zenzai.SolidTerm`
 - Source dir: `app/SolidTerm/`
-- Internal crates: `solidterm-engine` / `solidterm-config` / `solidterm-ffi`
+- Internal crates: `solidterm-engine` / `solidterm-ffi`
 
 ## Conventions
 

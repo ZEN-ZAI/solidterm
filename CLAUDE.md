@@ -14,10 +14,9 @@ A native macOS terminal emulator. Minimal, fast, solid. Forked from NextTerm wit
 
 ```
 solidterm/
-├── Cargo.toml             ← workspace root (3 crates)
+├── Cargo.toml             ← workspace root (2 crates)
 ├── crates/
 │   ├── solidterm-engine/   ← alacritty_terminal wrapper + OSC routing
-│   ├── solidterm-config/   ← config + settings.json
 │   └── solidterm-ffi/      ← swift-bridge surface (only crate Swift links)
 ├── app/
 │   ├── SolidTerm/         ← Swift sources
@@ -39,7 +38,7 @@ Core terminal features only:
 - Drag-and-drop: file paths as shell-quoted arguments
 - Selection + clipboard (OSC 52)
 - Themes (TOML), font config, theme hot-reload
-- Window/tab/pane chrome (basic split-pane via alacritty's tree)
+- Window/tab chrome (single pane per window; no split panes)
 - Search (regex scrollback)
 - Shell integration: OSC 7 cwd, OSC 133 prompt markers (zsh/bash/fish)
 - Command palette
