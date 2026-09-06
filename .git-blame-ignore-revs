@@ -1,0 +1,7 @@
+# Revisions `git blame` should skip: tree-wide mechanical reformats that carry
+# no semantic change. Enable locally (CONTRIBUTING.md → Setup):
+#
+#     git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# chore(app): swift-format app and test sources in one mechanical pass
+f248c0aef660d1dbf795a26025965466c48b2325

@@ -1,6 +1,6 @@
 # 02 — swift-format the whole app in one commit + blame-ignore
 
-Status: ready-for-agent
+Status: done — 2026-09-06
 Blocked by: 01
 Spec: ../spec.md (D2)
 
@@ -25,3 +25,57 @@ xcodebuild test -scheme SolidTerm -destination 'platform=macOS'   # 446 tests, 0
 ## Notes
 
 Must land before any Swift split (13–16) so the split diffs are pure moves.
+
+## Comments
+
+### 2026-09-06 — landed
+
+Two commits:
+
+- `f248c0a chore(app): swift-format app and test sources in one mechanical pass`
+- `build(ci): lint every Swift source but the generated bridge shims` (this commit)
+
+`xcrun swift-format format -i` over the 82 `.swift` files under `app/SolidTerm`
+and `app/SolidTermTests`, minus `app/SolidTerm/Generated/`. 38 files changed —
+exactly the 38 the spec's "Facts gathered" bullet named. Tree now lints clean:
+the Verify command reports 0.
+
+Tallies: `cargo test --workspace` 288 passed, 0 failed. `xcodebuild test` Executed
+446 tests, 2 skipped, 2 failures — both assertions of the known-flaky
+`CopyPasteTests.testPasteConsultsBracketedPasteFlag`, which passes on its own
+(Executed 1 test, with 0 failures). `cargo fmt --check`, `check-ffi-drift.sh`,
+`check-license-headers.sh`, `check-no-analytics.sh` and
+`check-ai-authored-tests.sh` all exit 0.
+
+Judgement calls:
+
+- **Step 2 over-predicted the hand work.** The baseline was 280 warnings (281
+  output lines — one is a `note:` attached to the
+  `NoAccessLevelOnExtensionDeclaration` warning). This swift-format wrapped all
+  19 `LineLength` sites itself by breaking the enclosing call, and auto-fixed the
+  4 semicolons and the 2 multi-variable declarations. One hand fix was left:
+  `UseLetInEveryBoundCaseVariable` in `MetalRenderer.cursorEqual`, now
+  `case (let l?, let r?)`.
+- **Step 3's "amend" option cannot work.** Amending rewrites the hash that
+  `.git-blame-ignore-revs` has to name, and `git blame` dies on a hash that does
+  not resolve. The file lands in the second commit, as step 3's alternative says.
+  `git config blame.ignoreRevsFile .git-blame-ignore-revs` is set locally and
+  verified: `MetalRenderer.swift:678` blames to `ba58298`, its original author
+  commit, not to the reformat.
+- **Step 4's file list was one short: `.github/workflows/ci.yml` is a third
+  file.** The four `Generated/*.swift` files are tracked, and CI's
+  `lint --strict … --recursive app/SolidTerm` linted them too — 525 warnings, so
+  that step was already failing before this ticket, and formatting the tree would
+  not have fixed it. Ticket 01 put swift-format out of its scope, so 02 owns it.
+  swift-format has no exclude switch and the pinned Xcode's build does not honour
+  a `.swift-format-ignore` file (tried, no effect), so the step now enumerates
+  sources with `find … -not -path '*/Generated/*' | xargs -0`, mirroring the skip
+  `.githooks/pre-commit` already had. Formatting `Generated/` was never an option:
+  `build-rust.sh` overwrites those files on every build.
+- **Not done, deliberately:** the "skip `Generated/`" rule now lives in two hand-
+  maintained places (the pre-commit hook and the CI step). Folding both into one
+  `scripts/lint-swift.sh` is a real cleanup but grows this ticket's diff past a
+  mechanical reformat, so it stays for whoever wants it.
+- Ticket 01's ledger reads "every CI job passes"; that claim did not cover the
+  swift-format step it had declared out of scope. Recorded here rather than
+  edited into 01's file.

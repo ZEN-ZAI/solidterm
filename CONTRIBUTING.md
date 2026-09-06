@@ -21,7 +21,14 @@ cargo test --workspace
 
 # Install git hooks (AGENTS.md stop-the-line rules)
 ./scripts/install-hooks.sh
+
+# Skip the tree-wide swift-format commit in `git blame`
+git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
+
+`.git-blame-ignore-revs` lists mechanical, semantics-free reformats. Without that
+config line every Swift line blames to the reformat instead of to the commit that
+wrote it; add a revision to the file whenever another tree-wide pass lands.
 
 Note: the locally-resolved `xcrun swift-format` can be a different version from CI's and may flag pre-existing lines your change didn't touch — if the pre-commit lint blocks on untouched code, rely on the CI lint as the source of truth.
 
