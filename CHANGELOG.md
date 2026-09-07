@@ -4,7 +4,49 @@ All notable changes to SolidTerm are documented here. The format is based on [Ke
 
 ## [Unreleased]
 
+## [0.4.13] — 2026-09-07
+
+Five behaviour fixes carried over from the 0.4.12 line, and a repository-wide
+hygiene pass: CI is a gate again and green on every job for the first time
+since June, the project describes itself rather than its origin, and the
+licence is settled.
+
+### Added
+- `LICENSE`: SolidTerm is GPL-3.0-or-later. Every source file carries an SPDX
+  header, checked by `scripts/check-license-headers.sh` in CI, and
+  `THIRD_PARTY_NOTICES.md` is generated from the crates linked into the binary,
+  bundled in the app and reachable from About ▸ Acknowledgements.
+- `docs/adr/`: seven decision records written from what the repository
+  enforces — no telemetry, direct-DMG distribution, Swift-side cross-cell
+  shaping, design tokens, the keybinding grammar, FFI ABI versioning, and the
+  licence choice.
+- Tests for paths that had none: a shared Metal offscreen harness, pixel tests
+  for all eight overlay encoders, the idle-pump watchdog behind an injectable
+  clock, font-size steps, cursor block state, the Finder drop path, and a
+  golden-hash table over every box-drawing codepoint.
+
+### Changed
+- CI runs the tests again. A lint failure no longer skips them: `rust-test`,
+  `ffi-drift` and `swift-test` lost their `needs:` edge, under which they had
+  been skipped rather than run since 2026-06-17.
+- Large files split along their existing seams, as pure moves: MetalRenderer
+  3,230 → 1,594 lines, TerminalSurfaceView 2,540 → 623, GlyphAtlas 1,900 →
+  1,061, BoxDrawing 1,548 → 135, and `engine.rs` 4,885 → 1,945 with its six
+  inline test modules moved into their own files.
+- Dead weight removed: the unreferenced pane-tree module and the placeholder
+  config crate; the workspace is `solidterm-engine` and `solidterm-ffi`.
+- Documentation, agent definitions, the About panel and the copyright line
+  describe SolidTerm on its own terms; the legacy environment variable and
+  shell-integration guards are gone.
+- `scripts/build-release-dmg.sh` refuses a dirty tree, refuses an existing tag,
+  stamps the commit into `Info.plist`, and tags the release itself.
+
 ### Fixed
+- Six tests and one generator that described a single machine rather than the
+  behaviour they guard: an assumed 24-row grid, a login shell's prompt at
+  (0, 0), a wall-clock ceiling, a compiler that could not type-check a long
+  string concatenation, `cargo tree`'s repeat marker landing in a different
+  column per version, and a 150 ms sync window a loaded runner overshoots.
 - Closing a window while its shell was flooding output deadlocked the whole app. Root cause: dropping the session on the main thread ran alacritty's `Pty::Drop` inline — SIGHUP plus a blocking `child.wait()` — while the child was parked in `write(2)` on a full kernel PTY buffer, the reader thread was parked sending into the full flood-cap channel, and the only drainer of that channel (`poll_output`, on the main-thread tick) was the thread now sitting in `wait4`. Teardown now runs through `shutdown_detached`: SIGHUP immediately, then a detached thread that drains the reader channel for a 500 ms grace, escalates to SIGKILL, and only then drops — so Swift's last release returns in microseconds and a wedged session can stall only its own teardown thread.
 - Everything running in a pane could freeze for as long as the display stayed asleep (a 7.6 h stall of a long-running CLI overnight), then resume the instant the screen came back. Root cause: `poll_output` — the only drain of the bounded PTY reader channel — was reached solely from `draw(update:)`, and macOS stops the `CAMetalDisplayLink` when the display sleeps or the window is fully occluded. The channel filled, the reader thread parked in `send`, the PTY master buffer backed up, and the child blocked in `write()`. A watchdog now drains the engine whenever the link stops ticking, and repaints from a full-frame delta once it resumes.
 - A selection drifted off the text it was made on whenever the grid scrolled. Three causes: `update_selection` rebuilt the range from a cached absolute anchor point that output-driven grid rotation invalidated (alacritty rotates its own `Term::selection`, the shadow copy got no such treatment); drag auto-scroll took the moving column from the *bottom* endpoint, which on an upward drag is the anchor; and the painted mirror cached viewport-relative rows and re-synced only on input, so output-driven scrolling left the tint glued to stale screen rows. The anchor is now re-derived from the live selection, auto-scroll follows the pointer, and the mirror re-projects once per encoded frame.
@@ -96,6 +138,7 @@ First SolidTerm build: a native macOS terminal on alacritty_terminal + Metal.
 - 63 Swift sources, 320 XCTest tests pass
 - Bundle: `com.zenzai.SolidTerm`, product `SolidTerm`
 
-[Unreleased]: https://github.com/ZEN-ZAI/solidterm/compare/v0.4.12...HEAD
+[Unreleased]: https://github.com/ZEN-ZAI/solidterm/compare/v0.4.13...HEAD
+[0.4.13]: https://github.com/ZEN-ZAI/solidterm/compare/v0.4.12...v0.4.13
 [0.4.12]: https://github.com/ZEN-ZAI/solidterm/compare/v0.1.0...v0.4.12
 [0.1.0]: https://github.com/ZEN-ZAI/solidterm/releases/tag/v0.1.0
