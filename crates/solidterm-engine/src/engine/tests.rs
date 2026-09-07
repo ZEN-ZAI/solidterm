@@ -2042,89 +2042,113 @@ fn synchronized_output_inactive_after_decrst_2026() {
 /// check on the post-activation snapshot is unambiguous.
 #[test]
 fn synchronized_output_buffers_grid_until_esu() {
-    let mut engine = TerminalEngine::new(cat_config()).expect("/bin/cat spawn should succeed");
+    // The window this test measures — sync activating, then the grid staying
+    // unchanged while a sentinel is held — has to close inside vte's 150 ms
+    // sync fallback. A machine slow enough to overshoot it drains the buffer on
+    // its own, and the snapshot then says nothing about sync mode: that is a
+    // loaded runner, not a regression. Such an attempt is discarded and retried
+    // rather than asserted on, which is why this reads as a loop. The assertion
+    // itself is unchanged, and step 6 keeps it honest — a sentinel that never
+    // arrived would fail there.
+    const SYNC_BUDGET: Duration = Duration::from_millis(150);
+    let mut overshoots: Vec<Duration> = Vec::new();
 
-    // Step 1: open BSU, wait for sync-active. The cat-loopback
-    // echo of "^[[?2026h\n" lands on row 0 BEFORE the actual
-    // \x1b[?2026h sequence (re-emitted by cat) flips the parser
-    // into sync mode. That's fine for snapshot-equality below.
-    engine.feed_input(b"\x1b[?2026h\n").expect("feed_input BSU");
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while Instant::now() < deadline && !engine.synchronized_output_active() {
-        let _ = engine.poll_output().expect("poll_output is infallible");
-        if !engine.synchronized_output_active() {
-            std::thread::sleep(Duration::from_millis(10));
-        }
-    }
-    assert!(
-        engine.synchronized_output_active(),
-        "precondition: BSU must activate sync within 5 s"
-    );
-
-    // Snapshot the grid immediately, then feed the sentinel and
-    // drain quickly — we have a budget of 150 ms (vte's sync
-    // timeout, replicated in poll_output's force-flush below)
-    // before the buffer would auto-drain. 80 ms total wait gives
-    // cat enough time to echo the sentinel through the parser
-    // while staying well clear of the timeout.
-    let snapshot_during_bsu: Vec<Vec<u8>> = engine
-        .viewport_cells(0..3)
-        .iter()
-        .map(|c| c.grapheme[..c.width.max(1) as usize].to_vec())
-        .collect();
-
-    engine.feed_input(b"Y\n").expect("feed_input sentinel");
-    for _ in 0..8 {
-        let _ = engine.poll_output().expect("poll_output is infallible");
-        std::thread::sleep(Duration::from_millis(10));
-    }
-
-    // Step 4: re-snapshot. Must equal the BSU snapshot byte-for-
-    // byte — sync mode held the sentinel.
-    let snapshot_after_sentinel: Vec<Vec<u8>> = engine
-        .viewport_cells(0..3)
-        .iter()
-        .map(|c| c.grapheme[..c.width.max(1) as usize].to_vec())
-        .collect();
-    assert_eq!(
-        snapshot_after_sentinel, snapshot_during_bsu,
-        "grid must be byte-for-byte unchanged during BSU — sentinel 'Y' is buffered"
-    );
-    assert!(
-        engine.synchronized_output_active(),
-        "sync must still be active before ESU"
-    );
-
-    // Step 5: send ESU. cat re-emits it; vte's reverse-scan in
-    // advance_sync_csi detects the ESU CSI in the sync buffer and
-    // calls stop_sync_internal, which flushes all previously-held
-    // bytes through the parser into Term in one shot.
-    engine.feed_input(b"\x1b[?2026l\n").expect("feed_input ESU");
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while Instant::now() < deadline && engine.synchronized_output_active() {
-        let _ = engine.poll_output().expect("poll_output is infallible");
-        if engine.synchronized_output_active() {
-            std::thread::sleep(Duration::from_millis(10));
-        }
-    }
-    assert!(
-        !engine.synchronized_output_active(),
-        "ESU must clear sync within 5 s"
-    );
     for _ in 0..5 {
-        let _ = engine.poll_output().expect("poll_output is infallible");
-        std::thread::sleep(Duration::from_millis(10));
+        let mut engine = TerminalEngine::new(cat_config()).expect("/bin/cat spawn should succeed");
+
+        // Step 1: open BSU, wait for sync-active. The cat-loopback
+        // echo of "^[[?2026h\n" lands on row 0 BEFORE the actual
+        // \x1b[?2026h sequence (re-emitted by cat) flips the parser
+        // into sync mode. That's fine for snapshot-equality below.
+        engine.feed_input(b"\x1b[?2026h\n").expect("feed_input BSU");
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline && !engine.synchronized_output_active() {
+            let _ = engine.poll_output().expect("poll_output is infallible");
+            if !engine.synchronized_output_active() {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+        assert!(
+            engine.synchronized_output_active(),
+            "precondition: BSU must activate sync within 5 s"
+        );
+        let sync_at = Instant::now();
+
+        // Snapshot the grid immediately, then feed the sentinel and drain
+        // briefly — 30 ms is long enough for cat to echo the sentinel back
+        // through the parser and short enough to leave the 150 ms budget a
+        // wide margin.
+        let snapshot_during_bsu: Vec<Vec<u8>> = engine
+            .viewport_cells(0..3)
+            .iter()
+            .map(|c| c.grapheme[..c.width.max(1) as usize].to_vec())
+            .collect();
+
+        engine.feed_input(b"Y\n").expect("feed_input sentinel");
+        for _ in 0..6 {
+            let _ = engine.poll_output().expect("poll_output is infallible");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+
+        // Step 4: re-snapshot. Must equal the BSU snapshot byte-for-
+        // byte — sync mode held the sentinel.
+        let snapshot_after_sentinel: Vec<Vec<u8>> = engine
+            .viewport_cells(0..3)
+            .iter()
+            .map(|c| c.grapheme[..c.width.max(1) as usize].to_vec())
+            .collect();
+        let held_for = sync_at.elapsed();
+        if held_for >= SYNC_BUDGET {
+            // The fallback timeout had already fired; nothing to conclude.
+            overshoots.push(held_for);
+            continue;
+        }
+        assert_eq!(
+            snapshot_after_sentinel, snapshot_during_bsu,
+            "grid must be byte-for-byte unchanged during BSU — sentinel 'Y' is buffered"
+        );
+        assert!(
+            engine.synchronized_output_active(),
+            "sync must still be active before ESU"
+        );
+
+        // Step 5: send ESU. cat re-emits it; vte's reverse-scan in
+        // advance_sync_csi detects the ESU CSI in the sync buffer and
+        // calls stop_sync_internal, which flushes all previously-held
+        // bytes through the parser into Term in one shot.
+        engine.feed_input(b"\x1b[?2026l\n").expect("feed_input ESU");
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline && engine.synchronized_output_active() {
+            let _ = engine.poll_output().expect("poll_output is infallible");
+            if engine.synchronized_output_active() {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+        assert!(
+            !engine.synchronized_output_active(),
+            "ESU must clear sync within 5 s"
+        );
+        for _ in 0..5 {
+            let _ = engine.poll_output().expect("poll_output is infallible");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+
+        // Step 6: the sentinel 'Y' must now be visible somewhere on
+        // the grid (exact row depends on prior cursor advance from
+        // the BSU echo's CR LF; we accept any row in 0..5).
+        let cells = engine.viewport_cells(0..5);
+        let saw_sentinel = cells.iter().any(|c| c.grapheme[..1] == *b"Y");
+        assert!(
+            saw_sentinel,
+            "grid must contain 'Y' after ESU flushes the buffered bytes; got {} cells",
+            cells.len()
+        );
+        return;
     }
 
-    // Step 6: the sentinel 'Y' must now be visible somewhere on
-    // the grid (exact row depends on prior cursor advance from
-    // the BSU echo's CR LF; we accept any row in 0..5).
-    let cells = engine.viewport_cells(0..5);
-    let saw_sentinel = cells.iter().any(|c| c.grapheme[..1] == *b"Y");
-    assert!(
-        saw_sentinel,
-        "grid must contain 'Y' after ESU flushes the buffered bytes; got {} cells",
-        cells.len()
+    panic!(
+        "every attempt overshot vte's {SYNC_BUDGET:?} sync window ({overshoots:?}); \
+         the machine never held the sentinel long enough to observe sync mode"
     );
 }
 

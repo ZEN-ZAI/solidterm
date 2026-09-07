@@ -63,10 +63,15 @@ jobs:
     runs-on: ubuntu-latest  # platform-agnostic, cheaper
     steps:
       - uses: actions/checkout@v4
+      # cargo-deny covers advisories, licences, bans and sources in one pass.
+      # `rustsec/audit-check` used to run beside it and cannot: it builds
+      # cargo-audit from source against this repo's pinned toolchain, and
+      # cargo-audit's dependency kstring 2.0.4 requires a newer rustc than the
+      # 1.89.0 in rust-toolchain.toml, so the step failed on install, never on
+      # a finding.
       - uses: EmbarkStudios/cargo-deny-action@v2
-      - uses: rustsec/audit-check@v2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          command: check advisories bans licenses sources
 
   custom-lints:
     name: Custom lints
