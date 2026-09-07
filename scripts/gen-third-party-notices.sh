@@ -31,12 +31,18 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 # name|version|license, workspace path-deps dropped, deduped, C-collated.
+# `cargo tree` marks a repeat of an already-printed subtree with `(*)`, and where
+# that marker lands depends on the cargo version: beside the package on some, after
+# the license field on others (observed on the CI runners, not locally). Strip it
+# wherever it sits and keep one row per name+version, or the same crate is listed
+# twice and the file differs between machines.
 cargo tree -e normal -p solidterm-ffi --target aarch64-apple-darwin \
     --prefix none --format '{p}|{l}' \
-    | sed 's/ (\*)$//' \
+    | sed -E -e 's/[[:space:]]*\(\*\)[[:space:]]*$//' -e 's/[[:space:]]+$//' \
     | grep -v '(/' \
     | sed -E 's/^([^ ]+) v([^ |]+)( \(proc-macro\))?\|/\1|\2|/' \
-    | LC_ALL=C sort -u > "$work/crates"
+    | LC_ALL=C sort -u \
+    | awk -F'|' '!seen[$1"|"$2]++' > "$work/crates"
 
 [ -s "$work/crates" ] || { echo "gen-third-party-notices: cargo tree returned nothing" >&2; exit 1; }
 

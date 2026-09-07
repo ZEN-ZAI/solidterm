@@ -1007,42 +1007,50 @@ final class CopyPasteTests: XCTestCase {
         let surface = Self.makeSurface()
         let session = try XCTUnwrap(surface.rendererForTesting.session)
 
-        // Anchor a selection low enough on the 24-row grid that a few
-        // scrolled lines move it without pushing it off the top.
+        // Everything here is measured against the grid the host actually built.
+        // The surface is sized in points, so its row count follows the font the
+        // machine resolved: a literal row 20 and a literal 30 lines of output
+        // described a 24-row developer Mac and described nothing on a CI runner,
+        // where the grid never scrolled and the span therefore never rotated.
+        let rows = Int(session.rows())
+        let anchor = UInt16(max(1, min(20, rows - 4)))
+        // Scroll by a few lines only. The cursor starts on row 1, so it takes
+        // rows - 1 lines to reach the bottom and every line after that scrolls
+        // one: enough to move the anchor, few enough to keep it on the grid.
+        let scrollBy = 4
+        let payloadLines = rows - 1 + scrollBy
+
         surface.setPendingSelectionForTesting(
-            startRow: 20, startCol: 0, endRow: 20, endCol: 4)
-        session.start_selection(TerminalSurfaceView.SELECTION_MODE_SIMPLE, 20, 0)
-        session.update_selection(20, 4)
+            startRow: anchor, startCol: 0, endRow: anchor, endCol: 4)
+        session.start_selection(TerminalSurfaceView.SELECTION_MODE_SIMPLE, anchor, 0)
+        session.update_selection(anchor, 4)
         XCTAssertEqual(
-            surface.swiftSelectionSpan?[0], 20,
+            surface.swiftSelectionSpan?[0], UInt32(anchor),
             "precondition: mirror starts on the pressed row")
 
         // Fill the screen, then scroll it: the engine rotates its own
         // selection with the content, the mirror knows nothing about it.
         Self.feedAndWaitForFirstChar(session, payload: "hello\n", first: "h")
-        Self.driveOscPayload(session, payload: String(repeating: "x\n", count: 30))
-        // 30 lines have to travel out through the PTY, come back from the shell
-        // and scroll the grid before the engine rotates the span. Five seconds
-        // covers that on a quiet Mac and not on a loaded CI runner, where this
-        // unwrap was the only failure in the suite; the loop still exits the
-        // moment the rotation lands, so the longer deadline costs nothing when
-        // the machine is fast.
-        let deadline = Date().addingTimeInterval(30.0)
+        Self.driveOscPayload(
+            session, payload: String(repeating: "x\n", count: payloadLines))
+        let deadline = Date().addingTimeInterval(15.0)
         var engineStartRow: UInt32?
         while Date() < deadline {
             _ = session.take_frame_delta()
             let span = session.selection_span()
-            if span.count == 5, span[0] != 20 {
+            if span.count == 5, span[0] != UInt32(anchor) {
                 engineStartRow = span[0]
                 break
             }
             Thread.sleep(forTimeInterval: 0.01)
         }
         let rotatedRow = try XCTUnwrap(
-            engineStartRow, "engine selection never rotated with the content")
+            engineStartRow,
+            "engine selection never rotated with the content "
+                + "(grid \(rows) rows, fed \(payloadLines) lines)")
 
         XCTAssertEqual(
-            surface.swiftSelectionSpan?[0], 20,
+            surface.swiftSelectionSpan?[0], UInt32(anchor),
             "mirror is stale until something re-projects it — the bug")
         surface.reprojectSelectionMirror(from: session)
         XCTAssertEqual(
