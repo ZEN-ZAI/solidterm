@@ -1021,7 +1021,13 @@ final class CopyPasteTests: XCTestCase {
         // selection with the content, the mirror knows nothing about it.
         Self.feedAndWaitForFirstChar(session, payload: "hello\n", first: "h")
         Self.driveOscPayload(session, payload: String(repeating: "x\n", count: 30))
-        let deadline = Date().addingTimeInterval(5.0)
+        // 30 lines have to travel out through the PTY, come back from the shell
+        // and scroll the grid before the engine rotates the span. Five seconds
+        // covers that on a quiet Mac and not on a loaded CI runner, where this
+        // unwrap was the only failure in the suite; the loop still exits the
+        // moment the rotation lands, so the longer deadline costs nothing when
+        // the machine is fast.
+        let deadline = Date().addingTimeInterval(30.0)
         var engineStartRow: UInt32?
         while Date() < deadline {
             _ = session.take_frame_delta()

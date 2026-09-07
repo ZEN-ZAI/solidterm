@@ -64,7 +64,14 @@ cargo tree -e normal -p solidterm-ffi --target aarch64-apple-darwin \
 # Collect every license file each crate ships, keyed by content hash.
 : > "$work/index"
 : > "$work/notext"
-while IFS='|' read -r name version license; do
+# Scan by name+version, never by the whole crates row: `cargo tree` can print the
+# same package twice with a different `{l}` (a proc-macro edge renders its license
+# field differently on some hosts), and two rows meant two scans, so the crate was
+# named twice in "Same text shipped by" — a file that differed between machines and
+# failed the drift check that this script exists to satisfy.
+cut -d'|' -f1,2 "$work/crates" | LC_ALL=C sort -u > "$work/scan"
+while IFS='|' read -r name version; do
+    license=$(grep -m1 "^$name|$version|" "$work/crates" | cut -d'|' -f3-)
     dir=$(ls -d "$registry"/*/"$name-$version" 2>/dev/null | LC_ALL=C sort | head -1) || true
     if [ -z "$dir" ]; then
         echo "gen-third-party-notices: no extracted source for $name $version" >&2
@@ -84,7 +91,11 @@ while IFS='|' read -r name version license; do
     if [ "$found" -eq 0 ]; then
         printf '%s %s|%s\n' "$name" "$version" "$license" >> "$work/notext"
     fi
-done < "$work/crates"
+done < "$work/scan"
+
+# Belt and braces: identical rows can only come from a repeated scan. Dedupe in
+# place — sorting here would reorder the blocks by hash instead of by crate.
+awk '!seen[$0]++' "$work/index" > "$work/index.uniq" && mv "$work/index.uniq" "$work/index"
 
 {
     echo "## License texts"
