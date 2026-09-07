@@ -1007,18 +1007,30 @@ final class CopyPasteTests: XCTestCase {
         let surface = Self.makeSurface()
         let session = try XCTUnwrap(surface.rendererForTesting.session)
 
-        // Everything here is measured against the grid the host actually built.
-        // The surface is sized in points, so its row count follows the font the
-        // machine resolved: a literal row 20 and a literal 30 lines of output
-        // described a 24-row developer Mac and described nothing on a CI runner,
-        // where the grid never scrolled and the span therefore never rotated.
+        // Nothing here may assume a grid size or a shell: the surface is sized
+        // in points, so the row count follows the font the machine resolved,
+        // and how much output a fed line produces is the child's business. The
+        // earlier version anchored on row 20 of an assumed 24 and fed a fixed
+        // 30 lines; on a 28-row runner the anchor sat on blank cells, an empty
+        // region is no selection at all, and the span it waited for never
+        // existed. Content first, then the selection, then more content.
         let rows = Int(session.rows())
         let anchor = UInt16(max(1, min(20, rows - 4)))
-        // Scroll by a few lines only. The cursor starts on row 1, so it takes
-        // rows - 1 lines to reach the bottom and every line after that scrolls
-        // one: enough to move the anchor, few enough to keep it on the grid.
-        let scrollBy = 4
-        let payloadLines = rows - 1 + scrollBy
+
+        // Fill the grid so the anchor row holds real text.
+        Self.driveOscPayload(session, payload: String(repeating: "filler\n", count: rows + 5))
+        let fillDeadline = Date().addingTimeInterval(15.0)
+        var anchorRowText = ""
+        while Date() < fillDeadline {
+            _ = session.take_frame_delta()
+            anchorRowText = session.row_text(anchor).toString().trimmingCharacters(
+                in: .whitespaces)
+            if !anchorRowText.isEmpty { break }
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        XCTAssertFalse(
+            anchorRowText.isEmpty,
+            "precondition: row \(anchor) of \(rows) must hold content before it is selected")
 
         surface.setPendingSelectionForTesting(
             startRow: anchor, startCol: 0, endRow: anchor, endCol: 4)
@@ -1027,27 +1039,32 @@ final class CopyPasteTests: XCTestCase {
         XCTAssertEqual(
             surface.swiftSelectionSpan?[0], UInt32(anchor),
             "precondition: mirror starts on the pressed row")
+        XCTAssertEqual(
+            session.selection_span().count, 5,
+            "precondition: the engine holds a selection on a row with content")
 
-        // Fill the screen, then scroll it: the engine rotates its own
-        // selection with the content, the mirror knows nothing about it.
-        Self.feedAndWaitForFirstChar(session, payload: "hello\n", first: "h")
-        Self.driveOscPayload(
-            session, payload: String(repeating: "x\n", count: payloadLines))
-        let deadline = Date().addingTimeInterval(15.0)
+        // More output arrives: the engine rotates its own selection with the
+        // content, the mirror knows nothing about it. Fed a line at a time and
+        // checked after each, so the first rotation ends the loop before the
+        // selection can leave the grid.
         var engineStartRow: UInt32?
-        while Date() < deadline {
-            _ = session.take_frame_delta()
-            let span = session.selection_span()
-            if span.count == 5, span[0] != UInt32(anchor) {
-                engineStartRow = span[0]
-                break
+        feed: for _ in 0..<(rows * 2) {
+            Self.driveOscPayload(session, payload: "scrolled\n")
+            let deadline = Date().addingTimeInterval(0.5)
+            while Date() < deadline {
+                _ = session.take_frame_delta()
+                let span = session.selection_span()
+                if span.count == 5, span[0] != UInt32(anchor) {
+                    engineStartRow = span[0]
+                    break feed
+                }
+                Thread.sleep(forTimeInterval: 0.01)
             }
-            Thread.sleep(forTimeInterval: 0.01)
         }
         let rotatedRow = try XCTUnwrap(
             engineStartRow,
             "engine selection never rotated with the content "
-                + "(grid \(rows) rows, fed \(payloadLines) lines)")
+                + "(grid \(rows) rows, anchor \(anchor))")
 
         XCTAssertEqual(
             surface.swiftSelectionSpan?[0], UInt32(anchor),
