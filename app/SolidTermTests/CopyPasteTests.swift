@@ -1099,6 +1099,14 @@ final class CopyPasteTests: XCTestCase {
             backing: .buffered,
             defer: false)
         window.contentView = surface
+        // Swap the renderer's login shell for cat-loopback. Every assertion in
+        // this class reads the grid — the text at (0, 0), a selection over the
+        // first five columns — and a login shell writes a prompt there first,
+        // whose shape is the runner's business, not ours. The macos-14 job read
+        // its prompt where these tests expect "hello"; cat echoes exactly what
+        // is fed and nothing else, which is the loopback the helpers here have
+        // always described.
+        surface.rendererForTesting.attachSessionForTesting(makeCatSession())
         return surface
     }
 
