@@ -82,6 +82,31 @@ struct AppearanceTab: View {
         .frame(minWidth: 560, minHeight: 420)
     }
 
+    // MARK: Footer copy
+    //
+    // Held as typed constants rather than inline. Nine string literals joined
+    // with `+` inside a `Section` builder is what the Swift 5.9 compiler on the
+    // macos-14 runner could not type-check in reasonable time (the newer
+    // compiler on macos-15 managed it), and a footer's wording is not worth a
+    // toolchain-dependent build.
+
+    private static let keyboardFooter: String =
+        "When on, Option+key sends an ESC-prefixed sequence "
+        + "(e.g. Option+B → ESC B) for readline, emacs, and zsh "
+        + "Meta bindings. When off, Option composes accented "
+        + "characters normally (é, ∑, …)."
+
+    private static let restorationFooter: String =
+        "When on, SolidTerm reopens your previous windows and tabs "
+        + "on launch, each shell starting in its last working "
+        + "directory. Directories are also journalled every few "
+        + "seconds, so they survive a force quit or a crash. "
+        + "Scrollback is not restored.\n\n"
+        + "With the second option on, the command each window was "
+        + "running is typed back onto the prompt but NOT run — "
+        + "press Return to start it, or just keep typing to "
+        + "discard it."
+
     // MARK: Keyboard
 
     private var keyboardSection: some View {
@@ -90,11 +115,7 @@ struct AppearanceTab: View {
         } header: {
             Text("Keyboard")
         } footer: {
-            Text(
-                "When on, Option+key sends an ESC-prefixed sequence "
-                    + "(e.g. Option+B → ESC B) for readline, emacs, and zsh "
-                    + "Meta bindings. When off, Option composes accented "
-                    + "characters normally (é, ∑, …).")
+            Text(Self.keyboardFooter)
         }
     }
 
@@ -108,16 +129,7 @@ struct AppearanceTab: View {
         } header: {
             Text("Window restoration")
         } footer: {
-            Text(
-                "When on, SolidTerm reopens your previous windows and tabs "
-                    + "on launch, each shell starting in its last working "
-                    + "directory. Directories are also journalled every few "
-                    + "seconds, so they survive a force quit or a crash. "
-                    + "Scrollback is not restored.\n\n"
-                    + "With the second option on, the command each window was "
-                    + "running is typed back onto the prompt but NOT run — "
-                    + "press Return to start it, or just keep typing to "
-                    + "discard it.")
+            Text(Self.restorationFooter)
         }
     }
 
