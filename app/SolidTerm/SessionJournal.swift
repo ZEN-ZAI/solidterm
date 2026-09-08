@@ -276,20 +276,24 @@ final class SessionJournal {
     /// are dropped (reusing `WindowRestorerSupport.resolveCwd`), and the
     /// result is capped at `maxEntries` most-recent, ordered for display.
     static func load() -> [SessionJournalEntry] {
-        prune(loadRaw())
+        prune(loadRaw() ?? [])
     }
 
     /// Decode without pruning — the journal exactly as written. Restore
     /// membership is decided on this, not on `load()`: an entry dropped
     /// because its directory has since vanished still means "this window
     /// was open", and must not be mistaken for one the user closed.
-    static func loadRaw() -> [SessionJournalEntry] {
+    /// `nil` and `[]` mean different things and callers must keep them
+    /// apart. `nil` is "there is no journal" — missing file, unreadable,
+    /// or a format version we do not recognise. `[]` is a journal that
+    /// says, on the record, that nothing was open.
+    static func loadRaw() -> [SessionJournalEntry]? {
         guard
             let url = fileURL,
             let data = try? Data(contentsOf: url),
             let doc = try? JSONDecoder().decode(Document.self, from: data),
             doc.version == formatVersion
-        else { return [] }
+        else { return nil }
 
         return doc.windows
     }
@@ -333,13 +337,14 @@ final class SessionJournal {
     /// see the same list, and re-reading once per window would also mean
     /// re-parsing the file N times.
     private static var cachedRestoreSnapshot: [SessionJournalEntry]?
+    /// `nil` when there is no journal to have an opinion — see `loadRaw`.
     private static var cachedKnownIDs: Set<String>?
 
     static func restoreSnapshot() -> [SessionJournalEntry] {
         if let cached = cachedRestoreSnapshot { return cached }
         let raw = loadRaw()
-        cachedKnownIDs = Set(raw.map(\.id))
-        let pruned = prune(raw)
+        cachedKnownIDs = raw.map { Set($0.map(\.id)) }
+        let pruned = prune(raw ?? [])
         cachedRestoreSnapshot = pruned
         return pruned
     }
@@ -348,13 +353,18 @@ final class SessionJournal {
     ///
     /// `unregister` drops a deliberately closed window and flushes on the
     /// spot, so an id the journal has never heard of is one the user
-    /// closed — even when AppKit's saved state still lists it. Answers
-    /// `true` when the journal has no opinion (missing, unreadable, or
-    /// empty) so a first launch after upgrade, or a lost journal, never
-    /// suppresses AppKit's own restore.
+    /// closed — even when AppKit's saved state still lists it.
+    ///
+    /// An EMPTY journal is the strongest possible answer, not a shrug: it
+    /// says every window was closed before the app went away, which is
+    /// exactly what quitting by closing the last window looks like.
+    /// Reading it as "no opinion" is how a stale windows.plist got to
+    /// reopen nineteen long-dead windows at once. Only the ABSENCE of a
+    /// journal — first launch after upgrade, or a lost file — is really no
+    /// opinion, and only that lets AppKit restore unchallenged.
     static func knewWindow(_ id: String) -> Bool {
         _ = restoreSnapshot()
-        guard let known = cachedKnownIDs, !known.isEmpty else { return true }
+        guard let known = cachedKnownIDs else { return true }
         return known.contains(id)
     }
 

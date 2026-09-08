@@ -227,12 +227,20 @@ final class WindowRestorationTests: XCTestCase {
         }
     }
 
-    /// No journal (first launch after upgrade, or a lost file) means no
-    /// opinion — AppKit's restore must not be suppressed.
-    func testKnewWindowAcceptsEverythingWithoutAJournal() {
+    /// An empty journal is a statement, not a shrug: every window was
+    /// closed before the app went away. Nineteen dead windows came back at
+    /// once when this returned true.
+    func testKnewWindowRejectsEverythingWhenJournalIsEmpty() {
         withJournal(listing: []) {
-            XCTAssertTrue(SessionJournal.knewWindow("anything"))
+            XCTAssertFalse(
+                SessionJournal.knewWindow("anything"),
+                "a journal recording zero open windows must restore none of them")
         }
+    }
+
+    /// No journal at all (first launch after upgrade, or a lost file) is
+    /// the only real no-opinion — AppKit's restore must not be suppressed.
+    func testKnewWindowAcceptsEverythingWithoutAJournal() {
         SessionJournal.fileURLOverrideForTesting = URL(
             fileURLWithPath: "/definitely/not/here/journal.json")
         SessionJournal.resetRestoreSnapshotForTesting()
