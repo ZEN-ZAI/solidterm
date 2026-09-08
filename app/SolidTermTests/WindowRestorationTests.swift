@@ -12,10 +12,28 @@ import XCTest
 final class WindowRestorationTests: XCTestCase {
 
     private var controllers: [TerminalWindowController] = []
+    private var journalSandbox: URL!
+
+    /// Every controller built here spawns a shell and registers it with
+    /// the shared journal, and closing one flushes — so without a sandbox
+    /// this suite writes the USER'S journal in Application Support and
+    /// replaces their real session. (It did, once.)
+    override func setUp() {
+        super.setUp()
+        journalSandbox = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("solidterm-restore-suite-\(UUID().uuidString).json")
+        SessionJournal.fileURLOverrideForTesting = journalSandbox
+        SessionJournal.shared.resetForTesting()
+        SessionJournal.resetRestoreSnapshotForTesting()
+    }
 
     override func tearDown() {
         for c in controllers { c.window?.close() }
         controllers.removeAll()
+        SessionJournal.shared.resetForTesting()
+        SessionJournal.resetRestoreSnapshotForTesting()
+        SessionJournal.fileURLOverrideForTesting = nil
+        try? FileManager.default.removeItem(at: journalSandbox)
         super.tearDown()
     }
 
@@ -198,7 +216,7 @@ final class WindowRestorationTests: XCTestCase {
         SessionJournal.fileURLOverrideForTesting = url
         SessionJournal.resetRestoreSnapshotForTesting()
         defer {
-            SessionJournal.fileURLOverrideForTesting = nil
+            SessionJournal.fileURLOverrideForTesting = journalSandbox
             SessionJournal.resetRestoreSnapshotForTesting()
             try? FileManager.default.removeItem(at: url)
         }
@@ -245,7 +263,7 @@ final class WindowRestorationTests: XCTestCase {
             fileURLWithPath: "/definitely/not/here/journal.json")
         SessionJournal.resetRestoreSnapshotForTesting()
         defer {
-            SessionJournal.fileURLOverrideForTesting = nil
+            SessionJournal.fileURLOverrideForTesting = journalSandbox
             SessionJournal.resetRestoreSnapshotForTesting()
         }
         XCTAssertTrue(SessionJournal.knewWindow("anything"))

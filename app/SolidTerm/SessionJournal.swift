@@ -250,7 +250,12 @@ final class SessionJournal {
     static var fileURL: URL? {
         if let override = fileURLOverrideForTesting { return override }
         // Env override so a second instance (or a debug run) can be pointed
-        // at its own journal instead of fighting over the real one.
+        // at its own journal instead of fighting over the real one. The
+        // SolidTerm scheme's test action sets it too, and must keep doing
+        // so: the XCTest host IS this app, so `xcodebuild test` runs the
+        // real launch path — without the redirect the suite reads the
+        // developer's live journal, restores their terminals for real,
+        // and writes the file back over their session.
         if let path = ProcessInfo.processInfo.environment["SOLIDTERM_JOURNAL_PATH"],
             !path.isEmpty
         {

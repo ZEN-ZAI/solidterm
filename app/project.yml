@@ -212,6 +212,11 @@ schemes:
       config: Debug
     test:
       config: Debug
+      # The test host is SolidTerm.app itself, so its launch path runs for
+      # real. Point the session journal at a throwaway file or the suite
+      # restores — and then overwrites — the developer's live session.
+      environmentVariables:
+        SOLIDTERM_JOURNAL_PATH: /tmp/solidterm-xctest-journal.json
       targets:
         - SolidTermTests
     profile:
