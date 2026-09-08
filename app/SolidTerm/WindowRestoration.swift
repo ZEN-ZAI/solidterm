@@ -72,6 +72,17 @@ final class TerminalWindowRestorer: NSObject, NSWindowRestoration {
             return
         }
 
+        // Closing a window does NOT evict its record from AppKit's saved
+        // state, so without this every window the user deliberately closed
+        // is rebuilt here on the next launch (and then the journal fallback
+        // adds the windows that ARE still open on top). The journal is
+        // pruned the moment a window closes, so when it has an opinion it
+        // decides which ids still exist; AppKit still owns their frames.
+        guard SessionJournal.knewWindow(identifier.rawValue) else {
+            completionHandler(nil, nil)
+            return
+        }
+
         let cwd = state.decodeObject(of: NSString.self, forKey: RestoreCoderKeys.cwd) as String?
         let title =
             state.decodeObject(of: NSString.self, forKey: RestoreCoderKeys.titleOverride) as String?

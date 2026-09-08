@@ -177,6 +177,89 @@ final class WindowRestorationTests: XCTestCase {
             try XCTUnwrap(makeController(restoredTitle: "Restored X").window).title, "Restored X")
     }
 
+    // MARK: - Deliberately closed windows
+
+    /// Writes a journal listing `ids` and points the loader at it.
+    private func withJournal(
+        listing ids: [String], cwd: String = "/tmp", _ body: () throws -> Void
+    ) rethrows {
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("solidterm-known-\(UUID().uuidString).json")
+        let windows = ids.map {
+            """
+            {"id":"\($0)","cwd":"\(cwd)","title":"T","command":"",
+             "order":0,"tabGroupID":"g","updatedAt":1}
+            """
+        }
+        let doc = """
+            {"version":1,"updatedAt":1,"windows":[\(windows.joined(separator: ","))]}
+            """
+        try? doc.write(to: url, atomically: true, encoding: .utf8)
+        SessionJournal.fileURLOverrideForTesting = url
+        SessionJournal.resetRestoreSnapshotForTesting()
+        defer {
+            SessionJournal.fileURLOverrideForTesting = nil
+            SessionJournal.resetRestoreSnapshotForTesting()
+            try? FileManager.default.removeItem(at: url)
+        }
+        try body()
+    }
+
+    /// The bug this guards: AppKit keeps a saved-state record for a window
+    /// the user closed on purpose, so restore would bring it back.
+    func testKnewWindowRejectsIdTheJournalDropped() {
+        withJournal(listing: ["w-live"]) {
+            XCTAssertTrue(SessionJournal.knewWindow("w-live"))
+            XCTAssertFalse(
+                SessionJournal.knewWindow("w-closed"),
+                "an id the journal no longer lists was closed deliberately")
+        }
+    }
+
+    /// An entry pruned for a vanished cwd still means "this window was
+    /// open" — it must restore (at $HOME), not be treated as closed.
+    func testKnewWindowAcceptsEntryPrunedForMissingCwd() {
+        withJournal(listing: ["w-gone-cwd"], cwd: "/definitely/not/here/xyz123") {
+            XCTAssertTrue(SessionJournal.restoreSnapshot().isEmpty, "pruned out of the snapshot")
+            XCTAssertTrue(
+                SessionJournal.knewWindow("w-gone-cwd"),
+                "a missing directory is not the same as a closed window")
+        }
+    }
+
+    /// No journal (first launch after upgrade, or a lost file) means no
+    /// opinion — AppKit's restore must not be suppressed.
+    func testKnewWindowAcceptsEverythingWithoutAJournal() {
+        withJournal(listing: []) {
+            XCTAssertTrue(SessionJournal.knewWindow("anything"))
+        }
+        SessionJournal.fileURLOverrideForTesting = URL(
+            fileURLWithPath: "/definitely/not/here/journal.json")
+        SessionJournal.resetRestoreSnapshotForTesting()
+        defer {
+            SessionJournal.fileURLOverrideForTesting = nil
+            SessionJournal.resetRestoreSnapshotForTesting()
+        }
+        XCTAssertTrue(SessionJournal.knewWindow("anything"))
+    }
+
+    /// The other half of the fix: closing a window has to take it out of
+    /// AppKit's saved state too, or the record just comes back next quit.
+    func testDeliberateCloseMarksWindowNotRestorable() throws {
+        let delegate = AppDelegate()
+        let controller = makeController()
+        delegate.adoptRestoredController(controller)
+        let window = try XCTUnwrap(controller.window)
+        XCTAssertTrue(window.isRestorable, "windows are restorable while open")
+
+        delegate.windowWillClose(
+            Notification(name: NSWindow.willCloseNotification, object: window))
+
+        XCTAssertFalse(
+            window.isRestorable,
+            "a deliberately closed window must not be persisted by AppKit")
+    }
+
     func testAdoptRestoredControllerSetsDelegateAndIsIdempotent() throws {
         let delegate = AppDelegate()
         let controller = makeController()

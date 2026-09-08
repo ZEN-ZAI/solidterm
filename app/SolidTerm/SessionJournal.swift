@@ -276,6 +276,14 @@ final class SessionJournal {
     /// are dropped (reusing `WindowRestorerSupport.resolveCwd`), and the
     /// result is capped at `maxEntries` most-recent, ordered for display.
     static func load() -> [SessionJournalEntry] {
+        prune(loadRaw())
+    }
+
+    /// Decode without pruning — the journal exactly as written. Restore
+    /// membership is decided on this, not on `load()`: an entry dropped
+    /// because its directory has since vanished still means "this window
+    /// was open", and must not be mistaken for one the user closed.
+    static func loadRaw() -> [SessionJournalEntry] {
         guard
             let url = fileURL,
             let data = try? Data(contentsOf: url),
@@ -283,7 +291,7 @@ final class SessionJournal {
             doc.version == formatVersion
         else { return [] }
 
-        return prune(doc.windows)
+        return doc.windows
     }
 
     /// Pure prune/cap/order pass, split out of `load()` so it is unit
@@ -325,17 +333,35 @@ final class SessionJournal {
     /// see the same list, and re-reading once per window would also mean
     /// re-parsing the file N times.
     private static var cachedRestoreSnapshot: [SessionJournalEntry]?
+    private static var cachedKnownIDs: Set<String>?
 
     static func restoreSnapshot() -> [SessionJournalEntry] {
         if let cached = cachedRestoreSnapshot { return cached }
-        let loaded = load()
-        cachedRestoreSnapshot = loaded
-        return loaded
+        let raw = loadRaw()
+        cachedKnownIDs = Set(raw.map(\.id))
+        let pruned = prune(raw)
+        cachedRestoreSnapshot = pruned
+        return pruned
+    }
+
+    /// Was this window still open the last time the journal was written?
+    ///
+    /// `unregister` drops a deliberately closed window and flushes on the
+    /// spot, so an id the journal has never heard of is one the user
+    /// closed — even when AppKit's saved state still lists it. Answers
+    /// `true` when the journal has no opinion (missing, unreadable, or
+    /// empty) so a first launch after upgrade, or a lost journal, never
+    /// suppresses AppKit's own restore.
+    static func knewWindow(_ id: String) -> Bool {
+        _ = restoreSnapshot()
+        guard let known = cachedKnownIDs, !known.isEmpty else { return true }
+        return known.contains(id)
     }
 
     /// Test seam — drops the memoised snapshot.
     static func resetRestoreSnapshotForTesting() {
         cachedRestoreSnapshot = nil
+        cachedKnownIDs = nil
     }
 
     // MARK: - Command hygiene

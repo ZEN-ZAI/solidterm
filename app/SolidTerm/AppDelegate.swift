@@ -305,6 +305,15 @@ extension AppDelegate: NSWindowDelegate {
         // state we are quitting with (see `isTerminating`).
         if !isTerminating, let id = closing.identifier?.rawValue {
             SessionJournal.shared.unregister(windowID: id)
+            // Same for AppKit's half of the record. A closed window keeps
+            // its restorationClass and its windows.plist entry outlives
+            // the close, so the next launch would restore it regardless of
+            // what the journal says. Clearing `isRestorable` before the
+            // next save drops it; the journal check in
+            // `TerminalWindowRestorer` covers entries already on disk.
+            closing.isRestorable = false
+            closing.invalidateRestorableState()
+            NSApp.invalidateRestorableState()
         }
         windowControllers.removeAll { $0.window === closing }
     }
